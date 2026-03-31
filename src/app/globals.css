@@ -1,0 +1,151 @@
+@import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --limona-bg: #0a0a0a;
+  --limona-surface: #141414;
+  --limona-surface-2: #1a1a1a;
+  --limona-border: #2a2a2a;
+  --limona-lime: #BEFF00;
+  --limona-lime-hover: #D4FF33;
+  --limona-lime-active: #A8E600;
+  --limona-lime-glow: rgba(190, 255, 0, 0.15);
+  --limona-lime-subtle: rgba(190, 255, 0, 0.08);
+  --limona-white: #FFFFFF;
+  --limona-text: #E0E0E0;
+  --limona-text-muted: #808080;
+  --limona-text-dim: #4a4a4a;
+  --limona-green: #00E676;
+  --limona-red: #FF3D3D;
+  --limona-yellow: #FFD600;
+  --limona-blue: #448AFF;
+}
+
+* {
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+}
+
+html, body {
+  background-color: var(--limona-bg);
+  color: var(--limona-text);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 15px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--limona-bg);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--limona-border);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--limona-text-dim);
+}
+
+/* Selection */
+::selection {
+  background: rgba(190, 255, 0, 0.3);
+  color: var(--limona-white);
+}
+
+/* Input range (slider) styling for calculator */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 8px;
+  background: var(--limona-border);
+  border-radius: 4px;
+  outline: none;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--limona-lime);
+  cursor: pointer;
+  border: 2px solid var(--limona-bg);
+}
+input[type="range"]::-moz-range-thumb {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--limona-lime);
+  cursor: pointer;
+  border: 2px solid var(--limona-bg);
+}
+
+/* Number input - hide spinners */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+@layer components {
+  .limona-card {
+    @apply bg-limona-surface border border-limona-border rounded;
+  }
+  .limona-card-hover {
+    @apply limona-card transition-all duration-200;
+  }
+  .limona-card-hover:hover {
+    border-color: var(--limona-lime);
+    box-shadow: 0 0 20px var(--limona-lime-glow);
+  }
+  .limona-card-accent {
+    @apply limona-card border-l-[3px] border-l-limona-lime;
+  }
+  .limona-btn {
+    @apply bg-limona-lime text-black font-bold uppercase tracking-wider rounded-full px-6 py-3 text-sm transition-all duration-200 hover:bg-limona-lime-hover hover:shadow-lime-glow;
+  }
+  .limona-btn-sm {
+    @apply bg-limona-lime text-black font-bold uppercase tracking-wider rounded-full px-4 py-2 text-xs transition-all duration-200 hover:bg-limona-lime-hover hover:shadow-lime-glow;
+  }
+  .limona-btn-outline {
+    @apply border border-limona-border text-limona-text uppercase tracking-wider rounded-full px-6 py-3 text-sm font-bold transition-all duration-200 hover:border-limona-lime hover:text-limona-lime;
+  }
+  .limona-btn-ghost {
+    @apply text-limona-text-muted uppercase tracking-wider px-4 py-2 text-sm font-medium transition-all duration-200 hover:text-limona-lime;
+  }
+  .limona-input {
+    @apply w-full bg-limona-surface-2 border-0 border-b-2 border-limona-border text-limona-text px-3 py-3 text-sm rounded-t focus:outline-none focus:border-b-limona-lime transition-colors placeholder:text-limona-text-dim;
+  }
+  .limona-select {
+    @apply w-full bg-limona-surface-2 border-0 border-b-2 border-limona-border text-limona-text px-3 py-3 text-sm rounded-t focus:outline-none focus:border-b-limona-lime transition-colors appearance-none;
+  }
+  .limona-label {
+    @apply text-xs uppercase tracking-[0.15em] text-limona-lime font-heading font-medium;
+  }
+  .limona-heading {
+    @apply font-heading font-bold uppercase tracking-wide text-limona-white;
+  }
+  .limona-eyebrow {
+    @apply text-xs uppercase tracking-[0.15em] text-limona-lime font-heading font-medium;
+  }
+  .limona-badge {
+    @apply inline-flex items-center px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider;
+  }
+  .limona-money {
+    @apply font-mono tabular-nums;
+  }
+}

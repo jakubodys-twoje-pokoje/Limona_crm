@@ -1,0 +1,82 @@
+'use client'
+
+import { useEffect, useState, useCallback } from 'react'
+import { supabase } from '@/lib/supabase'
+import type { Task } from '@/types/database'
+
+export function useTasks(propertyId?: string) {
+  const [tasks, setTasks] = useState<Task[]>([])
+  const [loading, setLoading] = useState(true)
+
+  const fetchTasks = useCallback(async () => {
+    setLoading(true)
+    let query = supabase
+      .from('tasks')
+      .select(`
+        *,
+        property:property_id(id, location),
+        assignee:assigned_to(id, full_name, avatar_url)
+      `)
+      .order('created_at', { ascending: false })
+
+    if (propertyId) {
+      query = query.eq('property_id', propertyId)
+    }
+
+    const { data } = await query
+    setTasks((data as Task[]) || [])
+    setLoading(false)
+  }, [propertyId])
+
+  useEffect(() => {
+    fetchTasks()
+
+    const channel = supabase
+      .channel(`tasks-${propertyId || 'all'}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, fetchTasks)
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+  }, [fetchTasks, propertyId])
+
+  const createTask = async (data: Partial<Task>, userId: string) => {
+    const { data: newTask, error } = await supabase
+      .from('tasks')
+      .insert({ ...data, created_by: userId })
+      .select()
+      .single()
+    if (error) return { data: null, error: error.message }
+    if (data.property_id) {
+      await supabase.from('activity_log').insert({
+        property_id: data.property_id,
+        task_id: newTask.id,
+        user_id: userId,
+        action: 'task_created',
+        details: { title: newTask.title },
+      })
+    }
+    return { data: newTask, error: null }
+  }
+
+  const updateTask = async (id: string, updates: Partial<Task>, userId: string) => {
+    const isCompleting = updates.status === 'done'
+    const { data, error } = await supabase
+      .from('tasks')
+      .update({
+        ...updates,
+        ...(isCompleting ? { completed_at: new Date().toISOString() } : {}),
+      })
+      .eq('id', id)
+      .select()
+      .single()
+    if (error) return { data: null, error: error.message }
+    return { data, error: null }
+  }
+
+  const deleteTask = async (id: string) => {
+    const { error } = await supabase.from('tasks').delete().eq('id', id)
+    return { error: error?.message ?? null }
+  }
+
+  return { tasks, loading, fetchTasks, createTask, updateTask, deleteTask }
+}

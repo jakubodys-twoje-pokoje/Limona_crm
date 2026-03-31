@@ -1,0 +1,133 @@
+export type PropertyStatus =
+  | 'new'
+  | 'analysis'
+  | 'offer_sent'
+  | 'negotiation'
+  | 'contract'
+  | 'legal_cleanup'
+  | 'sale'
+  | 'completed'
+  | 'rejected'
+
+export type ContactType = 'posrednik' | 'prywatne'
+
+export type PropertyType = 'mieszkanie' | 'dom' | 'grunt' | 'hala' | 'inne'
+
+export type TaskStatus = 'todo' | 'in_progress' | 'done' | 'blocked'
+
+export type TaskPriority = 'low' | 'medium' | 'high' | 'urgent'
+
+export type UserRole = 'admin' | 'user' | 'viewer'
+
+export interface Profile {
+  id: string
+  full_name: string
+  avatar_url: string | null
+  role: UserRole
+  created_at: string
+}
+
+export interface Property {
+  id: string
+  location: string
+  trello_link: string | null
+  phone: string | null
+  contact_type: ContactType | null
+  property_type: PropertyType | null
+  area_sqm: number | null
+  value_per_sqm: number | null
+  rw: number | null
+  total_debt: number
+  debt_type: 'below_value' | 'above_value' | null
+  creditor1_amount: number
+  creditor2_amount: number
+  creditor3_amount: number
+  owner_coefficient: number
+  commission_pct: number
+  notary_fee: number
+  manual_offer: number | null
+  status: PropertyStatus
+  decision: string | null
+  notes: string | null
+  created_by: string | null
+  assigned_to: string | null
+  created_at: string
+  updated_at: string
+  // Joined fields
+  creator?: Profile
+  assignee?: Profile
+}
+
+export interface Task {
+  id: string
+  property_id: string | null
+  title: string
+  description: string | null
+  status: TaskStatus
+  priority: TaskPriority
+  due_date: string | null
+  assigned_to: string | null
+  created_by: string | null
+  completed_at: string | null
+  created_at: string
+  updated_at: string
+  // Joined fields
+  property?: Property
+  assignee?: Profile
+  creator?: Profile
+}
+
+export interface ActivityLog {
+  id: string
+  property_id: string | null
+  task_id: string | null
+  user_id: string | null
+  action: string
+  details: Record<string, unknown> | null
+  created_at: string
+  // Joined fields
+  user?: Profile
+  property?: Property
+}
+
+export interface Document {
+  id: string
+  property_id: string
+  name: string
+  file_url: string
+  file_type: string | null
+  uploaded_by: string | null
+  created_at: string
+}
+
+export interface Database {
+  public: {
+    Tables: {
+      profiles: {
+        Row: Profile
+        Insert: Omit<Profile, 'created_at'>
+        Update: Partial<Omit<Profile, 'id' | 'created_at'>>
+      }
+      properties: {
+        Row: Property
+        Insert: Omit<Property, 'id' | 'rw' | 'created_at' | 'updated_at' | 'creator' | 'assignee'>
+        Update: Partial<Omit<Property, 'id' | 'rw' | 'created_at' | 'updated_at' | 'creator' | 'assignee'>>
+      }
+      tasks: {
+        Row: Task
+        Insert: Omit<Task, 'id' | 'created_at' | 'updated_at' | 'property' | 'assignee' | 'creator'>
+        Update: Partial<Omit<Task, 'id' | 'created_at' | 'updated_at' | 'property' | 'assignee' | 'creator'>>
+      }
+      activity_log: {
+        Row: ActivityLog
+        Insert: Omit<ActivityLog, 'id' | 'created_at' | 'user' | 'property'>
+        Update: Partial<Omit<ActivityLog, 'id' | 'created_at' | 'user' | 'property'>>
+      }
+      documents: {
+        Row: Document
+        Insert: Omit<Document, 'id' | 'created_at'>
+        Update: Partial<Omit<Document, 'id' | 'created_at'>>
+      }
+    }
+  }
+}
