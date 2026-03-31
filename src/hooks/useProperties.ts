@@ -4,14 +4,17 @@ import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { Property } from '@/types/database'
 
-export function useProperties() {
+/**
+ * @param visibleUserIds - array of user IDs whose properties to show (null = show all, e.g. for admin)
+ */
+export function useProperties(visibleUserIds?: string[] | null) {
   const [properties, setProperties] = useState<Property[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   const fetchProperties = useCallback(async () => {
     setLoading(true)
-    const { data, error } = await supabase
+    let query = supabase
       .from('properties')
       .select(`
         *,
@@ -20,13 +23,22 @@ export function useProperties() {
       `)
       .order('created_at', { ascending: false })
 
+    // Apply visibility filter
+    if (visibleUserIds && visibleUserIds.length > 0) {
+      query = query.or(
+        `assigned_to.in.(${visibleUserIds.join(',')}),created_by.in.(${visibleUserIds.join(',')})`
+      )
+    }
+
+    const { data, error } = await query
+
     if (error) {
       setError(error.message)
     } else {
       setProperties((data as Property[]) || [])
     }
     setLoading(false)
-  }, [])
+  }, [visibleUserIds])
 
   useEffect(() => {
     fetchProperties()

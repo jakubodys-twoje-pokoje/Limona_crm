@@ -8,6 +8,7 @@ import { Building2, Calculator, ListTodo, TrendingUp, Clock, CheckCircle, AlertC
 import { useProperties } from '@/hooks/useProperties'
 import { useTasks } from '@/hooks/useTasks'
 import { useAuth } from '@/hooks/useAuth'
+import { useVisibleUserIds } from '@/hooks/useTeamVisibility'
 import { Badge } from '@/components/ui/Badge'
 import { Avatar } from '@/components/ui/Avatar'
 import { Skeleton } from '@/components/ui/Skeleton'
@@ -42,9 +43,10 @@ const statusLabels: Record<string, string> = {
 }
 
 export default function DashboardPage() {
-  const { properties, loading: propsLoading } = useProperties()
-  const { tasks, loading: tasksLoading } = useTasks()
   const { profile } = useAuth()
+  const { visibleIds } = useVisibleUserIds(profile?.id, profile?.role)
+  const { properties, loading: propsLoading } = useProperties(visibleIds)
+  const { tasks, loading: tasksLoading } = useTasks(undefined, visibleIds)
 
   const stats = useMemo(() => {
     const active = properties.filter(p => p.status !== 'rejected')
@@ -132,7 +134,7 @@ export default function DashboardPage() {
           </div>
           <div className="limona-card p-4 border-l-[3px] border-l-limona-blue">
             <p className="limona-eyebrow text-xs mb-2">Pot. zysk</p>
-            <p className="font-heading font-bold text-2xl text-limona-white font-mono">
+            <p className="font-mono font-bold text-2xl text-limona-white">
               {formatMoney(stats.totalPotentialProfit)}
             </p>
             <p className="text-xs text-limona-text-muted mt-1">suma OK nieruchomości</p>

@@ -5,6 +5,7 @@ export const dynamic = 'force-dynamic'
 import { useState } from 'react'
 import { useProperties } from '@/hooks/useProperties'
 import { useAuth } from '@/hooks/useAuth'
+import { useVisibleUserIds } from '@/hooks/useTeamVisibility'
 import { PropertiesTable } from '@/components/properties/PropertiesTable'
 import { PropertyForm } from '@/components/properties/PropertyForm'
 import { Modal } from '@/components/ui/Modal'
@@ -12,8 +13,9 @@ import { useToast } from '@/components/ui/Toast'
 import type { Property } from '@/types/database'
 
 export default function NieruchomosciPage() {
-  const { properties, loading, createProperty, updateProperty, deleteProperty } = useProperties()
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
+  const { visibleIds } = useVisibleUserIds(user?.id, profile?.role)
+  const { properties, loading, createProperty, updateProperty, deleteProperty } = useProperties(visibleIds)
   const { showToast } = useToast()
 
   const [showAddModal, setShowAddModal] = useState(false)

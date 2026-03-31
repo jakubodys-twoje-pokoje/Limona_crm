@@ -4,7 +4,11 @@ import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { Task } from '@/types/database'
 
-export function useTasks(propertyId?: string) {
+/**
+ * @param propertyId - filter tasks for a specific property
+ * @param visibleUserIds - array of user IDs whose tasks to show (null = show all, e.g. for admin)
+ */
+export function useTasks(propertyId?: string, visibleUserIds?: string[] | null) {
   const [tasks, setTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -15,7 +19,8 @@ export function useTasks(propertyId?: string) {
       .select(`
         *,
         property:property_id(id, location),
-        assignee:assigned_to(id, full_name, avatar_url)
+        assignee:assigned_to(id, full_name, avatar_url),
+        creator:created_by(id, full_name, avatar_url)
       `)
       .order('created_at', { ascending: false })
 
@@ -23,10 +28,17 @@ export function useTasks(propertyId?: string) {
       query = query.eq('property_id', propertyId)
     }
 
+    // Apply visibility filter: only show tasks assigned to or created by visible users
+    if (visibleUserIds && visibleUserIds.length > 0) {
+      query = query.or(
+        `assigned_to.in.(${visibleUserIds.join(',')}),created_by.in.(${visibleUserIds.join(',')})`
+      )
+    }
+
     const { data } = await query
     setTasks((data as Task[]) || [])
     setLoading(false)
-  }, [propertyId])
+  }, [propertyId, visibleUserIds])
 
   useEffect(() => {
     fetchTasks()

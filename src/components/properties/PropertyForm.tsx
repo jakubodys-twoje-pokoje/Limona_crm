@@ -196,16 +196,17 @@ export function PropertyForm({ initial = {}, onSubmit, onCancel, submitLabel = '
           <div>
             <label className="limona-label block mb-2">Prowizja pośrednika (%)</label>
             <input
-              type="number"
+              type="text"
+              inputMode="decimal"
               className="limona-input"
               value={form.commission_pct}
-              onChange={e => set('commission_pct', e.target.value)}
-              placeholder="0"
-              min="0"
-              max="100"
-              step="0.01"
+              onChange={e => {
+                const v = e.target.value.replace(',', '.')
+                if (v === '' || /^\d*\.?\d*$/.test(v)) set('commission_pct', v)
+              }}
+              placeholder="2.46"
             />
-            <span className="text-xs text-limona-text-dim">Wpisz jako %, np. 2.46</span>
+            <span className="text-xs text-limona-text-dim">Wpisz jako %, np. 2.46 — dziesiętne OK</span>
           </div>
           <div>
             <label className="limona-label block mb-2">Taksa notarialna [zł]</label>

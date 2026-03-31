@@ -55,17 +55,18 @@ export function Calculator1({ input, onChange, showInputs = true }: Calculator1P
             <div>
               <label className="limona-label block mb-2">Prowizja pośrednika (L) [%]</label>
               <input
-                type="number"
+                type="text"
+                inputMode="decimal"
                 className="limona-input"
-                value={input.commissionPct ? (input.commissionPct * 100).toFixed(2) : ''}
+                value={input.commissionPct ? (input.commissionPct * 100).toString() : ''}
                 onChange={e => {
-                  const v = parseFloat(e.target.value)
-                  onChange('commissionPct', isNaN(v) ? 0 : v / 100)
+                  const raw = e.target.value.replace(',', '.')
+                  if (raw === '' || /^\d*\.?\d*$/.test(raw)) {
+                    const v = parseFloat(raw)
+                    onChange('commissionPct', isNaN(v) ? 0 : v / 100)
+                  }
                 }}
                 placeholder="2.46"
-                min="0"
-                max="100"
-                step="0.01"
               />
             </div>
             <div>

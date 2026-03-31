@@ -2,13 +2,14 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Building2, Calculator, ListTodo, User } from 'lucide-react'
+import { Building2, Calculator, ListTodo, MessageSquare, User } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const tabs = [
   { href: '/nieruchomosci', icon: Building2, label: 'CRM' },
   { href: '/kalkulator', icon: Calculator, label: 'Kalk' },
   { href: '/zadania', icon: ListTodo, label: 'Zadania' },
+  { href: '/wall', icon: MessageSquare, label: 'Wall' },
   { href: '/dashboard', icon: User, label: 'Profil' },
 ]
 

@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { Plus, Calendar, Link as LinkIcon, Trash2, CheckCircle, Clock, AlertCircle, XCircle } from 'lucide-react'
 import { useTasks } from '@/hooks/useTasks'
 import { useAuth } from '@/hooks/useAuth'
+import { useVisibleUserIds } from '@/hooks/useTeamVisibility'
 import { useToast } from '@/components/ui/Toast'
 import { Badge } from '@/components/ui/Badge'
 import { Avatar } from '@/components/ui/Avatar'
@@ -47,8 +48,9 @@ const EMPTY_FORM: TaskFormData = {
 }
 
 export default function ZadaniaPage() {
-  const { tasks, loading, createTask, updateTask, deleteTask } = useTasks()
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
+  const { visibleIds } = useVisibleUserIds(user?.id, profile?.role)
+  const { tasks, loading, createTask, updateTask, deleteTask } = useTasks(undefined, visibleIds)
   const { showToast } = useToast()
 
   const [view, setView] = useState<'kanban' | 'list'>('kanban')

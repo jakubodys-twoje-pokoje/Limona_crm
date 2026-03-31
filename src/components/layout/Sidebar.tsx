@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Building2, Calculator, ListTodo, Settings, LogOut } from 'lucide-react'
+import { LayoutDashboard, Building2, Calculator, ListTodo, MessageSquare, Users, LogOut } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { Avatar } from '@/components/ui/Avatar'
 import { cn } from '@/lib/utils'
@@ -12,6 +12,8 @@ const navItems = [
   { href: '/nieruchomosci', icon: Building2, label: 'Nieruchomości' },
   { href: '/kalkulator', icon: Calculator, label: 'Kalkulator' },
   { href: '/zadania', icon: ListTodo, label: 'Zadania' },
+  { href: '/wall', icon: MessageSquare, label: 'Wall' },
+  { href: '/zespol', icon: Users, label: 'Zespół' },
 ]
 
 export function Sidebar() {
