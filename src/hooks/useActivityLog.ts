@@ -24,7 +24,7 @@ export function useActivityLog(propertyId: string) {
     fetchLogs()
 
     const channel = supabase
-      .channel(`activity-${propertyId}`)
+      .channel(`activity-${propertyId}-${Date.now()}`)
       .on('postgres_changes', {
         event: 'INSERT',
         schema: 'public',

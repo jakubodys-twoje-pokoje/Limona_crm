@@ -45,7 +45,7 @@ export function useProperties(visibleUserIds?: string[] | null) {
 
     // Realtime subscription
     const channel = supabase
-      .channel('properties-changes')
+      .channel(`properties-changes-${Date.now()}`)
       .on('postgres_changes', {
         event: '*',
         schema: 'public',

@@ -32,7 +32,7 @@ export function useTaskComments(taskId: string) {
     fetchComments()
 
     const channel = supabase
-      .channel(`comments-${taskId}`)
+      .channel(`comments-${taskId}-${Date.now()}`)
       .on('postgres_changes', {
         event: '*',
         schema: 'public',

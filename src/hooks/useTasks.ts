@@ -44,7 +44,7 @@ export function useTasks(propertyId?: string, visibleUserIds?: string[] | null) 
     fetchTasks()
 
     const channel = supabase
-      .channel(`tasks-${propertyId || 'all'}`)
+      .channel(`tasks-${propertyId || 'all'}-${Date.now()}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, fetchTasks)
       .subscribe()
 

@@ -43,7 +43,7 @@ export function useWall(currentUserId?: string) {
     fetchReads()
 
     const channel = supabase
-      .channel('wall-realtime')
+      .channel(`wall-realtime-${Date.now()}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'wall_messages' }, fetchMessages)
       .subscribe()
 
