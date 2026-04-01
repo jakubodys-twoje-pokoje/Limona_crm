@@ -12,8 +12,9 @@ export interface WallMessage {
   user?: { id: string; full_name: string; avatar_url: string | null; role: string }
 }
 
-export function useWall() {
+export function useWall(currentUserId?: string) {
   const [messages, setMessages] = useState<WallMessage[]>([])
+  const [readIds, setReadIds] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
 
   const fetchMessages = useCallback(async () => {
@@ -28,8 +29,18 @@ export function useWall() {
     setLoading(false)
   }, [])
 
+  const fetchReads = useCallback(async () => {
+    if (!currentUserId) return
+    const { data } = await supabase
+      .from('wall_reads')
+      .select('message_id')
+      .eq('user_id', currentUserId)
+    setReadIds(new Set((data || []).map((r: { message_id: string }) => r.message_id)))
+  }, [currentUserId])
+
   useEffect(() => {
     fetchMessages()
+    fetchReads()
 
     const channel = supabase
       .channel('wall-realtime')
@@ -37,11 +48,29 @@ export function useWall() {
       .subscribe()
 
     return () => { supabase.removeChannel(channel) }
-  }, [fetchMessages])
+  }, [fetchMessages, fetchReads])
+
+  const unreadCount = messages.filter(m => !readIds.has(m.id) && m.user_id !== currentUserId).length
 
   const postMessage = async (content: string, userId: string) => {
-    const { error } = await supabase.from('wall_messages').insert({ content, user_id: userId })
-    return { error: error?.message ?? null }
+    const { data, error } = await supabase
+      .from('wall_messages')
+      .insert({ content, user_id: userId })
+      .select()
+      .single()
+    if (error) return { error: error.message, data: null }
+    // Mark own message as read
+    if (data) {
+      await supabase.from('wall_reads').insert({ user_id: userId, message_id: data.id })
+      setReadIds(prev => { const next = new Set(Array.from(prev)); next.add(data.id); return next })
+    }
+    return { error: null, data }
+  }
+
+  const markAsRead = async (messageId: string, userId: string) => {
+    if (readIds.has(messageId)) return
+    await supabase.from('wall_reads').insert({ user_id: userId, message_id: messageId }).select()
+    setReadIds(prev => { const next = new Set(Array.from(prev)); next.add(messageId); return next })
   }
 
   const deleteMessage = async (id: string) => {
@@ -54,5 +83,7 @@ export function useWall() {
     return { error: error?.message ?? null }
   }
 
-  return { messages, loading, postMessage, deleteMessage, togglePin }
+  const isRead = (messageId: string) => readIds.has(messageId)
+
+  return { messages, loading, unreadCount, postMessage, deleteMessage, togglePin, markAsRead, isRead }
 }

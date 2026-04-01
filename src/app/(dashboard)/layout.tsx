@@ -7,6 +7,7 @@ import { Sidebar } from '@/components/layout/Sidebar'
 import { MobileNav } from '@/components/layout/MobileNav'
 import { TopBar } from '@/components/layout/TopBar'
 import { ToastProvider } from '@/components/ui/Toast'
+import { NotificationModal } from '@/components/ui/NotificationModal'
 
 export default function DashboardLayout({
   children,
@@ -43,6 +44,7 @@ export default function DashboardLayout({
           </div>
         </main>
         <MobileNav />
+        <NotificationModal />
       </div>
     </ToastProvider>
   )

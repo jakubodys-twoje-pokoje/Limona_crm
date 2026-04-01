@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic'
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { Plus, Calendar, Link as LinkIcon, Trash2, CheckCircle, Clock, AlertCircle, XCircle } from 'lucide-react'
+import { Plus, Calendar, Link as LinkIcon, Trash2, CheckCircle, Clock, AlertCircle, XCircle, MessageCircle } from 'lucide-react'
 import { useTasks } from '@/hooks/useTasks'
 import { useAuth } from '@/hooks/useAuth'
 import { useVisibleUserIds } from '@/hooks/useTeamVisibility'
@@ -163,6 +163,8 @@ export default function ZadaniaPage() {
                       isOverdue={isOverdue(task)}
                       onMove={moveTask}
                       onDelete={() => deleteTask(task.id)}
+                      userId={user?.id || ''}
+                      isAdmin={profile?.role === 'admin'}
                     />
                   ))}
                   {colTasks.length === 0 && (
@@ -268,13 +270,21 @@ export default function ZadaniaPage() {
   )
 }
 
-function TaskCard({ task, isOverdue, onMove, onDelete }: {
+function TaskCard({ task, isOverdue, onMove, onDelete, userId, isAdmin }: {
   task: Task
   isOverdue: boolean
   onMove: (task: Task, status: TaskStatus) => void
   onDelete: () => void
+  userId: string
+  isAdmin: boolean
 }) {
+  const [showComments, setShowComments] = useState(false)
   const statuses: TaskStatus[] = ['todo', 'in_progress', 'done', 'blocked']
+
+  // Lazy import TaskComments to avoid circular deps
+  const TaskCommentsComponent = showComments
+    ? require('@/components/tasks/TaskComments').TaskComments
+    : null
 
   return (
     <div className={cn(
@@ -292,7 +302,12 @@ function TaskCard({ task, isOverdue, onMove, onDelete }: {
       </div>
 
       <div className="flex items-center justify-between gap-2">
-        <Badge value={task.priority} />
+        <div className="flex items-center gap-2">
+          <Badge value={task.priority} />
+          {task.assignee && (
+            <Avatar name={task.assignee.full_name} url={task.assignee.avatar_url} size="sm" />
+          )}
+        </div>
         {isOverdue && (
           <span className="flex items-center gap-1 text-[10px] text-limona-red uppercase tracking-wider">
             <AlertCircle size={10} />
@@ -315,15 +330,31 @@ function TaskCard({ task, isOverdue, onMove, onDelete }: {
         </Link>
       )}
 
-      {/* Quick move */}
-      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-        {statuses.filter(s => s !== task.status).map(s => (
-          <button key={s} onClick={() => onMove(task, s)}
-            className="text-[9px] px-2 py-0.5 bg-limona-border/30 hover:bg-limona-lime/20 hover:text-limona-lime rounded-full uppercase tracking-wider transition-colors">
-            {s === 'todo' ? 'Todo' : s === 'in_progress' ? 'W trakcie' : s === 'done' ? 'Done' : 'Blocked'}
-          </button>
-        ))}
+      {/* Actions row */}
+      <div className="flex items-center justify-between">
+        {/* Quick move */}
+        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          {statuses.filter(s => s !== task.status).map(s => (
+            <button key={s} onClick={() => onMove(task, s)}
+              className="text-[9px] px-2 py-0.5 bg-limona-border/30 hover:bg-limona-lime/20 hover:text-limona-lime rounded-full uppercase tracking-wider transition-colors">
+              {s === 'todo' ? 'Todo' : s === 'in_progress' ? 'W trakcie' : s === 'done' ? 'Done' : 'Blocked'}
+            </button>
+          ))}
+        </div>
+        {/* Comments toggle */}
+        <button onClick={() => setShowComments(!showComments)}
+          className={cn('p-1 transition-colors text-[10px] flex items-center gap-1',
+            showComments ? 'text-limona-lime' : 'text-limona-text-dim hover:text-limona-text-muted')}>
+          <MessageCircle size={10} />
+        </button>
       </div>
+
+      {/* Comments section */}
+      {showComments && TaskCommentsComponent && (
+        <div className="pt-2 border-t border-limona-border/50">
+          <TaskCommentsComponent taskId={task.id} userId={userId} isAdmin={isAdmin} />
+        </div>
+      )}
     </div>
   )
 }
