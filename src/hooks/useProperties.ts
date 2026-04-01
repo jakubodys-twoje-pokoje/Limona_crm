@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
+import type { RealtimeChannel } from '@supabase/supabase-js'
 import type { Property } from '@/types/database'
 
 /**
@@ -40,12 +41,18 @@ export function useProperties(visibleUserIds?: string[] | null) {
     setLoading(false)
   }, [visibleUserIds])
 
+  const channelRef = useRef<RealtimeChannel | null>(null)
+
   useEffect(() => {
     fetchProperties()
 
-    // Realtime subscription
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current)
+      channelRef.current = null
+    }
+
     const channel = supabase
-      .channel(`properties-changes-${Date.now()}`)
+      .channel(`properties-changes-${Math.random().toString(36).slice(2)}`)
       .on('postgres_changes', {
         event: '*',
         schema: 'public',
@@ -55,7 +62,12 @@ export function useProperties(visibleUserIds?: string[] | null) {
       })
       .subscribe()
 
-    return () => { supabase.removeChannel(channel) }
+    channelRef.current = channel
+
+    return () => {
+      supabase.removeChannel(channel)
+      channelRef.current = null
+    }
   }, [fetchProperties])
 
   const createProperty = async (data: Partial<Property>, userId: string): Promise<{ data: Property | null; error: string | null }> => {

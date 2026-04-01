@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
+import type { RealtimeChannel } from '@supabase/supabase-js'
 
 export interface TaskComment {
   id: string
@@ -28,11 +29,18 @@ export function useTaskComments(taskId: string) {
     setLoading(false)
   }, [taskId])
 
+  const channelRef = useRef<RealtimeChannel | null>(null)
+
   useEffect(() => {
     fetchComments()
 
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current)
+      channelRef.current = null
+    }
+
     const channel = supabase
-      .channel(`comments-${taskId}-${Date.now()}`)
+      .channel(`comments-${taskId}-${Math.random().toString(36).slice(2)}`)
       .on('postgres_changes', {
         event: '*',
         schema: 'public',
@@ -41,7 +49,12 @@ export function useTaskComments(taskId: string) {
       }, fetchComments)
       .subscribe()
 
-    return () => { supabase.removeChannel(channel) }
+    channelRef.current = channel
+
+    return () => {
+      supabase.removeChannel(channel)
+      channelRef.current = null
+    }
   }, [fetchComments, taskId])
 
   const addComment = async (content: string, userId: string) => {

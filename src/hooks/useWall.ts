@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
+import type { RealtimeChannel } from '@supabase/supabase-js'
 
 export interface WallMessage {
   id: string
@@ -38,16 +39,28 @@ export function useWall(currentUserId?: string) {
     setReadIds(new Set((data || []).map((r: { message_id: string }) => r.message_id)))
   }, [currentUserId])
 
+  const channelRef = useRef<RealtimeChannel | null>(null)
+
   useEffect(() => {
     fetchMessages()
     fetchReads()
 
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current)
+      channelRef.current = null
+    }
+
     const channel = supabase
-      .channel(`wall-realtime-${Date.now()}`)
+      .channel(`wall-realtime-${Math.random().toString(36).slice(2)}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'wall_messages' }, fetchMessages)
       .subscribe()
 
-    return () => { supabase.removeChannel(channel) }
+    channelRef.current = channel
+
+    return () => {
+      supabase.removeChannel(channel)
+      channelRef.current = null
+    }
   }, [fetchMessages, fetchReads])
 
   const unreadCount = messages.filter(m => !readIds.has(m.id) && m.user_id !== currentUserId).length

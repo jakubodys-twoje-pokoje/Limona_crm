@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
+import type { RealtimeChannel } from '@supabase/supabase-js'
 import type { Task } from '@/types/database'
 
 /**
@@ -40,15 +41,27 @@ export function useTasks(propertyId?: string, visibleUserIds?: string[] | null) 
     setLoading(false)
   }, [propertyId, visibleUserIds])
 
+  const channelRef = useRef<RealtimeChannel | null>(null)
+
   useEffect(() => {
     fetchTasks()
 
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current)
+      channelRef.current = null
+    }
+
     const channel = supabase
-      .channel(`tasks-${propertyId || 'all'}-${Date.now()}`)
+      .channel(`tasks-${propertyId || 'all'}-${Math.random().toString(36).slice(2)}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, fetchTasks)
       .subscribe()
 
-    return () => { supabase.removeChannel(channel) }
+    channelRef.current = channel
+
+    return () => {
+      supabase.removeChannel(channel)
+      channelRef.current = null
+    }
   }, [fetchTasks, propertyId])
 
   const createTask = async (data: Partial<Task>, userId: string) => {

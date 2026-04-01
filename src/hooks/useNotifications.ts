@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
+import type { RealtimeChannel } from '@supabase/supabase-js'
 
 export interface Notification {
   id: string
@@ -37,14 +38,21 @@ export function useNotifications(userId: string | undefined) {
     setLoading(false)
   }, [userId])
 
+  const channelRef = useRef<RealtimeChannel | null>(null)
+
   useEffect(() => {
     fetchNotifications()
 
     if (!userId) return
 
-    const channelName = `notifications-${userId}-${Date.now()}`
+    // Clean up any existing channel first
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current)
+      channelRef.current = null
+    }
+
     const channel = supabase
-      .channel(channelName)
+      .channel(`notifications-${userId}-${Math.random().toString(36).slice(2)}`)
       .on('postgres_changes', {
         event: 'INSERT',
         schema: 'public',
@@ -52,14 +60,18 @@ export function useNotifications(userId: string | undefined) {
         filter: `user_id=eq.${userId}`,
       }, (payload) => {
         fetchNotifications()
-        // Dispatch custom event for the modal popup
         window.dispatchEvent(new CustomEvent('limona-notification', {
           detail: payload.new
         }))
       })
       .subscribe()
 
-    return () => { supabase.removeChannel(channel) }
+    channelRef.current = channel
+
+    return () => {
+      supabase.removeChannel(channel)
+      channelRef.current = null
+    }
   }, [fetchNotifications, userId])
 
   const markAsRead = async (id: string) => {
