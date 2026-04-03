@@ -2,9 +2,10 @@
 
 export const dynamic = 'force-dynamic'
 
-import { useState, useRef, useEffect, useMemo } from 'react'
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import { Send, Pin, PinOff, Trash2, MessageSquare, Check } from 'lucide-react'
-import { useWall, type WallMessage } from '@/hooks/useWall'
+import { useWallContext } from '@/hooks/useWallProvider'
+import type { WallMessage } from '@/hooks/useWall'
 import { useTasks } from '@/hooks/useTasks'
 import { useAuth } from '@/hooks/useAuth'
 import { useToast } from '@/components/ui/Toast'
@@ -19,7 +20,7 @@ import type { Profile } from '@/types/database'
 
 export default function WallPage() {
   const { user, profile } = useAuth()
-  const { messages, loading, unreadCount, postMessage, deleteMessage, togglePin, markAsRead, isRead } = useWall(user?.id)
+  const { messages, loading, postMessage, deleteMessage, togglePin, markAsRead, isRead } = useWallContext()
   const { tasks } = useTasks()
   const { visibleIds } = useVisibleUserIds(user?.id, profile?.role)
   const { showToast } = useToast()
@@ -29,8 +30,11 @@ export default function WallPage() {
 
   const isAdmin = profile?.role === 'admin'
 
-  // Fetch all profiles for @mention lookup
+  // Fetch all profiles for @mention lookup (once)
+  const profilesFetched = useRef(false)
   useEffect(() => {
+    if (profilesFetched.current) return
+    profilesFetched.current = true
     supabase.from('profiles').select('*').order('full_name').then(({ data }) => {
       setProfiles((data as Profile[]) || [])
     })
@@ -79,8 +83,8 @@ export default function WallPage() {
     await markAsRead(msg.id, user.id)
   }
 
-  const pinned = messages.filter(m => m.pinned)
-  const regular = messages.filter(m => !m.pinned)
+  const pinned = useMemo(() => messages.filter(m => m.pinned), [messages])
+  const regular = useMemo(() => messages.filter(m => !m.pinned), [messages])
 
   function formatTime(dateStr: string) {
     const d = new Date(dateStr)
@@ -106,7 +110,7 @@ export default function WallPage() {
    * Render message content with @mentions highlighted and #task references
    * rendered according to visibility rules.
    */
-  function renderContent(content: string) {
+  const renderContent = useCallback(function renderContent(content: string) {
     const mentions = parseMentions(content, profiles)
     const taskRefs = parseTaskRefs(content, tasks)
 
@@ -162,7 +166,7 @@ export default function WallPage() {
     }
 
     return <>{parts}</>
-  }
+  }, [profiles, tasks, user?.id, visibleIds])
 
   return (
     <div className="space-y-6 max-w-3xl">

@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useEffect, useState, useCallback } from 'react'
+import { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { Profile } from '@/types/database'
 import type { User, Session } from '@supabase/supabase-js'
@@ -70,29 +70,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => subscription.unsubscribe()
   }, [fetchProfile])
 
-  const signIn = async (email: string, password: string) => {
+  const signIn = useCallback(async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     return { error: error?.message ?? null }
-  }
+  }, [])
 
-  const signUp = async (email: string, password: string, fullName: string) => {
+  const signUp = useCallback(async (email: string, password: string, fullName: string) => {
     const { error } = await supabase.auth.signUp({
       email,
       password,
       options: { data: { full_name: fullName } },
     })
     return { error: error?.message ?? null }
-  }
+  }, [])
 
-  const signOut = async () => {
+  const signOut = useCallback(async () => {
     await supabase.auth.signOut()
     setUser(null)
     setProfile(null)
     setSession(null)
-  }
+  }, [])
+
+  const value = useMemo(() => ({
+    user, profile, session, loading, signIn, signUp, signOut
+  }), [user, profile, session, loading, signIn, signUp, signOut])
 
   return (
-    <AuthContext.Provider value={{ user, profile, session, loading, signIn, signUp, signOut }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   )

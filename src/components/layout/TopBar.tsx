@@ -1,12 +1,13 @@
 'use client'
 
+import { memo } from 'react'
 import { Building2 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { Avatar } from '@/components/ui/Avatar'
 import { NotificationBell } from '@/components/ui/NotificationBell'
 import Link from 'next/link'
 
-export function TopBar() {
+export const TopBar = memo(function TopBar() {
   const { user, profile } = useAuth()
 
   return (
@@ -25,4 +26,4 @@ export function TopBar() {
       </div>
     </header>
   )
-}
+})

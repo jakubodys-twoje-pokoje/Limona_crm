@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { RealtimeChannel } from '@supabase/supabase-js'
+import { useDebouncedCallback } from '@/hooks/useDebouncedCallback'
 
 export interface WallMessage {
   id: string
@@ -39,6 +40,7 @@ export function useWall(currentUserId?: string) {
     setReadIds(new Set((data || []).map((r: { message_id: string }) => r.message_id)))
   }, [currentUserId])
 
+  const debouncedFetchMessages = useDebouncedCallback(fetchMessages, 500)
   const channelRef = useRef<RealtimeChannel | null>(null)
 
   useEffect(() => {
@@ -52,7 +54,7 @@ export function useWall(currentUserId?: string) {
 
     const channel = supabase
       .channel(`wall-realtime-${Math.random().toString(36).slice(2)}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'wall_messages' }, fetchMessages)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'wall_messages' }, debouncedFetchMessages)
       .subscribe()
 
     channelRef.current = channel

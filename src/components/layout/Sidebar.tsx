@@ -1,10 +1,11 @@
 'use client'
 
+import { memo } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { LayoutDashboard, Building2, Calculator, ListTodo, MessageSquare, Users, UserCog, User, LogOut } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
-import { useWall } from '@/hooks/useWall'
+import { useWallContext } from '@/hooks/useWallProvider'
 import { NotificationBell } from '@/components/ui/NotificationBell'
 import { Avatar } from '@/components/ui/Avatar'
 import { cn } from '@/lib/utils'
@@ -22,10 +23,10 @@ const adminItems = [
   { href: '/admin', icon: UserCog, label: 'Użytkownicy' },
 ]
 
-export function Sidebar() {
+export const Sidebar = memo(function Sidebar() {
   const pathname = usePathname()
   const { user, profile, signOut } = useAuth()
-  const { unreadCount } = useWall(user?.id)
+  const { unreadCount } = useWallContext()
   const isAdmin = profile?.role === 'admin'
 
   const allItems = [...navItems, ...(isAdmin ? adminItems : [])]
@@ -88,4 +89,4 @@ export function Sidebar() {
       </div>
     </aside>
   )
-}
+})

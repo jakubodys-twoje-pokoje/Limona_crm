@@ -1,10 +1,11 @@
 'use client'
 
+import { memo } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Building2, Calculator, ListTodo, MessageSquare, User } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
-import { useWall } from '@/hooks/useWall'
+import { useWallContext } from '@/hooks/useWallProvider'
 import { cn } from '@/lib/utils'
 
 const tabs = [
@@ -15,10 +16,10 @@ const tabs = [
   { href: '/profil', icon: User, label: 'Profil' },
 ]
 
-export function MobileNav() {
+export const MobileNav = memo(function MobileNav() {
   const pathname = usePathname()
   const { user } = useAuth()
-  const { unreadCount } = useWall(user?.id)
+  const { unreadCount } = useWallContext()
 
   return (
     <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-limona-surface border-t border-limona-border">
@@ -47,4 +48,4 @@ export function MobileNav() {
       </div>
     </nav>
   )
-}
+})

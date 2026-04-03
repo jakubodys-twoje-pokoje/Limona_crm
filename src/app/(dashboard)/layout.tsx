@@ -8,6 +8,7 @@ import { MobileNav } from '@/components/layout/MobileNav'
 import { TopBar } from '@/components/layout/TopBar'
 import { ToastProvider } from '@/components/ui/Toast'
 import { NotificationModal } from '@/components/ui/NotificationModal'
+import { WallProvider } from '@/hooks/useWallProvider'
 
 export default function DashboardLayout({
   children,
@@ -35,17 +36,19 @@ export default function DashboardLayout({
 
   return (
     <ToastProvider>
-      <div className="min-h-screen bg-limona-bg">
-        <Sidebar />
-        <TopBar />
-        <main className="lg:ml-64 pt-14 lg:pt-0 pb-20 lg:pb-0 min-h-screen">
-          <div className="p-4 lg:p-8">
-            {children}
-          </div>
-        </main>
-        <MobileNav />
-        <NotificationModal />
-      </div>
+      <WallProvider>
+        <div className="min-h-screen bg-limona-bg">
+          <Sidebar />
+          <TopBar />
+          <main className="lg:ml-64 pt-14 lg:pt-0 pb-20 lg:pb-0 min-h-screen">
+            <div className="p-4 lg:p-8">
+              {children}
+            </div>
+          </main>
+          <MobileNav />
+          <NotificationModal />
+        </div>
+      </WallProvider>
     </ToastProvider>
   )
 }

@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { RealtimeChannel } from '@supabase/supabase-js'
+import { useDebouncedCallback } from '@/hooks/useDebouncedCallback'
 import type { Task } from '@/types/database'
 
 /**
@@ -41,6 +42,7 @@ export function useTasks(propertyId?: string, visibleUserIds?: string[] | null) 
     setLoading(false)
   }, [propertyId, visibleUserIds])
 
+  const debouncedFetchTasks = useDebouncedCallback(fetchTasks, 500)
   const channelRef = useRef<RealtimeChannel | null>(null)
 
   useEffect(() => {
@@ -53,7 +55,7 @@ export function useTasks(propertyId?: string, visibleUserIds?: string[] | null) 
 
     const channel = supabase
       .channel(`tasks-${propertyId || 'all'}-${Math.random().toString(36).slice(2)}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, fetchTasks)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, debouncedFetchTasks)
       .subscribe()
 
     channelRef.current = channel

@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { RealtimeChannel } from '@supabase/supabase-js'
+import { useDebouncedCallback } from '@/hooks/useDebouncedCallback'
 import type { Property } from '@/types/database'
 
 /**
@@ -41,6 +42,7 @@ export function useProperties(visibleUserIds?: string[] | null) {
     setLoading(false)
   }, [visibleUserIds])
 
+  const debouncedFetchProperties = useDebouncedCallback(fetchProperties, 500)
   const channelRef = useRef<RealtimeChannel | null>(null)
 
   useEffect(() => {
@@ -57,9 +59,7 @@ export function useProperties(visibleUserIds?: string[] | null) {
         event: '*',
         schema: 'public',
         table: 'properties',
-      }, () => {
-        fetchProperties()
-      })
+      }, debouncedFetchProperties)
       .subscribe()
 
     channelRef.current = channel
