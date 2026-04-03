@@ -1,8 +1,6 @@
 'use client'
 
 import { useEffect, useState, useCallback, useRef } from 'react'
-import { supabase } from '@/lib/supabase'
-import type { RealtimeChannel } from '@supabase/supabase-js'
 
 export interface Notification {
   id: string
@@ -22,73 +20,53 @@ export function useNotifications(userId: string | undefined) {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
   const [loading, setLoading] = useState(true)
+  const prevCountRef = useRef(0)
 
   const fetchNotifications = useCallback(async () => {
     if (!userId) return
-    const { data } = await supabase
-      .from('notifications')
-      .select('*, from_user:from_user_id(id, full_name, avatar_url)')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false })
-      .limit(50)
+    const res = await fetch('/api/notifications')
+    if (!res.ok) { setLoading(false); return }
+    const data: Notification[] = await res.json()
+    setNotifications(data)
+    const newUnread = data.filter(n => !n.read).length
 
-    const notifs = (data as Notification[]) || []
-    setNotifications(notifs)
-    setUnreadCount(notifs.filter(n => !n.read).length)
+    // Dispatch popup if new notifications arrived
+    if (newUnread > prevCountRef.current && data.length > 0) {
+      const newest = data[0]
+      if (!newest.read) {
+        window.dispatchEvent(new CustomEvent('limona-notification', { detail: newest }))
+      }
+    }
+    prevCountRef.current = newUnread
+    setUnreadCount(newUnread)
     setLoading(false)
   }, [userId])
 
-  const channelRef = useRef<RealtimeChannel | null>(null)
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
     fetchNotifications()
-
-    if (!userId) return
-
-    // Clean up any existing channel first
-    if (channelRef.current) {
-      supabase.removeChannel(channelRef.current)
-      channelRef.current = null
-    }
-
-    const channel = supabase
-      .channel(`notifications-${userId}-${Math.random().toString(36).slice(2)}`)
-      .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'notifications',
-        filter: `user_id=eq.${userId}`,
-      }, (payload) => {
-        fetchNotifications()
-        window.dispatchEvent(new CustomEvent('limona-notification', {
-          detail: payload.new
-        }))
-      })
-      .subscribe()
-
-    channelRef.current = channel
-
-    return () => {
-      supabase.removeChannel(channel)
-      channelRef.current = null
-    }
-  }, [fetchNotifications, userId])
+    intervalRef.current = setInterval(fetchNotifications, 8000) // poll every 8s
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
+  }, [fetchNotifications])
 
   const markAsRead = async (id: string) => {
-    await supabase.from('notifications').update({ read: true }).eq('id', id)
+    await fetch(`/api/notifications/${id}`, { method: 'PATCH' })
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n))
     setUnreadCount(prev => Math.max(0, prev - 1))
+    prevCountRef.current = Math.max(0, prevCountRef.current - 1)
   }
 
   const markAllRead = async () => {
     if (!userId) return
-    await supabase.from('notifications').update({ read: true }).eq('user_id', userId).eq('read', false)
+    await fetch('/api/notifications/mark-all-read', { method: 'POST' })
     setNotifications(prev => prev.map(n => ({ ...n, read: true })))
     setUnreadCount(0)
+    prevCountRef.current = 0
   }
 
   const deleteNotification = async (id: string) => {
-    await supabase.from('notifications').delete().eq('id', id)
+    await fetch(`/api/notifications/${id}`, { method: 'DELETE' })
     setNotifications(prev => prev.filter(n => n.id !== id))
   }
 
@@ -105,13 +83,9 @@ export async function createNotification(params: {
   link?: string
   referenceId?: string
 }) {
-  await supabase.from('notifications').insert({
-    user_id: params.userId,
-    from_user_id: params.fromUserId,
-    type: params.type,
-    title: params.title,
-    body: params.body || null,
-    link: params.link || null,
-    reference_id: params.referenceId || null,
+  await fetch('/api/notifications', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params),
   })
 }

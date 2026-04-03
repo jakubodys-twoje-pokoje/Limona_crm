@@ -3,8 +3,7 @@
 export const dynamic = 'force-dynamic'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Shield, Trash2, Edit, Save, X } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
+import { Shield, Trash2, Edit, Save, X, UserPlus } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { useToast } from '@/components/ui/Toast'
 import { Avatar } from '@/components/ui/Avatar'
@@ -25,9 +24,14 @@ export default function AdminPage() {
   const [deleteConfirm, setDeleteConfirm] = useState<Profile | null>(null)
   const [saving, setSaving] = useState(false)
 
+  // Create user form
+  const [showCreateModal, setShowCreateModal] = useState(false)
+  const [createForm, setCreateForm] = useState({ email: '', password: '', fullName: '', role: 'user' as UserRole })
+  const [creating, setCreating] = useState(false)
+
   const fetchProfiles = useCallback(async () => {
-    const { data } = await supabase.from('profiles').select('*').order('full_name')
-    setProfiles((data as Profile[]) || [])
+    const res = await fetch('/api/profiles')
+    if (res.ok) setProfiles(await res.json())
     setLoading(false)
   }, [])
 
@@ -41,22 +45,41 @@ export default function AdminPage() {
   async function handleSave() {
     if (!editingUser) return
     setSaving(true)
-    const { error } = await supabase
-      .from('profiles')
-      .update({ full_name: editForm.full_name, role: editForm.role, avatar_url: editForm.avatar_url || null })
-      .eq('id', editingUser.id)
+    const res = await fetch(`/api/profiles/${editingUser.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ full_name: editForm.full_name, role: editForm.role, avatar_url: editForm.avatar_url || null }),
+    })
 
-    if (error) showToast(error.message, 'error')
+    if (!res.ok) showToast((await res.json()).error || 'Błąd', 'error')
     else { showToast('Profil zaktualizowany', 'success'); setEditingUser(null); fetchProfiles() }
     setSaving(false)
   }
 
   async function handleDelete() {
     if (!deleteConfirm) return
-    const { error } = await supabase.from('profiles').delete().eq('id', deleteConfirm.id)
-    if (error) showToast(error.message, 'error')
+    const res = await fetch(`/api/profiles/${deleteConfirm.id}`, { method: 'DELETE' })
+    if (!res.ok) showToast((await res.json()).error || 'Błąd', 'error')
     else { showToast('Użytkownik usunięty', 'success'); fetchProfiles() }
     setDeleteConfirm(null)
+  }
+
+  async function handleCreateUser(e: React.FormEvent) {
+    e.preventDefault()
+    setCreating(true)
+    const res = await fetch('/api/admin/create-user', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(createForm),
+    })
+    if (!res.ok) showToast((await res.json()).error || 'Błąd', 'error')
+    else {
+      showToast('Użytkownik utworzony', 'success')
+      setShowCreateModal(false)
+      setCreateForm({ email: '', password: '', fullName: '', role: 'user' })
+      fetchProfiles()
+    }
+    setCreating(false)
   }
 
   if (!isAdmin) {
@@ -71,10 +94,16 @@ export default function AdminPage() {
 
   return (
     <div className="space-y-6 max-w-4xl">
-      <div>
-        <span className="limona-eyebrow">Administracja</span>
-        <h1 className="limona-heading text-3xl mt-1">Zarządzanie użytkownikami</h1>
-        <p className="text-limona-text-muted text-sm mt-1">Edytuj profile, role i avatary użytkowników</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <span className="limona-eyebrow">Administracja</span>
+          <h1 className="limona-heading text-3xl mt-1">Zarządzanie użytkownikami</h1>
+          <p className="text-limona-text-muted text-sm mt-1">Edytuj profile, role i avatary użytkowników</p>
+        </div>
+        <button onClick={() => setShowCreateModal(true)} className="limona-btn flex items-center gap-2">
+          <UserPlus size={16} />
+          Dodaj użytkownika
+        </button>
       </div>
 
       {loading ? (
@@ -109,6 +138,38 @@ export default function AdminPage() {
         </div>
       )}
 
+      {/* Create User Modal */}
+      <Modal isOpen={showCreateModal} onClose={() => setShowCreateModal(false)} title="Dodaj użytkownika" size="md">
+        <form onSubmit={handleCreateUser} className="space-y-4">
+          <div>
+            <label className="limona-label block mb-2">Imię i nazwisko *</label>
+            <input className="limona-input" value={createForm.fullName} onChange={e => setCreateForm(f => ({ ...f, fullName: e.target.value }))} required autoFocus />
+          </div>
+          <div>
+            <label className="limona-label block mb-2">Email *</label>
+            <input type="email" className="limona-input" value={createForm.email} onChange={e => setCreateForm(f => ({ ...f, email: e.target.value }))} required />
+          </div>
+          <div>
+            <label className="limona-label block mb-2">Hasło *</label>
+            <input type="password" className="limona-input" value={createForm.password} onChange={e => setCreateForm(f => ({ ...f, password: e.target.value }))} required minLength={6} placeholder="Minimum 6 znaków" />
+          </div>
+          <div>
+            <label className="limona-label block mb-2">Rola</label>
+            <select className="limona-select" value={createForm.role} onChange={e => setCreateForm(f => ({ ...f, role: e.target.value as UserRole }))}>
+              <option value="admin">Admin</option>
+              <option value="user">User</option>
+              <option value="viewer">Viewer</option>
+            </select>
+          </div>
+          <div className="flex gap-3 justify-end pt-2">
+            <button type="button" onClick={() => setShowCreateModal(false)} className="limona-btn-outline">Anuluj</button>
+            <button type="submit" disabled={creating} className="limona-btn disabled:opacity-50">
+              {creating ? 'Tworzenie...' : 'Utwórz'}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
       {/* Edit Modal */}
       <Modal isOpen={!!editingUser} onClose={() => setEditingUser(null)} title={`Edytuj: ${editingUser?.full_name}`} size="md">
         <div className="space-y-4">
@@ -131,7 +192,6 @@ export default function AdminPage() {
           <div>
             <label className="limona-label block mb-2">Avatar URL</label>
             <input className="limona-input" value={editForm.avatar_url} onChange={e => setEditForm(f => ({ ...f, avatar_url: e.target.value }))} placeholder="https://... lub pozostaw puste dla inicjałów" />
-            <p className="text-xs text-limona-text-dim mt-1">Wklej URL do zdjęcia lub zostaw puste — wyświetlą się inicjały</p>
           </div>
           <div className="flex gap-3 justify-end pt-2">
             <button onClick={() => setEditingUser(null)} className="limona-btn-outline">Anuluj</button>
@@ -149,7 +209,7 @@ export default function AdminPage() {
             <p className="text-limona-text">
               Czy na pewno usunąć <span className="text-limona-white font-medium">{deleteConfirm.full_name}</span>?
             </p>
-            <p className="text-xs text-limona-red">Uwaga: Usunięcie profilu nie usuwa konta z Supabase Auth. Aby w pełni usunąć konto, zrób to z poziomu Supabase Dashboard.</p>
+            <p className="text-xs text-limona-red">Uwaga: Usunięcie jest nieodwracalne i usunie wszystkie dane użytkownika.</p>
             <div className="flex gap-3 justify-end">
               <button onClick={() => setDeleteConfirm(null)} className="limona-btn-outline">Anuluj</button>
               <button onClick={handleDelete} className="bg-limona-red text-white font-bold uppercase tracking-wider rounded-full px-6 py-3 text-sm hover:opacity-90">Usuń</button>

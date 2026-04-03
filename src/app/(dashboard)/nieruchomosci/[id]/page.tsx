@@ -5,8 +5,7 @@ export const dynamic = 'force-dynamic'
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Edit, ExternalLink, Clock, User, MapPin, Phone, Plus, CheckCircle, Circle, Trash2 } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
+import { ArrowLeft, Edit, ExternalLink, Clock, User, Phone, Plus, CheckCircle, Circle, Trash2 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { useProperties } from '@/hooks/useProperties'
 import { useTasks } from '@/hooks/useTasks'
@@ -50,7 +49,6 @@ export default function PropertyDetailPage() {
   const [showEditModal, setShowEditModal] = useState(false)
   const [newTaskTitle, setNewTaskTitle] = useState('')
 
-  // Calc inputs pre-filled from property
   const [calc1Input, setCalc1Input] = useState<Calc1Input>({
     valuePerSqm: 0, totalDebt: 0, commissionPct: 0, notaryFee: 1000, manualOffer: null,
   })
@@ -61,17 +59,11 @@ export default function PropertyDetailPage() {
 
   useEffect(() => {
     async function load() {
-      const { data } = await supabase
-        .from('properties')
-        .select(`*, creator:created_by(id, full_name, avatar_url), assignee:assigned_to(id, full_name, avatar_url)`)
-        .eq('id', propertyId)
-        .single()
-
-      if (!data) { router.push('/nieruchomosci'); return }
-      const p = data as Property
+      const res = await fetch(`/api/properties/${propertyId}`)
+      if (!res.ok) { router.push('/nieruchomosci'); return }
+      const p: Property = await res.json()
       setProperty(p)
 
-      // Pre-fill calculator inputs
       if (p.debt_type === 'above_value') {
         setCalc2Input({
           valuePerSqm: p.value_per_sqm || 0,
@@ -104,12 +96,8 @@ export default function PropertyDetailPage() {
     if (error) { showToast(error, 'error'); return }
     showToast('Zaktualizowano', 'success')
     setShowEditModal(false)
-    // Reload
-    const { data: updated } = await supabase
-      .from('properties')
-      .select(`*, creator:created_by(id, full_name, avatar_url), assignee:assigned_to(id, full_name, avatar_url)`)
-      .eq('id', propertyId).single()
-    if (updated) setProperty(updated as Property)
+    const res = await fetch(`/api/properties/${propertyId}`)
+    if (res.ok) setProperty(await res.json())
   }
 
   async function handleDelete() {
@@ -147,7 +135,6 @@ export default function PropertyDetailPage() {
 
   return (
     <div className="space-y-6 max-w-5xl">
-      {/* Back + header */}
       <div className="flex items-start justify-between gap-4">
         <div>
           <Link href="/nieruchomosci" className="flex items-center gap-2 text-limona-text-muted hover:text-limona-lime text-sm mb-3 transition-colors">
@@ -177,7 +164,6 @@ export default function PropertyDetailPage() {
         </div>
       </div>
 
-      {/* Info cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <div className="limona-card p-4">
           <p className="text-xs text-limona-text-muted mb-1">Wartość (I)</p>
@@ -197,7 +183,6 @@ export default function PropertyDetailPage() {
         </div>
       </div>
 
-      {/* Meta */}
       <div className="limona-card p-4 grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
         {property.phone && (
           <div className="flex items-center gap-2">
@@ -230,7 +215,6 @@ export default function PropertyDetailPage() {
         </div>
       )}
 
-      {/* Tabs */}
       <div className="flex gap-1 border-b border-limona-border">
         {([
           { key: 'calc', label: 'Kalkulator' },
@@ -252,7 +236,6 @@ export default function PropertyDetailPage() {
         ))}
       </div>
 
-      {/* Tab content */}
       {activeTab === 'calc' && (
         <div className="limona-card p-4 lg:p-6">
           {isAbove ? (
@@ -349,7 +332,6 @@ export default function PropertyDetailPage() {
         </div>
       )}
 
-      {/* Edit Modal */}
       <Modal isOpen={showEditModal} onClose={() => setShowEditModal(false)} title="Edytuj nieruchomość" size="xl">
         <PropertyForm
           initial={property}

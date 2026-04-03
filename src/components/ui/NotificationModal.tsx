@@ -40,10 +40,9 @@ export function NotificationModal() {
 
     // Fetch from_user name
     if (detail.from_user_id) {
-      import('@/lib/supabase').then(({ supabase }) => {
-        supabase.from('profiles').select('full_name').eq('id', detail.from_user_id!).single().then(({ data }) => {
-          if (data) setFromName(data.full_name)
-        })
+      fetch('/api/profiles').then(r => r.json()).then((profiles: { id: string; full_name: string }[]) => {
+        const p = profiles.find(p => p.id === detail.from_user_id)
+        if (p) setFromName(p.full_name)
       })
     }
   }, [])

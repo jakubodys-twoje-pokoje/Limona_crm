@@ -1,7 +1,5 @@
 'use client'
 
-export const dynamic = 'force-dynamic'
-
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
@@ -33,7 +31,6 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center px-4">
       <div className="w-full max-w-md">
-        {/* Logo */}
         <div className="text-center mb-10">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded bg-limona-lime/10 mb-4">
             <Building2 size={32} className="text-limona-lime" />
@@ -46,7 +43,6 @@ export default function LoginPage() {
           </p>
         </div>
 
-        {/* Form */}
         <div className="limona-card p-8">
           <div className="mb-6">
             <span className="limona-eyebrow">Logowanie</span>

@@ -14,7 +14,6 @@ import { Skeleton } from '@/components/ui/Skeleton'
 import { parseMentions, parseTaskRefs, extractMentionedUserIds, isTaskVisibleToUser } from '@/lib/mentions'
 import { createNotification } from '@/hooks/useNotifications'
 import { useVisibleUserIds } from '@/hooks/useTeamVisibility'
-import { supabase } from '@/lib/supabase'
 import { cn } from '@/lib/utils'
 import type { Profile } from '@/types/database'
 
@@ -35,7 +34,7 @@ export default function WallPage() {
   useEffect(() => {
     if (profilesFetched.current) return
     profilesFetched.current = true
-    supabase.from('profiles').select('*').order('full_name').then(({ data }) => {
+    fetch('/api/profiles').then(r => r.json()).then(data => {
       setProfiles((data as Profile[]) || [])
     })
   }, [])

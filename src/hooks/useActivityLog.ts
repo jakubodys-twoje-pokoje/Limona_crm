@@ -1,8 +1,6 @@
 'use client'
 
 import { useEffect, useState, useCallback, useRef } from 'react'
-import { supabase } from '@/lib/supabase'
-import type { RealtimeChannel } from '@supabase/supabase-js'
 import type { ActivityLog } from '@/types/database'
 
 export function useActivityLog(propertyId: string) {
@@ -10,44 +8,18 @@ export function useActivityLog(propertyId: string) {
   const [loading, setLoading] = useState(true)
 
   const fetchLogs = useCallback(async () => {
-    const { data } = await supabase
-      .from('activity_log')
-      .select(`*, user:user_id(id, full_name, avatar_url)`)
-      .eq('property_id', propertyId)
-      .order('created_at', { ascending: false })
-      .limit(50)
-
-    setLogs((data as ActivityLog[]) || [])
+    const res = await fetch(`/api/activity?propertyId=${propertyId}`)
+    if (res.ok) setLogs(await res.json())
     setLoading(false)
   }, [propertyId])
 
-  const channelRef = useRef<RealtimeChannel | null>(null)
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
     fetchLogs()
-
-    if (channelRef.current) {
-      supabase.removeChannel(channelRef.current)
-      channelRef.current = null
-    }
-
-    const channel = supabase
-      .channel(`activity-${propertyId}-${Math.random().toString(36).slice(2)}`)
-      .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'activity_log',
-        filter: `property_id=eq.${propertyId}`,
-      }, fetchLogs)
-      .subscribe()
-
-    channelRef.current = channel
-
-    return () => {
-      supabase.removeChannel(channel)
-      channelRef.current = null
-    }
-  }, [fetchLogs, propertyId])
+    intervalRef.current = setInterval(fetchLogs, 15000)
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
+  }, [fetchLogs])
 
   return { logs, loading }
 }

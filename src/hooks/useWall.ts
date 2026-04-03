@@ -1,8 +1,6 @@
 'use client'
 
 import { useEffect, useState, useCallback, useRef } from 'react'
-import { supabase } from '@/lib/supabase'
-import type { RealtimeChannel } from '@supabase/supabase-js'
 import { useDebouncedCallback } from '@/hooks/useDebouncedCallback'
 
 export interface WallMessage {
@@ -19,83 +17,65 @@ export function useWall(currentUserId?: string) {
   const [readIds, setReadIds] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
 
-  const fetchMessages = useCallback(async () => {
-    const { data } = await supabase
-      .from('wall_messages')
-      .select('*, user:user_id(id, full_name, avatar_url, role)')
-      .order('pinned', { ascending: false })
-      .order('created_at', { ascending: false })
-      .limit(100)
-
-    setMessages((data as WallMessage[]) || [])
+  const fetchAll = useCallback(async () => {
+    const res = await fetch('/api/wall')
+    if (!res.ok) { setLoading(false); return }
+    const data = await res.json()
+    setMessages(data.messages || [])
+    setReadIds(new Set(data.readIds || []))
     setLoading(false)
   }, [])
 
-  const fetchReads = useCallback(async () => {
-    if (!currentUserId) return
-    const { data } = await supabase
-      .from('wall_reads')
-      .select('message_id')
-      .eq('user_id', currentUserId)
-    setReadIds(new Set((data || []).map((r: { message_id: string }) => r.message_id)))
-  }, [currentUserId])
-
-  const debouncedFetchMessages = useDebouncedCallback(fetchMessages, 500)
-  const channelRef = useRef<RealtimeChannel | null>(null)
+  const debouncedFetch = useDebouncedCallback(fetchAll, 500)
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
-    fetchMessages()
-    fetchReads()
-
-    if (channelRef.current) {
-      supabase.removeChannel(channelRef.current)
-      channelRef.current = null
-    }
-
-    const channel = supabase
-      .channel(`wall-realtime-${Math.random().toString(36).slice(2)}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'wall_messages' }, debouncedFetchMessages)
-      .subscribe()
-
-    channelRef.current = channel
-
-    return () => {
-      supabase.removeChannel(channel)
-      channelRef.current = null
-    }
-  }, [fetchMessages, fetchReads])
+    fetchAll()
+    intervalRef.current = setInterval(debouncedFetch, 5000) // poll every 5s for wall
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
+  }, [fetchAll, debouncedFetch])
 
   const unreadCount = messages.filter(m => !readIds.has(m.id) && m.user_id !== currentUserId).length
 
-  const postMessage = async (content: string, userId: string) => {
-    const { data, error } = await supabase
-      .from('wall_messages')
-      .insert({ content, user_id: userId })
-      .select()
-      .single()
-    if (error) return { error: error.message, data: null }
-    // Mark own message as read
-    if (data) {
-      await supabase.from('wall_reads').insert({ user_id: userId, message_id: data.id })
-      setReadIds(prev => { const next = new Set(Array.from(prev)); next.add(data.id); return next })
-    }
+  const postMessage = async (content: string, _userId: string) => {
+    const res = await fetch('/api/wall', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content }),
+    })
+    if (!res.ok) return { error: (await res.json()).error || 'Error', data: null }
+    const data = await res.json()
+    setReadIds(prev => { const next = new Set(Array.from(prev)); next.add(data.id); return next })
+    fetchAll()
     return { error: null, data }
   }
 
-  const markAsRead = async (messageId: string, userId: string) => {
+  const markAsRead = async (messageId: string, _userId: string) => {
     if (readIds.has(messageId)) return
-    await supabase.from('wall_reads').insert({ user_id: userId, message_id: messageId }).select()
+    await fetch('/api/wall/read', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messageId }),
+    })
     setReadIds(prev => { const next = new Set(Array.from(prev)); next.add(messageId); return next })
   }
 
   const deleteMessage = async (id: string) => {
-    const { error } = await supabase.from('wall_messages').delete().eq('id', id)
-    return { error: error?.message ?? null }
+    const res = await fetch(`/api/wall/${id}`, { method: 'DELETE' })
+    if (!res.ok) return { error: 'Error' }
+    fetchAll()
+    return { error: null }
   }
 
   const togglePin = async (id: string, pinned: boolean) => {
-    const { error } = await supabase.from('wall_messages').update({ pinned: !pinned }).eq('id', id)
-    return { error: error?.message ?? null }
+    const res = await fetch(`/api/wall/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pinned: !pinned }),
+    })
+    if (!res.ok) return { error: 'Error' }
+    fetchAll()
+    return { error: null }
   }
 
   const isRead = (messageId: string) => readIds.has(messageId)

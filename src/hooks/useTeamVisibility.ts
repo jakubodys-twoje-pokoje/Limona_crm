@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { supabase } from '@/lib/supabase'
 import type { Profile } from '@/types/database'
 
 export interface TeamVisibilityRule {
@@ -18,52 +17,39 @@ export function useTeamVisibility() {
   const [profiles, setProfiles] = useState<Profile[]>([])
   const [loading, setLoading] = useState(true)
 
-  const fetch = useCallback(async () => {
+  const fetchData = useCallback(async () => {
     const [rulesRes, profilesRes] = await Promise.all([
-      supabase
-        .from('team_visibility')
-        .select('*, manager:manager_id(id, full_name, avatar_url, role), member:member_id(id, full_name, avatar_url, role)')
-        .order('created_at', { ascending: false }),
-      supabase
-        .from('profiles')
-        .select('*')
-        .order('full_name'),
+      fetch('/api/team'),
+      fetch('/api/profiles'),
     ])
-
-    setRules((rulesRes.data as TeamVisibilityRule[]) || [])
-    setProfiles((profilesRes.data as Profile[]) || [])
+    if (rulesRes.ok) setRules(await rulesRes.json())
+    if (profilesRes.ok) setProfiles(await profilesRes.json())
     setLoading(false)
   }, [])
 
-  useEffect(() => { fetch() }, [fetch])
+  useEffect(() => { fetchData() }, [fetchData])
 
-  const addRule = async (managerId: string, memberId: string, adminId: string) => {
-    const { error } = await supabase.from('team_visibility').insert({
-      manager_id: managerId,
-      member_id: memberId,
-      created_by: adminId,
+  const addRule = async (managerId: string, memberId: string, _adminId: string) => {
+    const res = await fetch('/api/team', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ managerId, memberId }),
     })
-    if (error) return { error: error.message }
-    await fetch()
+    if (!res.ok) return { error: (await res.json()).error || 'Error' }
+    await fetchData()
     return { error: null }
   }
 
   const removeRule = async (id: string) => {
-    const { error } = await supabase.from('team_visibility').delete().eq('id', id)
-    if (error) return { error: error.message }
-    await fetch()
+    const res = await fetch(`/api/team/${id}`, { method: 'DELETE' })
+    if (!res.ok) return { error: 'Error' }
+    await fetchData()
     return { error: null }
   }
 
   return { rules, profiles, loading, addRule, removeRule }
 }
 
-/**
- * Returns the list of user IDs whose tasks the current user can see.
- * - Admin sees everything (returns null = no filter)
- * - Manager sees own + members assigned to them
- * - Regular user sees only own
- */
 export function useVisibleUserIds(userId: string | undefined, role: string | undefined) {
   const [visibleIds, setVisibleIds] = useState<string[] | null>(null)
   const [loading, setLoading] = useState(true)
@@ -71,23 +57,13 @@ export function useVisibleUserIds(userId: string | undefined, role: string | und
   useEffect(() => {
     if (!userId) { setLoading(false); return }
 
-    // Admin sees all
-    if (role === 'admin') {
-      setVisibleIds(null) // null = no filter
-      setLoading(false)
-      return
-    }
-
-    // Fetch who this user manages
-    supabase
-      .from('team_visibility')
-      .select('member_id')
-      .eq('manager_id', userId)
-      .then(({ data }) => {
-        const memberIds = (data || []).map(r => r.member_id)
-        setVisibleIds([userId, ...memberIds]) // own + managed
+    fetch('/api/team/visible-ids')
+      .then(res => res.json())
+      .then(data => {
+        setVisibleIds(data.visibleIds)
         setLoading(false)
       })
+      .catch(() => setLoading(false))
   }, [userId, role])
 
   return { visibleIds, loading }

@@ -1,14 +1,9 @@
 'use client'
 
 import { useEffect, useState, useCallback, useRef } from 'react'
-import { supabase } from '@/lib/supabase'
-import type { RealtimeChannel } from '@supabase/supabase-js'
 import { useDebouncedCallback } from '@/hooks/useDebouncedCallback'
 import type { Property } from '@/types/database'
 
-/**
- * @param visibleUserIds - array of user IDs whose properties to show (null = show all, e.g. for admin)
- */
 export function useProperties(visibleUserIds?: string[] | null) {
   const [properties, setProperties] = useState<Property[]>([])
   const [loading, setLoading] = useState(true)
@@ -16,96 +11,54 @@ export function useProperties(visibleUserIds?: string[] | null) {
 
   const fetchProperties = useCallback(async () => {
     setLoading(true)
-    let query = supabase
-      .from('properties')
-      .select(`
-        *,
-        creator:created_by(id, full_name, avatar_url),
-        assignee:assigned_to(id, full_name, avatar_url)
-      `)
-      .order('created_at', { ascending: false })
+    const params = new URLSearchParams()
+    if (visibleUserIds?.length) params.set('visibleIds', visibleUserIds.join(','))
 
-    // Apply visibility filter
-    if (visibleUserIds && visibleUserIds.length > 0) {
-      query = query.or(
-        `assigned_to.in.(${visibleUserIds.join(',')}),created_by.in.(${visibleUserIds.join(',')})`
-      )
-    }
-
-    const { data, error } = await query
-
-    if (error) {
-      setError(error.message)
-    } else {
-      setProperties((data as Property[]) || [])
-    }
+    const res = await fetch(`/api/properties?${params}`)
+    if (!res.ok) { setError('Fetch error'); setLoading(false); return }
+    const data = await res.json()
+    setProperties(data)
     setLoading(false)
   }, [visibleUserIds])
 
-  const debouncedFetchProperties = useDebouncedCallback(fetchProperties, 500)
-  const channelRef = useRef<RealtimeChannel | null>(null)
+  const debouncedFetch = useDebouncedCallback(fetchProperties, 500)
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
     fetchProperties()
+    intervalRef.current = setInterval(debouncedFetch, 10000)
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
+  }, [fetchProperties, debouncedFetch])
 
-    if (channelRef.current) {
-      supabase.removeChannel(channelRef.current)
-      channelRef.current = null
-    }
-
-    const channel = supabase
-      .channel(`properties-changes-${Math.random().toString(36).slice(2)}`)
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'properties',
-      }, debouncedFetchProperties)
-      .subscribe()
-
-    channelRef.current = channel
-
-    return () => {
-      supabase.removeChannel(channel)
-      channelRef.current = null
-    }
-  }, [fetchProperties])
-
-  const createProperty = async (data: Partial<Property>, userId: string): Promise<{ data: Property | null; error: string | null }> => {
-    const { data: newProp, error } = await supabase
-      .from('properties')
-      .insert({ ...data, created_by: userId })
-      .select()
-      .single()
-    if (error) return { data: null, error: error.message }
-    await supabase.from('activity_log').insert({
-      property_id: (newProp as Property).id,
-      user_id: userId,
-      action: 'created',
-      details: { location: (newProp as Property).location },
+  const createProperty = async (data: Partial<Property>, _userId: string): Promise<{ data: Property | null; error: string | null }> => {
+    const res = await fetch('/api/properties', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
     })
-    return { data: newProp as Property, error: null }
+    if (!res.ok) return { data: null, error: (await res.json()).error || 'Error' }
+    const newProp = await res.json()
+    fetchProperties()
+    return { data: newProp, error: null }
   }
 
-  const updateProperty = async (id: string, updates: Partial<Property>, userId: string) => {
-    const { data, error } = await supabase
-      .from('properties')
-      .update(updates)
-      .eq('id', id)
-      .select()
-      .single()
-    if (error) return { data: null, error: error.message }
-    await supabase.from('activity_log').insert({
-      property_id: id,
-      user_id: userId,
-      action: 'updated',
-      details: updates,
+  const updateProperty = async (id: string, updates: Partial<Property>, _userId: string) => {
+    const res = await fetch(`/api/properties/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates),
     })
-    return { data, error: null }
+    if (!res.ok) return { data: null, error: (await res.json()).error || 'Error' }
+    const updated = await res.json()
+    fetchProperties()
+    return { data: updated, error: null }
   }
 
   const deleteProperty = async (id: string) => {
-    const { error } = await supabase.from('properties').delete().eq('id', id)
-    return { error: error?.message ?? null }
+    const res = await fetch(`/api/properties/${id}`, { method: 'DELETE' })
+    if (!res.ok) return { error: (await res.json()).error || 'Error' }
+    fetchProperties()
+    return { error: null }
   }
 
   return { properties, loading, error, fetchProperties, createProperty, updateProperty, deleteProperty }

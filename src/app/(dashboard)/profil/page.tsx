@@ -4,7 +4,6 @@ export const dynamic = 'force-dynamic'
 
 import { useState } from 'react'
 import { Mail, Lock, Save } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { useToast } from '@/components/ui/Toast'
 import { Avatar } from '@/components/ui/Avatar'
@@ -28,11 +27,12 @@ export default function ProfilPage() {
     e.preventDefault()
     if (!user) return
     setSavingProfile(true)
-    const { error } = await supabase
-      .from('profiles')
-      .update({ full_name: fullName, avatar_url: avatarUrl || null })
-      .eq('id', user.id)
-    if (error) showToast(error.message, 'error')
+    const res = await fetch(`/api/profiles/${user.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ full_name: fullName, avatar_url: avatarUrl || null }),
+    })
+    if (!res.ok) showToast((await res.json()).error || 'Błąd', 'error')
     else showToast('Profil zaktualizowany', 'success')
     setSavingProfile(false)
   }
@@ -41,9 +41,13 @@ export default function ProfilPage() {
     e.preventDefault()
     if (!newEmail) return
     setSavingEmail(true)
-    const { error } = await supabase.auth.updateUser({ email: newEmail })
-    if (error) showToast(error.message, 'error')
-    else showToast('Sprawdź nową skrzynkę email, aby potwierdzić zmianę', 'success')
+    const res = await fetch('/api/profiles/me/email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: newEmail }),
+    })
+    if (!res.ok) showToast((await res.json()).error || 'Błąd', 'error')
+    else showToast('Email zmieniony — zaloguj się ponownie', 'success')
     setSavingEmail(false)
   }
 
@@ -52,8 +56,12 @@ export default function ProfilPage() {
     if (newPassword !== confirmPassword) { showToast('Hasła nie są identyczne', 'error'); return }
     if (newPassword.length < 6) { showToast('Hasło musi mieć minimum 6 znaków', 'error'); return }
     setSavingPassword(true)
-    const { error } = await supabase.auth.updateUser({ password: newPassword })
-    if (error) showToast(error.message, 'error')
+    const res = await fetch('/api/profiles/me/password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ newPassword }),
+    })
+    if (!res.ok) showToast((await res.json()).error || 'Błąd', 'error')
     else { showToast('Hasło zmienione', 'success'); setNewPassword(''); setConfirmPassword('') }
     setSavingPassword(false)
   }
@@ -65,7 +73,6 @@ export default function ProfilPage() {
         <h1 className="limona-heading text-3xl mt-1">Profil</h1>
       </div>
 
-      {/* Profile info */}
       <form onSubmit={handleSaveProfile} className="limona-card p-6 space-y-5">
         <h2 className="limona-eyebrow">Dane profilu</h2>
         <div className="flex items-center gap-4">
@@ -90,7 +97,6 @@ export default function ProfilPage() {
         </button>
       </form>
 
-      {/* Email */}
       <form onSubmit={handleChangeEmail} className="limona-card p-6 space-y-5">
         <h2 className="limona-eyebrow">Zmiana adresu email</h2>
         <p className="text-xs text-limona-text-muted">Aktualny: <span className="text-limona-white">{user?.email}</span></p>
@@ -104,7 +110,6 @@ export default function ProfilPage() {
         </button>
       </form>
 
-      {/* Password */}
       <form onSubmit={handleChangePassword} className="limona-card p-6 space-y-5">
         <h2 className="limona-eyebrow">Zmiana hasła</h2>
         <div>
