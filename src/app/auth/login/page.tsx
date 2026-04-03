@@ -4,7 +4,6 @@ export const dynamic = 'force-dynamic'
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
 import { useAuth } from '@/hooks/useAuth'
 import { Building2, Eye, EyeOff } from 'lucide-react'
 
@@ -107,11 +106,8 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <p className="text-center text-sm text-limona-text-muted mt-6">
-            Nie masz konta?{' '}
-            <Link href="/auth/register" className="text-limona-lime hover:text-limona-lime-hover transition-colors">
-              Zarejestruj się
-            </Link>
+          <p className="text-center text-xs text-limona-text-dim mt-6">
+            Konta tworzy administrator systemu
           </p>
         </div>
       </div>
