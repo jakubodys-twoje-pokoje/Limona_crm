@@ -35,61 +35,56 @@ async function searchKRS(name: string): Promise<KrsEntity[]> {
     if (nameParts.length < 2) return results
 
     const lastName = nameParts[nameParts.length - 1]
-    const firstName = nameParts[0]
+    const firstName = nameParts.slice(0, -1).join(' ')
 
-    // KRS API - search persons in companies
-    const url = `https://api-krs.ms.gov.pl/api/krs/OdpisPelny?nazwa=${encodeURIComponent(name)}&rejestr=P&format=json`
-    const res = await fetch(url, {
+    // prs.ms.gov.pl Open API — search by company name
+    const nameSearchUrl = `https://prs.ms.gov.pl/krs/openApi/search/podmiot?nazwa=${encodeURIComponent(name)}`
+    const nameRes = await fetch(nameSearchUrl, {
       headers: { 'Accept': 'application/json' },
-      signal: AbortSignal.timeout(10000),
+      signal: AbortSignal.timeout(15000),
     })
 
-    if (res.ok) {
-      const data = await res.json()
-      if (data?.odppisPelnyArr) {
-        for (const item of data.odppisPelnyArr.slice(0, 20)) {
-          const dane = item?.dane
-          if (!dane) continue
-          results.push({
-            name: dane.nazwa || '',
-            krs: dane.krs || '',
-            nip: dane.nip || '',
-            regon: dane.regon || '',
-            address: [dane.miejscowosc, dane.ulica, dane.nrDomu].filter(Boolean).join(', '),
-            role: 'podmiot',
-          })
-        }
+    if (nameRes.ok) {
+      const data = await nameRes.json()
+      const items = data?.items || data?.odppisPelnyArr || data || []
+      const list = Array.isArray(items) ? items : []
+      for (const item of list.slice(0, 20)) {
+        results.push({
+          name: item.nazwa || item.name || '',
+          krs: item.krs || item.krsNumber || '',
+          nip: item.nip || '',
+          regon: item.regon || '',
+          address: item.adres || item.address || [item.miejscowosc, item.ulica, item.nrDomu].filter(Boolean).join(', ') || '',
+          role: 'podmiot',
+        })
       }
     }
 
-    // Also try person search endpoint
-    const personUrl = `https://api-krs.ms.gov.pl/api/krs/OdpisPelny?osobaFizyczna.nazwisko=${encodeURIComponent(lastName)}&osobaFizyczna.imie=${encodeURIComponent(firstName)}&rejestr=P&format=json`
+    // prs.ms.gov.pl Open API — search by person name (osoba)
+    const personUrl = `https://prs.ms.gov.pl/krs/openApi/search/osoba?imie=${encodeURIComponent(firstName)}&nazwisko=${encodeURIComponent(lastName)}`
     const personRes = await fetch(personUrl, {
       headers: { 'Accept': 'application/json' },
-      signal: AbortSignal.timeout(10000),
+      signal: AbortSignal.timeout(15000),
     })
 
     if (personRes.ok) {
       const personData = await personRes.json()
-      if (personData?.odppisPelnyArr) {
-        for (const item of personData.odppisPelnyArr.slice(0, 20)) {
-          const dane = item?.dane
-          if (!dane) continue
-          const alreadyExists = results.some(r => r.krs === dane.krs)
-          if (alreadyExists) continue
-          results.push({
-            name: dane.nazwa || '',
-            krs: dane.krs || '',
-            nip: dane.nip || '',
-            regon: dane.regon || '',
-            address: [dane.miejscowosc, dane.ulica, dane.nrDomu].filter(Boolean).join(', '),
-            role: 'osoba w zarządzie/wspólnik',
-          })
-        }
+      const personItems = personData?.items || personData?.odppisPelnyArr || personData || []
+      const personList = Array.isArray(personItems) ? personItems : []
+      for (const item of personList.slice(0, 20)) {
+        const krsNum = item.krs || item.krsNumber || ''
+        if (results.some(r => r.krs === krsNum && krsNum)) continue
+        results.push({
+          name: item.nazwa || item.name || '',
+          krs: krsNum,
+          nip: item.nip || '',
+          regon: item.regon || '',
+          address: item.adres || item.address || [item.miejscowosc, item.ulica, item.nrDomu].filter(Boolean).join(', ') || '',
+          role: item.funkcja || item.role || 'osoba w zarządzie/wspólnik',
+        })
       }
     }
   } catch (e) {
-    // KRS API might be down or slow - continue gracefully
     console.error('KRS search error:', e)
   }
 
