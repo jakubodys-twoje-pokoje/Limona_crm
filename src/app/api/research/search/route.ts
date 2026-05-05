@@ -21,9 +21,16 @@ interface CeidgEntry {
   status: string
 }
 
+interface GoogleResult {
+  title: string
+  link: string
+  snippet: string
+}
+
 interface SearchResults {
   krs: KrsEntity[]
   ceidg: CeidgEntry[]
+  google: GoogleResult[]
   searchLinks: { label: string; url: string }[]
 }
 
@@ -142,6 +149,45 @@ async function searchCEIDG(name: string): Promise<CeidgEntry[]> {
   return results
 }
 
+async function searchGoogle(name: string): Promise<GoogleResult[]> {
+  const results: GoogleResult[] = []
+
+  try {
+    const apiKey = process.env.GOOGLE_API_KEY
+    const cx = process.env.GOOGLE_CX
+    if (!apiKey || !cx) return results
+
+    // Search for person + contact info (uses 2 of 100 daily queries)
+    const queries = [
+      `${name} telefon kontakt email`,
+      `${name} firma spółka KRS`,
+    ]
+
+    for (const q of queries) {
+      const url = `https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${cx}&q=${encodeURIComponent(q)}&num=5&lr=lang_pl`
+      const res = await fetch(url, { signal: AbortSignal.timeout(10000) })
+
+      if (res.ok) {
+        const data = await res.json()
+        if (data?.items) {
+          for (const item of data.items) {
+            if (results.some(r => r.link === item.link)) continue
+            results.push({
+              title: item.title || '',
+              link: item.link || '',
+              snippet: item.snippet || '',
+            })
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.error('Google search error:', e)
+  }
+
+  return results
+}
+
 function generateSearchLinks(name: string, kwNumber?: string): { label: string; url: string }[] {
   const encodedName = encodeURIComponent(name)
   const links: { label: string; url: string }[] = []
@@ -201,15 +247,16 @@ export async function POST(req: NextRequest) {
 
   const name = personName.trim()
 
-  // Run KRS and CEIDG searches in parallel
-  const [krs, ceidg] = await Promise.all([
+  // Run KRS, CEIDG, and Google searches in parallel
+  const [krs, ceidg, google] = await Promise.all([
     searchKRS(name),
     searchCEIDG(name),
+    searchGoogle(name),
   ])
 
   const searchLinks = generateSearchLinks(name, kwNumber)
 
-  const results: SearchResults = { krs, ceidg, searchLinks }
+  const results: SearchResults = { krs, ceidg, google, searchLinks }
 
   return NextResponse.json(results)
 }

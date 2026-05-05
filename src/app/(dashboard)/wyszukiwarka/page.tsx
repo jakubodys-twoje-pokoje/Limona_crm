@@ -31,6 +31,12 @@ interface CeidgEntry {
   status: string
 }
 
+interface GoogleResult {
+  title: string
+  link: string
+  snippet: string
+}
+
 interface SearchLink {
   label: string
   url: string
@@ -39,6 +45,7 @@ interface SearchLink {
 interface SearchResults {
   krs: KrsEntity[]
   ceidg: CeidgEntry[]
+  google: GoogleResult[]
   searchLinks: SearchLink[]
 }
 
@@ -240,18 +247,22 @@ export default function WyszukiwarkaPage() {
       {results && !searching && (
         <div className="space-y-4">
           {/* Summary */}
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-4 gap-3">
             <div className="limona-card p-4 text-center">
               <p className="text-2xl font-bold font-mono text-limona-lime">{results.krs.length}</p>
-              <p className="text-xs text-limona-text-muted mt-1">Wpisy KRS</p>
+              <p className="text-xs text-limona-text-muted mt-1">KRS</p>
             </div>
             <div className="limona-card p-4 text-center">
               <p className="text-2xl font-bold font-mono text-limona-blue">{results.ceidg.length}</p>
-              <p className="text-xs text-limona-text-muted mt-1">Wpisy CEIDG</p>
+              <p className="text-xs text-limona-text-muted mt-1">CEIDG</p>
+            </div>
+            <div className="limona-card p-4 text-center">
+              <p className="text-2xl font-bold font-mono text-limona-green">{results.google?.length || 0}</p>
+              <p className="text-xs text-limona-text-muted mt-1">Google</p>
             </div>
             <div className="limona-card p-4 text-center">
               <p className="text-2xl font-bold font-mono text-limona-yellow">{results.searchLinks.length}</p>
-              <p className="text-xs text-limona-text-muted mt-1">Linki do sprawdzenia</p>
+              <p className="text-xs text-limona-text-muted mt-1">Linki</p>
             </div>
           </div>
 
@@ -363,11 +374,36 @@ export default function WyszukiwarkaPage() {
             </div>
           )}
 
+          {/* Google Results */}
+          {results.google && results.google.length > 0 && (
+            <div className="limona-card">
+              <div className="p-4 border-b border-limona-border">
+                <h3 className="text-sm font-bold uppercase tracking-wider text-limona-text-muted flex items-center gap-2">
+                  <Search size={14} className="text-limona-green" />
+                  Google — wyniki wyszukiwania ({results.google.length})
+                </h3>
+              </div>
+              <div className="divide-y divide-limona-border/50">
+                {results.google.map((item, i) => (
+                  <a key={i} href={item.link} target="_blank" rel="noopener noreferrer"
+                    className="block p-4 hover:bg-limona-surface-2/30 transition-colors group">
+                    <p className="text-sm font-medium text-limona-blue group-hover:text-limona-lime transition-colors flex items-center gap-1">
+                      {item.title}
+                      <ExternalLink size={10} className="opacity-0 group-hover:opacity-100" />
+                    </p>
+                    <p className="text-xs text-limona-text-dim mt-1 line-clamp-2">{item.snippet}</p>
+                    <p className="text-[10px] text-limona-text-dim/50 mt-1 truncate">{item.link}</p>
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* No results from APIs */}
-          {results.krs.length === 0 && results.ceidg.length === 0 && (
+          {results.krs.length === 0 && results.ceidg.length === 0 && (!results.google || results.google.length === 0) && (
             <div className="limona-card p-6 text-center">
               <User size={32} className="text-limona-text-dim mx-auto mb-3" />
-              <p className="text-limona-text-muted">Brak wyników w KRS/CEIDG</p>
+              <p className="text-limona-text-muted">Brak wyników w KRS/CEIDG/Google</p>
               <p className="text-xs text-limona-text-dim mt-1">Spróbuj linków poniżej aby szukać ręcznie</p>
             </div>
           )}
