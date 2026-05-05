@@ -405,10 +405,12 @@ async function searchGoogle(name: string): Promise<GoogleResult[]> {
       return results
     }
 
-    // First query targets KRS numbers; second targets contact info for individuals
+    // 3 queries per search (uses 3 of 100 daily quota = ~33 searches/day)
+    const registrySites = 'site:rejestr.io OR site:krs-online.com.pl OR site:mojepanstwo.pl OR site:infoveriti.pl OR site:aleo.com OR site:panoramafirm.pl OR site:biznesradar.pl'
     const queries = [
-      `"${name}" KRS numer spółka`,
-      `"${name}" telefon kontakt email`,
+      `"${name}" (${registrySites})`,        // targeted: find person in known registries
+      `"${name}" KRS numer spółka`,          // general: find KRS numbers
+      `"${name}" telefon kontakt email`,     // general: find contact info
     ]
 
     for (const q of queries) {
