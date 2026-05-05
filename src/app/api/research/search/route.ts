@@ -217,9 +217,6 @@ async function searchKRS(name: string, googleResults: GoogleResult[], log: Debug
       krsNumbers.add(n)
       if (!krsSourceMap.has(n)) krsSourceMap.set(n, g.link)
     }
-    const { phones, emails } = extractContactInfo(`${g.title} ${g.snippet}`)
-    if (phones.length > 0 || emails.length > 0)
-      contacts.push({ phones, emails, sourceUrl: g.link, sourceTitle: g.title })
   }
   log.log('KRS', `Ze snippetów Google: ${krsNumbers.size} numerów KRS`)
 
@@ -234,7 +231,16 @@ async function searchKRS(name: string, googleResults: GoogleResult[], log: Debug
     scrapeRegistriesDirect(name, log),
   ])
 
-  for (const page of googleScraped.concat(directScraped)) {
+  // Direct scrape returns search result pages with many companies — collect only KRS numbers, not contacts
+  for (const page of directScraped) {
+    for (const n of page.krsNumbers) {
+      krsNumbers.add(n)
+      if (!krsSourceMap.has(n)) krsSourceMap.set(n, page.url)
+    }
+  }
+
+  // Google-scraped pages point to specific profiles — contacts here are relevant
+  for (const page of googleScraped) {
     for (const n of page.krsNumbers) {
       krsNumbers.add(n)
       if (!krsSourceMap.has(n)) krsSourceMap.set(n, page.url)
