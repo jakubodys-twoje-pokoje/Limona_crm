@@ -168,7 +168,7 @@ async function searchKRS(name: string, googleResults: GoogleResult[]): Promise<K
   const extraUrls = krsNumbers.size === 0
     ? googleResults.map(g => g.link).filter(u => !isRegistryUrl(u)).slice(0, 2)
     : []
-  const urlsToScrape = [...new Set([...registryUrls, ...extraUrls])]
+  const urlsToScrape = Array.from(new Set(registryUrls.concat(extraUrls)))
 
   if (urlsToScrape.length > 0) {
     const scraped = await Promise.all(urlsToScrape.map(scrapeKrsFromUrl))
@@ -180,7 +180,7 @@ async function searchKRS(name: string, googleResults: GoogleResult[]): Promise<K
   // Step 2: fetch KRS entity data for each number found
   if (krsNumbers.size > 0) {
     const fetched = await Promise.all(
-      [...krsNumbers].slice(0, 5).map(fetchKrsByNumber)
+      Array.from(krsNumbers).slice(0, 5).map(fetchKrsByNumber)
     )
     for (const entity of fetched) {
       if (entity) results.push(entity)
