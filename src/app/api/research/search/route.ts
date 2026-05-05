@@ -216,6 +216,18 @@ async function scrapePage(url: string): Promise<ScrapedPage> {
   }
 }
 
+/** Scrape known registries directly by name — no Google API needed */
+async function scrapeRegistriesDirect(name: string): Promise<ScrapedPage[]> {
+  const encoded = encodeURIComponent(name)
+  const directUrls = [
+    `https://rejestr.io/szukaj?q=${encoded}`,
+    `https://www.krs-online.com.pl/szukaj.php?q=${encoded}`,
+    `https://mojepanstwo.pl/szukanie?q=${encoded}`,
+  ]
+  console.log(`[KRS] Scraping bezpośredni rejestrów dla "${name}"`)
+  return Promise.all(directUrls.map(scrapePage))
+}
+
 async function searchKRS(name: string, googleResults: GoogleResult[]): Promise<{ entities: KrsEntity[], contacts: ExtractedContact[] }> {
   const entities: KrsEntity[] = []
   const contacts: ExtractedContact[] = []
@@ -237,31 +249,37 @@ async function searchKRS(name: string, googleResults: GoogleResult[]): Promise<{
   }
   console.log(`[KRS] Ze snippetów Google: ${krsNumbers.size} numerów KRS`)
 
-  // Step 2: scrape HTML of registry pages + extra pages if needed
-  const registryUrls = googleResults.map(g => g.link).filter(isRegistryUrl).slice(0, 4)
+  // Step 2: scrape registry pages from Google results + always scrape known registries directly
+  const registryUrls = googleResults.map(g => g.link).filter(isRegistryUrl).slice(0, 3)
   const extraUrls = krsNumbers.size === 0
     ? googleResults.map(g => g.link).filter(u => !isRegistryUrl(u)).slice(0, 2)
     : []
   const urlsToScrape = Array.from(new Set(registryUrls.concat(extraUrls)))
 
-  console.log(`[KRS] Scraping ${urlsToScrape.length} stron: ${urlsToScrape.join(', ')}`)
+  // Run Google-sourced scraping and direct registry scraping in parallel
+  const [googleScraped, directScraped] = await Promise.all([
+    urlsToScrape.length > 0
+      ? Promise.all(urlsToScrape.map(scrapePage))
+      : Promise.resolve([] as ScrapedPage[]),
+    scrapeRegistriesDirect(name),
+  ])
 
-  if (urlsToScrape.length > 0) {
-    const scraped = await Promise.all(urlsToScrape.map(scrapePage))
-    for (const page of scraped) {
-      for (const n of page.krsNumbers) {
-        krsNumbers.add(n)
-        if (!krsSourceMap.has(n)) krsSourceMap.set(n, page.url)
-      }
-      if (page.phones.length > 0 || page.emails.length > 0) {
-        const googleItem = googleResults.find(g => g.link === page.url)
-        contacts.push({
-          phones: page.phones,
-          emails: page.emails,
-          sourceUrl: page.url,
-          sourceTitle: googleItem?.title || page.url,
-        })
-      }
+  const allScraped = googleScraped.concat(directScraped)
+  console.log(`[KRS] Scraping łącznie ${allScraped.length} stron`)
+
+  for (const page of allScraped) {
+    for (const n of page.krsNumbers) {
+      krsNumbers.add(n)
+      if (!krsSourceMap.has(n)) krsSourceMap.set(n, page.url)
+    }
+    if (page.phones.length > 0 || page.emails.length > 0) {
+      const googleItem = googleResults.find(g => g.link === page.url)
+      contacts.push({
+        phones: page.phones,
+        emails: page.emails,
+        sourceUrl: page.url,
+        sourceTitle: googleItem?.title || new URL(page.url).hostname,
+      })
     }
   }
   console.log(`[KRS] Po scrapingu: ${krsNumbers.size} numerów KRS łącznie`)
