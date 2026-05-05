@@ -34,65 +34,190 @@ interface SearchResults {
   searchLinks: { label: string; url: string }[]
 }
 
-async function searchKRS(name: string): Promise<KrsEntity[]> {
+/** Extract KRS numbers (10-digit, zero-padded) from arbitrary text */
+function extractKrsNumbers(text: string): string[] {
+  const found = new Set<string>()
+  // Matches: "KRS 0000123456", "KRS: 0000123456", "KRS0000123456"
+  const withPrefix = text.matchAll(/KRS[\s:]*(\d{10})/gi)
+  for (const m of withPrefix) found.add(m[1].padStart(10, '0'))
+  // Bare 10-digit numbers that look like KRS (start with 0000)
+  const bare = text.matchAll(/\b(0000\d{6})\b/g)
+  for (const m of bare) found.add(m[1])
+  return [...found]
+}
+
+/** Fetch full KRS entity data by KRS number from prs.ms.gov.pl */
+async function fetchKrsByNumber(krsNumber: string): Promise<KrsEntity | null> {
+  try {
+    const url = `https://api-krs.ms.gov.pl/api/krs/OdpisAktualny/${krsNumber}?rejestr=P&format=json`
+    const res = await fetch(url, {
+      headers: { 'Accept': 'application/json' },
+      signal: AbortSignal.timeout(15000),
+    })
+    if (!res.ok) return null
+    const data = await res.json()
+
+    const odpis = data?.odpis
+    const podmiot = odpis?.dane?.dzial1?.danePodmiotu
+    const siedziba = odpis?.dane?.dzial1?.siedzibaIAdres
+
+    if (!podmiot) return null
+
+    const miasto = siedziba?.adres?.miejscowosc || siedziba?.siedziba?.miejscowosc || ''
+    const ulica = siedziba?.adres?.ulica || ''
+    const nrDomu = siedziba?.adres?.nrDomu || ''
+    const address = [miasto, ulica, nrDomu].filter(Boolean).join(', ')
+
+    return {
+      name: podmiot?.nazwa || '',
+      krs: krsNumber,
+      nip: podmiot?.identyfikatory?.nip || '',
+      regon: podmiot?.identyfikatory?.regon || '',
+      address,
+      role: 'podmiot (KRS)',
+    }
+  } catch {
+    return null
+  }
+}
+
+/** Domains known to list KRS numbers — prioritized for HTML scraping */
+const KRS_REGISTRY_DOMAINS = [
+  'rejestr.io',
+  'krs-online.com.pl',
+  'mojepanstwo.pl',
+  'infoveriti.pl',
+  'aleo.com',
+  'ekrs.ms.gov.pl',
+  'prs.ms.gov.pl',
+  'biznes.gov.pl',
+  'cominfo.pl',
+  'sprawdz-firme.pl',
+  'centrumkrs.pl',
+  'sprawdzfirme.pl',
+  'biznesradar.pl',
+]
+
+function isRegistryUrl(url: string): boolean {
+  try {
+    const host = new URL(url).hostname.replace(/^www\./, '')
+    return KRS_REGISTRY_DOMAINS.some(d => host === d || host.endsWith('.' + d))
+  } catch {
+    return false
+  }
+}
+
+function stripHtml(html: string): string {
+  return html
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/\s+/g, ' ')
+}
+
+async function scrapeKrsFromUrl(url: string): Promise<string[]> {
+  try {
+    const res = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml',
+        'Accept-Language': 'pl-PL,pl;q=0.9',
+      },
+      signal: AbortSignal.timeout(8000),
+    })
+    if (!res.ok) return []
+
+    // Read at most 300 KB to avoid downloading huge pages
+    const reader = res.body?.getReader()
+    if (!reader) return []
+    const chunks: Uint8Array[] = []
+    let bytes = 0
+    while (bytes < 300_000) {
+      const { done, value } = await reader.read()
+      if (done || !value) break
+      chunks.push(value)
+      bytes += value.length
+    }
+    reader.cancel().catch(() => {})
+
+    const html = new TextDecoder().decode(
+      chunks.reduce((acc, c) => { const merged = new Uint8Array(acc.length + c.length); merged.set(acc); merged.set(c, acc.length); return merged }, new Uint8Array())
+    )
+    return extractKrsNumbers(stripHtml(html))
+  } catch {
+    return []
+  }
+}
+
+async function searchKRS(name: string, googleResults: GoogleResult[]): Promise<KrsEntity[]> {
   const results: KrsEntity[] = []
 
+  // Step 1: extract KRS numbers from Google snippets/titles/links
+  const krsNumbers = new Set<string>()
+  for (const g of googleResults) {
+    for (const n of extractKrsNumbers(`${g.title} ${g.snippet} ${g.link}`)) {
+      krsNumbers.add(n)
+    }
+  }
+
+  // Step 1b: scrape HTML of registry pages found by Google — much deeper than snippets
+  const registryUrls = googleResults.map(g => g.link).filter(isRegistryUrl).slice(0, 4)
+  // Also scrape non-registry pages if we have few results so far, up to 2 extra
+  const extraUrls = krsNumbers.size === 0
+    ? googleResults.map(g => g.link).filter(u => !isRegistryUrl(u)).slice(0, 2)
+    : []
+  const urlsToScrape = [...new Set([...registryUrls, ...extraUrls])]
+
+  if (urlsToScrape.length > 0) {
+    const scraped = await Promise.all(urlsToScrape.map(scrapeKrsFromUrl))
+    for (const nums of scraped) {
+      for (const n of nums) krsNumbers.add(n)
+    }
+  }
+
+  // Step 2: fetch KRS entity data for each number found
+  if (krsNumbers.size > 0) {
+    const fetched = await Promise.all(
+      [...krsNumbers].slice(0, 5).map(fetchKrsByNumber)
+    )
+    for (const entity of fetched) {
+      if (entity) results.push(entity)
+    }
+  }
+
+  // Step 3: fallback — direct KRS name search (often misses, but free)
   try {
     const nameParts = name.trim().split(/\s+/)
-    if (nameParts.length < 2) return results
+    if (nameParts.length >= 2) {
+      const lastName = nameParts[nameParts.length - 1]
+      const firstName = nameParts.slice(0, -1).join(' ')
 
-    const lastName = nameParts[nameParts.length - 1]
-    const firstName = nameParts.slice(0, -1).join(' ')
+      const personUrl = `https://api-krs.ms.gov.pl/api/krs/OsobaFizyczna?imie=${encodeURIComponent(firstName)}&nazwisko=${encodeURIComponent(lastName)}&format=json`
+      const personRes = await fetch(personUrl, {
+        headers: { 'Accept': 'application/json' },
+        signal: AbortSignal.timeout(15000),
+      })
 
-    // prs.ms.gov.pl Open API — search by company name
-    const nameSearchUrl = `https://prs.ms.gov.pl/krs/openApi/search/podmiot?nazwa=${encodeURIComponent(name)}`
-    const nameRes = await fetch(nameSearchUrl, {
-      headers: { 'Accept': 'application/json' },
-      signal: AbortSignal.timeout(15000),
-    })
+      if (personRes.ok) {
+        const personData = await personRes.json()
+        const personList: Array<{ numerKRS?: string; nazwa?: string; nip?: string; regon?: string; funkcja?: string }> = Array.isArray(personData) ? personData : (personData?.items || [])
+        const newNumbers = personList
+          .map(item => item.numerKRS || '')
+          .filter(n => n && !results.some(r => r.krs === n))
+          .slice(0, 5)
 
-    if (nameRes.ok) {
-      const data = await nameRes.json()
-      const items = data?.items || data?.odppisPelnyArr || data || []
-      const list = Array.isArray(items) ? items : []
-      for (const item of list.slice(0, 20)) {
-        results.push({
-          name: item.nazwa || item.name || '',
-          krs: item.krs || item.krsNumber || '',
-          nip: item.nip || '',
-          regon: item.regon || '',
-          address: item.adres || item.address || [item.miejscowosc, item.ulica, item.nrDomu].filter(Boolean).join(', ') || '',
-          role: 'podmiot',
-        })
-      }
-    }
-
-    // prs.ms.gov.pl Open API — search by person name (osoba)
-    const personUrl = `https://prs.ms.gov.pl/krs/openApi/search/osoba?imie=${encodeURIComponent(firstName)}&nazwisko=${encodeURIComponent(lastName)}`
-    const personRes = await fetch(personUrl, {
-      headers: { 'Accept': 'application/json' },
-      signal: AbortSignal.timeout(15000),
-    })
-
-    if (personRes.ok) {
-      const personData = await personRes.json()
-      const personItems = personData?.items || personData?.odppisPelnyArr || personData || []
-      const personList = Array.isArray(personItems) ? personItems : []
-      for (const item of personList.slice(0, 20)) {
-        const krsNum = item.krs || item.krsNumber || ''
-        if (results.some(r => r.krs === krsNum && krsNum)) continue
-        results.push({
-          name: item.nazwa || item.name || '',
-          krs: krsNum,
-          nip: item.nip || '',
-          regon: item.regon || '',
-          address: item.adres || item.address || [item.miejscowosc, item.ulica, item.nrDomu].filter(Boolean).join(', ') || '',
-          role: item.funkcja || item.role || 'osoba w zarządzie/wspólnik',
-        })
+        const fetched = await Promise.all(newNumbers.map(fetchKrsByNumber))
+        for (const entity of fetched) {
+          if (entity) results.push(entity)
+        }
       }
     }
   } catch (e) {
-    console.error('KRS search error:', e)
+    console.error('KRS fallback search error:', e)
   }
 
   return results
@@ -157,10 +282,10 @@ async function searchGoogle(name: string): Promise<GoogleResult[]> {
     const cx = process.env.GOOGLE_CX
     if (!apiKey || !cx) return results
 
-    // Search for person + contact info (uses 2 of 100 daily queries)
+    // KRS query first — results will be used to extract KRS numbers
     const queries = [
-      `${name} telefon kontakt email`,
-      `${name} firma spółka KRS`,
+      `"${name}" KRS numer spółka`,
+      `"${name}" telefon kontakt email`,
     ]
 
     for (const q of queries) {
@@ -247,12 +372,13 @@ export async function POST(req: NextRequest) {
 
   const name = personName.trim()
 
-  // Run KRS, CEIDG, and Google searches in parallel
-  const [krs, ceidg, google] = await Promise.all([
-    searchKRS(name),
-    searchCEIDG(name),
+  // Google runs first — its results feed KRS number extraction
+  const [google, ceidg] = await Promise.all([
     searchGoogle(name),
+    searchCEIDG(name),
   ])
+  // KRS uses Google results to find entity numbers before direct lookup
+  const krs = await searchKRS(name, google)
 
   const searchLinks = generateSearchLinks(name, kwNumber)
 
