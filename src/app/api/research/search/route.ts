@@ -81,21 +81,108 @@ async function fetchKrsByNumber(krsNumber: string): Promise<KrsEntity | null> {
   }
 }
 
+/** Domains known to list KRS numbers — prioritized for HTML scraping */
+const KRS_REGISTRY_DOMAINS = [
+  'rejestr.io',
+  'krs-online.com.pl',
+  'mojepanstwo.pl',
+  'infoveriti.pl',
+  'aleo.com',
+  'ekrs.ms.gov.pl',
+  'prs.ms.gov.pl',
+  'biznes.gov.pl',
+  'cominfo.pl',
+  'sprawdz-firme.pl',
+  'centrumkrs.pl',
+  'sprawdzfirme.pl',
+  'biznesradar.pl',
+]
+
+function isRegistryUrl(url: string): boolean {
+  try {
+    const host = new URL(url).hostname.replace(/^www\./, '')
+    return KRS_REGISTRY_DOMAINS.some(d => host === d || host.endsWith('.' + d))
+  } catch {
+    return false
+  }
+}
+
+function stripHtml(html: string): string {
+  return html
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/\s+/g, ' ')
+}
+
+async function scrapeKrsFromUrl(url: string): Promise<string[]> {
+  try {
+    const res = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml',
+        'Accept-Language': 'pl-PL,pl;q=0.9',
+      },
+      signal: AbortSignal.timeout(8000),
+    })
+    if (!res.ok) return []
+
+    // Read at most 300 KB to avoid downloading huge pages
+    const reader = res.body?.getReader()
+    if (!reader) return []
+    const chunks: Uint8Array[] = []
+    let bytes = 0
+    while (bytes < 300_000) {
+      const { done, value } = await reader.read()
+      if (done || !value) break
+      chunks.push(value)
+      bytes += value.length
+    }
+    reader.cancel().catch(() => {})
+
+    const html = new TextDecoder().decode(
+      chunks.reduce((acc, c) => { const merged = new Uint8Array(acc.length + c.length); merged.set(acc); merged.set(c, acc.length); return merged }, new Uint8Array())
+    )
+    return extractKrsNumbers(stripHtml(html))
+  } catch {
+    return []
+  }
+}
+
 async function searchKRS(name: string, googleResults: GoogleResult[]): Promise<KrsEntity[]> {
   const results: KrsEntity[] = []
 
-  // Step 1: extract KRS numbers Google already found in its snippets/titles
-  const krsNumbersFromGoogle = new Set<string>()
+  // Step 1: extract KRS numbers from Google snippets/titles/links
+  const krsNumbers = new Set<string>()
   for (const g of googleResults) {
     for (const n of extractKrsNumbers(`${g.title} ${g.snippet} ${g.link}`)) {
-      krsNumbersFromGoogle.add(n)
+      krsNumbers.add(n)
     }
   }
 
-  // Step 2: fetch KRS entity data for each number found via Google
-  if (krsNumbersFromGoogle.size > 0) {
+  // Step 1b: scrape HTML of registry pages found by Google — much deeper than snippets
+  const registryUrls = googleResults.map(g => g.link).filter(isRegistryUrl).slice(0, 4)
+  // Also scrape non-registry pages if we have few results so far, up to 2 extra
+  const extraUrls = krsNumbers.size === 0
+    ? googleResults.map(g => g.link).filter(u => !isRegistryUrl(u)).slice(0, 2)
+    : []
+  const urlsToScrape = [...new Set([...registryUrls, ...extraUrls])]
+
+  if (urlsToScrape.length > 0) {
+    const scraped = await Promise.all(urlsToScrape.map(scrapeKrsFromUrl))
+    for (const nums of scraped) {
+      for (const n of nums) krsNumbers.add(n)
+    }
+  }
+
+  // Step 2: fetch KRS entity data for each number found
+  if (krsNumbers.size > 0) {
     const fetched = await Promise.all(
-      [...krsNumbersFromGoogle].slice(0, 5).map(fetchKrsByNumber)
+      [...krsNumbers].slice(0, 5).map(fetchKrsByNumber)
     )
     for (const entity of fetched) {
       if (entity) results.push(entity)
