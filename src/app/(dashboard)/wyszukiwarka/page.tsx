@@ -19,6 +19,7 @@ interface KrsEntity {
   regon: string
   address: string
   role: string
+  website?: string
 }
 
 interface CeidgEntry {
@@ -66,6 +67,7 @@ export default function WyszukiwarkaPage() {
 
   const [personName, setPersonName] = useState('')
   const [kwNumber, setKwNumber] = useState('')
+  const [krsNumber, setKrsNumber] = useState('')
   const [searching, setSearching] = useState(false)
   const [results, setResults] = useState<SearchResults | null>(null)
   const [savedQueries, setSavedQueries] = useState<SavedQuery[]>([])
@@ -94,7 +96,7 @@ export default function WyszukiwarkaPage() {
       const res = await fetch('/api/research/search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ personName: personName.trim(), kwNumber: kwNumber.trim() || undefined }),
+        body: JSON.stringify({ personName: personName.trim(), kwNumber: kwNumber.trim() || undefined, krsNumber: krsNumber.trim() || undefined }),
       })
 
       if (!res.ok) {
@@ -159,13 +161,14 @@ export default function WyszukiwarkaPage() {
         <span className="limona-eyebrow">Research</span>
         <h1 className="limona-heading text-3xl mt-1">Wyszukiwarka kontaktów</h1>
         <p className="text-limona-text-muted text-sm mt-1">
-          Szukaj danych kontaktowych dłużników w KRS, CEIDG, Google i social media
+          Szukaj danych kontaktowych dłużników w KRS, CEIDG, Google i social media.
+          Podaj numer KRS aby pobrać dane spółki automatycznie.
         </p>
       </div>
 
       {/* Search form */}
       <form onSubmit={handleSearch} className="limona-card p-5 space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <label className="limona-label block mb-2">Imię i nazwisko *</label>
             <input
@@ -175,6 +178,15 @@ export default function WyszukiwarkaPage() {
               placeholder="np. Jan Kowalski"
               required
               autoFocus
+            />
+          </div>
+          <div>
+            <label className="limona-label block mb-2">Numer KRS (opcjonalnie)</label>
+            <input
+              className="limona-input"
+              value={krsNumber}
+              onChange={e => setKrsNumber(e.target.value)}
+              placeholder="np. 0000019193"
             />
           </div>
           <div>
@@ -344,7 +356,7 @@ export default function WyszukiwarkaPage() {
                         <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1.5">
                           {entity.krs && (
                             <a
-                              href={`https://api-krs.ms.gov.pl/api/krs/OdsijkiPelne/${entity.krs}?rejestr=P&format=json`}
+                              href={`https://api-krs.ms.gov.pl/api/krs/OdpisPelny/${entity.krs}?rejestr=P&format=json`}
                               target="_blank" rel="noopener noreferrer"
                               className="text-xs text-limona-blue hover:text-limona-blue/80 flex items-center gap-0.5"
                             >
@@ -361,6 +373,13 @@ export default function WyszukiwarkaPage() {
                             <span className="text-xs text-limona-text-dim flex items-center gap-1">
                               <MapPin size={10} />{entity.address}
                             </span>
+                          )}
+                          {entity.website && (
+                            <a href={entity.website.startsWith('http') ? entity.website : `https://${entity.website}`}
+                              target="_blank" rel="noopener noreferrer"
+                              className="text-xs text-limona-lime hover:text-limona-lime/80 flex items-center gap-0.5">
+                              {entity.website} <ExternalLink size={9} />
+                            </a>
                           )}
                         </div>
                       </div>

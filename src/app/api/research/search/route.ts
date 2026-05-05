@@ -9,6 +9,7 @@ interface KrsEntity {
   regon: string
   address: string
   role: string
+  website?: string
 }
 
 interface CeidgEntry {
@@ -34,65 +35,73 @@ interface SearchResults {
   searchLinks: { label: string; url: string }[]
 }
 
-async function searchKRS(name: string): Promise<KrsEntity[]> {
+async function searchKRS(name: string, krsNumber?: string): Promise<KrsEntity[]> {
   const results: KrsEntity[] = []
 
-  try {
-    const nameParts = name.trim().split(/\s+/)
-    if (nameParts.length < 2) return results
+  // If a KRS number is provided, fetch directly from the official Open API
+  if (krsNumber) {
+    try {
+      const paddedKrs = krsNumber.replace(/\D/g, '').padStart(10, '0')
+      const url = `https://api-krs.ms.gov.pl/api/krs/OdpisPelny/${paddedKrs}?rejestr=P&format=json`
+      const res = await fetch(url, {
+        headers: { 'Accept': 'application/json' },
+        signal: AbortSignal.timeout(15000),
+      })
 
-    const lastName = nameParts[nameParts.length - 1]
-    const firstName = nameParts.slice(0, -1).join(' ')
+      if (res.ok) {
+        const data = await res.json()
+        const dane = data?.odpis?.dane
+        if (dane) {
+          const dzial1 = dane.dzial1 || {}
+          const dzial2 = dane.dzial2 || {}
 
-    // prs.ms.gov.pl Open API — search by company name
-    const nameSearchUrl = `https://prs.ms.gov.pl/krs/openApi/search/podmiot?nazwa=${encodeURIComponent(name)}`
-    const nameRes = await fetch(nameSearchUrl, {
-      headers: { 'Accept': 'application/json' },
-      signal: AbortSignal.timeout(15000),
-    })
+          const nazwaArr = dzial1.danePodmiotu?.nazwa || []
+          const lastNazwa = Array.isArray(nazwaArr) ? nazwaArr[nazwaArr.length - 1] : nazwaArr
+          const entityName = lastNazwa?.nazwa || ''
 
-    if (nameRes.ok) {
-      const data = await nameRes.json()
-      const items = data?.items || data?.odppisPelnyArr || data || []
-      const list = Array.isArray(items) ? items : []
-      for (const item of list.slice(0, 20)) {
-        results.push({
-          name: item.nazwa || item.name || '',
-          krs: item.krs || item.krsNumber || '',
-          nip: item.nip || '',
-          regon: item.regon || '',
-          address: item.adres || item.address || [item.miejscowosc, item.ulica, item.nrDomu].filter(Boolean).join(', ') || '',
-          role: 'podmiot',
-        })
+          const identArr = dzial1.danePodmiotu?.identyfikatory || []
+          const lastIdent = Array.isArray(identArr) ? identArr[identArr.length - 1] : identArr
+          const nip = lastIdent?.identyfikatory?.nip || ''
+          const regon = lastIdent?.identyfikatory?.regon || ''
+
+          const adres = dzial1.siedzibaIAdres?.adres || {}
+          const address = [adres.ulica, adres.nrDomu, adres.miejscowosc, adres.kodPocztowy].filter(Boolean).join(', ')
+          const website = dzial1.siedzibaIAdres?.adresStronyInternetowej || ''
+
+          results.push({
+            name: entityName,
+            krs: paddedKrs,
+            nip,
+            regon,
+            address,
+            role: 'podmiot',
+            website: website || undefined,
+          })
+
+          // Extract board members / representatives from dzial2
+          const organRepr = dzial2?.organReprezentacji?.sklad || []
+          if (Array.isArray(organRepr)) {
+            for (const member of organRepr.slice(0, 10)) {
+              const lastEntry = Array.isArray(member) ? member[member.length - 1] : member
+              const memberName = [lastEntry?.imiona, lastEntry?.nazwisko].filter(Boolean).join(' ')
+              const memberRole = lastEntry?.funkcjaWOrganie || 'członek zarządu'
+              if (memberName) {
+                results.push({
+                  name: memberName,
+                  krs: paddedKrs,
+                  nip: '',
+                  regon: '',
+                  address: '',
+                  role: memberRole,
+                })
+              }
+            }
+          }
+        }
       }
+    } catch (e) {
+      console.error('KRS number lookup error:', e)
     }
-
-    // prs.ms.gov.pl Open API — search by person name (osoba)
-    const personUrl = `https://prs.ms.gov.pl/krs/openApi/search/osoba?imie=${encodeURIComponent(firstName)}&nazwisko=${encodeURIComponent(lastName)}`
-    const personRes = await fetch(personUrl, {
-      headers: { 'Accept': 'application/json' },
-      signal: AbortSignal.timeout(15000),
-    })
-
-    if (personRes.ok) {
-      const personData = await personRes.json()
-      const personItems = personData?.items || personData?.odppisPelnyArr || personData || []
-      const personList = Array.isArray(personItems) ? personItems : []
-      for (const item of personList.slice(0, 20)) {
-        const krsNum = item.krs || item.krsNumber || ''
-        if (results.some(r => r.krs === krsNum && krsNum)) continue
-        results.push({
-          name: item.nazwa || item.name || '',
-          krs: krsNum,
-          nip: item.nip || '',
-          regon: item.regon || '',
-          address: item.adres || item.address || [item.miejscowosc, item.ulica, item.nrDomu].filter(Boolean).join(', ') || '',
-          role: item.funkcja || item.role || 'osoba w zarządzie/wspólnik',
-        })
-      }
-    }
-  } catch (e) {
-    console.error('KRS search error:', e)
   }
 
   return results
@@ -224,6 +233,10 @@ function generateSearchLinks(name: string, kwNumber?: string): { label: string; 
     label: 'KRS Online',
     url: `https://www.krs-online.com.pl/szukaj.php?q=${encodedName}`,
   })
+  links.push({
+    label: 'Wyszukiwarka KRS (gov)',
+    url: `https://wyszukiwarka-krs.ms.gov.pl/`,
+  })
 
   if (kwNumber) {
     links.push({
@@ -239,7 +252,7 @@ export async function POST(req: NextRequest) {
   const user = await getSessionUser()
   if (!user) return unauthorized()
 
-  const { personName, kwNumber } = await req.json()
+  const { personName, kwNumber, krsNumber } = await req.json()
 
   if (!personName?.trim()) {
     return NextResponse.json({ error: 'Wymagane imię i nazwisko' }, { status: 400 })
@@ -249,7 +262,7 @@ export async function POST(req: NextRequest) {
 
   // Run KRS, CEIDG, and Google searches in parallel
   const [krs, ceidg, google] = await Promise.all([
-    searchKRS(name),
+    searchKRS(name, krsNumber?.trim() || undefined),
     searchCEIDG(name),
     searchGoogle(name),
   ])
