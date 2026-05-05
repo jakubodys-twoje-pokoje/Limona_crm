@@ -263,31 +263,6 @@ async function searchKRS(name: string, googleResults: GoogleResult[], log: Debug
     }
   }
 
-  try {
-    const nameParts = name.trim().split(/\s+/)
-    if (nameParts.length >= 2) {
-      const lastName = nameParts[nameParts.length - 1]
-      const firstName = nameParts.slice(0, -1).join(' ')
-      const personUrl = `https://api-krs.ms.gov.pl/api/krs/OsobaFizyczna?imie=${encodeURIComponent(firstName)}&nazwisko=${encodeURIComponent(lastName)}&format=json`
-      log.log('KRS', `Fallback OsobaFizyczna: ${firstName} ${lastName}`)
-      const personRes = await fetch(personUrl, { headers: { 'Accept': 'application/json' }, signal: AbortSignal.timeout(15000) })
-      if (personRes.ok) {
-        const personData = await personRes.json()
-        const personList: Array<{ numerKRS?: string }> = Array.isArray(personData) ? personData : (personData?.items || [])
-        log.log('KRS', `OsobaFizyczna: ${personList.length} wyników`)
-        const newNumbers = personList.map(item => item.numerKRS || '').filter(n => n && !entities.some(r => r.krs === n)).slice(0, 5)
-        const fetched = await Promise.all(newNumbers.map(n => fetchKrsByNumber(n, log)))
-        for (const entity of fetched) {
-          if (entity) { entity.sourceUrl = personUrl; entities.push(entity) }
-        }
-      } else {
-        log.log('KRS', `OsobaFizyczna HTTP ${personRes.status}`, false)
-      }
-    }
-  } catch (e) {
-    log.log('KRS', `Fallback error: ${(e as Error).message}`, false)
-  }
-
   log.log('KRS', `Wynik: ${entities.length} podmiotów, ${contacts.length} kontaktów`)
   return { entities, contacts }
 }
