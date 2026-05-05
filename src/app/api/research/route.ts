@@ -8,12 +8,15 @@ export async function GET() {
   const user = await getSessionUser()
   if (!user) return unauthorized()
 
-  const queries = await prisma.researchQuery.findMany({
-    orderBy: { created_at: 'desc' },
-    take: 100,
-  })
-
-  return NextResponse.json(serialize(queries))
+  try {
+    const queries = await prisma.researchQuery.findMany({
+      orderBy: { created_at: 'desc' },
+      take: 100,
+    })
+    return NextResponse.json(serialize(queries))
+  } catch {
+    return NextResponse.json([])
+  }
 }
 
 export async function POST(req: NextRequest) {
