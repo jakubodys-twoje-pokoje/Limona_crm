@@ -50,12 +50,20 @@ interface SearchLink {
   url: string
 }
 
+interface DebugEntry {
+  tag: string
+  msg: string
+  ms: number
+  ok: boolean
+}
+
 interface SearchResults {
   krs: KrsEntity[]
   ceidg: CeidgEntry[]
   google: GoogleResult[]
   contacts: ExtractedContact[]
   searchLinks: SearchLink[]
+  _debug: DebugEntry[]
 }
 
 interface SavedQuery {
@@ -67,6 +75,30 @@ interface SavedQuery {
   results: SearchResults | null
   created_by: string | null
   created_at: string
+}
+
+const TAG_COLORS: Record<string, string> = {
+  SEARCH:  '#a8ff3e',
+  GOOGLE:  '#4285f4',
+  KRS:     '#fbbc04',
+  'KRS-API': '#ff8c00',
+  CEIDG:   '#34a853',
+  SCRAPE:  '#ea4335',
+}
+
+function printDebug(entries: DebugEntry[]) {
+  console.groupCollapsed('%c🔍 Search Debug', 'color:#a8ff3e;font-weight:bold;font-size:13px')
+  for (const e of entries) {
+    const color = TAG_COLORS[e.tag] || '#aaa'
+    const icon = e.ok ? '✓' : '✗'
+    console.log(
+      `%c${icon} [${e.tag}]%c +${e.ms}ms %c${e.msg}`,
+      `color:${color};font-weight:bold`,
+      'color:#666',
+      e.ok ? 'color:#ddd' : 'color:#ff6b6b',
+    )
+  }
+  console.groupEnd()
 }
 
 export default function WyszukiwarkaPage() {
@@ -113,6 +145,7 @@ export default function WyszukiwarkaPage() {
       }
 
       const data: SearchResults = await res.json()
+      if (data._debug) printDebug(data._debug)
       setResults(data)
     } catch {
       showToast('Błąd połączenia', 'error')

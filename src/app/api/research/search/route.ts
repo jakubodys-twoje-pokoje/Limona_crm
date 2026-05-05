@@ -35,12 +35,20 @@ interface ExtractedContact {
   sourceTitle: string
 }
 
+export interface DebugEntry {
+  tag: string
+  msg: string
+  ms: number
+  ok: boolean
+}
+
 interface SearchResults {
   krs: KrsEntity[]
   ceidg: CeidgEntry[]
   google: GoogleResult[]
   contacts: ExtractedContact[]
   searchLinks: { label: string; url: string }[]
+  _debug: DebugEntry[]
 }
 
 interface ScrapedPage {
@@ -50,45 +58,44 @@ interface ScrapedPage {
   emails: string[]
 }
 
-/** Extract KRS numbers (10-digit, zero-padded) from arbitrary text */
+class DebugLog {
+  private entries: DebugEntry[] = []
+  private start = Date.now()
+
+  log(tag: string, msg: string, ok = true) {
+    const ms = Date.now() - this.start
+    this.entries.push({ tag, msg, ms, ok })
+    console.log(`[${tag}] +${ms}ms ${msg}`)
+  }
+
+  get(): DebugEntry[] { return this.entries }
+}
+
 function extractKrsNumbers(text: string): string[] {
   const found = new Set<string>()
-  // Matches: "KRS 0000123456", "KRS: 0000123456", "KRS0000123456"
   Array.from(text.matchAll(/KRS[\s:]*(\d{10})/gi), m => found.add(m[1].padStart(10, '0')))
-  // Bare 10-digit numbers that look like KRS (start with 0000)
   Array.from(text.matchAll(/\b(0000\d{6})\b/g), m => found.add(m[1]))
   return Array.from(found)
 }
 
-/** Extract Polish phone numbers and emails from text */
 function extractContactInfo(text: string): { phones: string[], emails: string[] } {
   const phones = new Set<string>()
   const emails = new Set<string>()
-
-  // +48 XXX XXX XXX (with any separators)
   Array.from(text.matchAll(/\+48[\s.-]?(\d{3})[\s.-]?(\d{3})[\s.-]?(\d{3})/g), m =>
     phones.add(`+48 ${m[1]} ${m[2]} ${m[3]}`)
   )
-  // XXX-XXX-XXX or XXX XXX XXX with separators, Polish mobile prefix 5-8
   Array.from(text.matchAll(/\b([5-8]\d{2})[.\s-](\d{3})[.\s-](\d{3})\b/g), m =>
     phones.add(`+48 ${m[1]} ${m[2]} ${m[3]}`)
   )
-  // Emails
   Array.from(text.matchAll(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g), m => {
     const email = m[0].toLowerCase()
-    if (!email.includes('example') && !email.includes('noreply') && !email.includes('sentry')) {
+    if (!email.includes('example') && !email.includes('noreply') && !email.includes('sentry'))
       emails.add(email)
-    }
   })
-
-  return {
-    phones: Array.from(phones).slice(0, 5),
-    emails: Array.from(emails).slice(0, 5),
-  }
+  return { phones: Array.from(phones).slice(0, 5), emails: Array.from(emails).slice(0, 5) }
 }
 
-/** Fetch full KRS entity data by KRS number from api-krs.ms.gov.pl */
-async function fetchKrsByNumber(krsNumber: string): Promise<KrsEntity | null> {
+async function fetchKrsByNumber(krsNumber: string, log: DebugLog): Promise<KrsEntity | null> {
   try {
     const url = `https://api-krs.ms.gov.pl/api/krs/OdpisAktualny/${krsNumber}?rejestr=P&format=json`
     const res = await fetch(url, {
@@ -96,25 +103,22 @@ async function fetchKrsByNumber(krsNumber: string): Promise<KrsEntity | null> {
       signal: AbortSignal.timeout(15000),
     })
     if (!res.ok) {
-      console.log(`[KRS] fetchKrsByNumber ${krsNumber}: HTTP ${res.status}`)
+      log.log('KRS-API', `${krsNumber} → HTTP ${res.status}`, false)
       return null
     }
     const data = await res.json()
-
     const odpis = data?.odpis
     const podmiot = odpis?.dane?.dzial1?.danePodmiotu
     const siedziba = odpis?.dane?.dzial1?.siedzibaIAdres
-
     if (!podmiot) {
-      console.log(`[KRS] fetchKrsByNumber ${krsNumber}: brak danePodmiotu w odpowiedzi`)
+      log.log('KRS-API', `${krsNumber} → brak danePodmiotu`, false)
       return null
     }
-
     const miasto = siedziba?.adres?.miejscowosc || siedziba?.siedziba?.miejscowosc || ''
     const ulica = siedziba?.adres?.ulica || ''
     const nrDomu = siedziba?.adres?.nrDomu || ''
     const address = [miasto, ulica, nrDomu].filter(Boolean).join(', ')
-
+    log.log('KRS-API', `${krsNumber} → OK: ${podmiot?.nazwa}`)
     return {
       name: podmiot?.nazwa || '',
       krs: krsNumber,
@@ -124,35 +128,22 @@ async function fetchKrsByNumber(krsNumber: string): Promise<KrsEntity | null> {
       role: 'podmiot (KRS)',
     }
   } catch (e) {
-    console.log(`[KRS] fetchKrsByNumber ${krsNumber}: błąd`, e)
+    log.log('KRS-API', `${krsNumber} → błąd: ${(e as Error).message}`, false)
     return null
   }
 }
 
-/** Domains known to list KRS numbers — prioritized for HTML scraping */
 const KRS_REGISTRY_DOMAINS = [
-  'rejestr.io',
-  'krs-online.com.pl',
-  'mojepanstwo.pl',
-  'infoveriti.pl',
-  'aleo.com',
-  'ekrs.ms.gov.pl',
-  'prs.ms.gov.pl',
-  'biznes.gov.pl',
-  'cominfo.pl',
-  'sprawdz-firme.pl',
-  'centrumkrs.pl',
-  'sprawdzfirme.pl',
-  'biznesradar.pl',
+  'rejestr.io', 'krs-online.com.pl', 'mojepanstwo.pl', 'infoveriti.pl',
+  'aleo.com', 'ekrs.ms.gov.pl', 'prs.ms.gov.pl', 'biznes.gov.pl',
+  'cominfo.pl', 'sprawdz-firme.pl', 'centrumkrs.pl', 'sprawdzfirme.pl', 'biznesradar.pl',
 ]
 
 function isRegistryUrl(url: string): boolean {
   try {
     const host = new URL(url).hostname.replace(/^www\./, '')
     return KRS_REGISTRY_DOMAINS.some(d => host === d || host.endsWith('.' + d))
-  } catch {
-    return false
-  }
+  } catch { return false }
 }
 
 function stripHtml(html: string): string {
@@ -160,14 +151,11 @@ function stripHtml(html: string): string {
     .replace(/<script[\s\S]*?<\/script>/gi, ' ')
     .replace(/<style[\s\S]*?<\/style>/gi, ' ')
     .replace(/<[^>]+>/g, ' ')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
+    .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
     .replace(/\s+/g, ' ')
 }
 
-async function scrapePage(url: string): Promise<ScrapedPage> {
+async function scrapePage(url: string, log: DebugLog): Promise<ScrapedPage> {
   const empty: ScrapedPage = { url, krsNumbers: [], phones: [], emails: [] }
   try {
     const res = await fetch(url, {
@@ -179,11 +167,9 @@ async function scrapePage(url: string): Promise<ScrapedPage> {
       signal: AbortSignal.timeout(8000),
     })
     if (!res.ok) {
-      console.log(`[SCRAPE] ${url}: HTTP ${res.status}`)
+      log.log('SCRAPE', `${url} → HTTP ${res.status}`, false)
       return empty
     }
-
-    // Read at most 300 KB
     const reader = res.body?.getReader()
     if (!reader) return empty
     const chunks: Uint8Array[] = []
@@ -191,282 +177,205 @@ async function scrapePage(url: string): Promise<ScrapedPage> {
     while (bytes < 300_000) {
       const { done, value } = await reader.read()
       if (done || !value) break
-      chunks.push(value)
-      bytes += value.length
+      chunks.push(value); bytes += value.length
     }
     reader.cancel().catch(() => {})
-
     const html = new TextDecoder().decode(
-      chunks.reduce((acc, c) => {
-        const merged = new Uint8Array(acc.length + c.length)
-        merged.set(acc)
-        merged.set(c, acc.length)
-        return merged
-      }, new Uint8Array())
+      chunks.reduce((acc, c) => { const m = new Uint8Array(acc.length + c.length); m.set(acc); m.set(c, acc.length); return m }, new Uint8Array())
     )
     const text = stripHtml(html)
     const krsNumbers = extractKrsNumbers(text)
     const { phones, emails } = extractContactInfo(text)
-
-    console.log(`[SCRAPE] ${url}: KRS=${krsNumbers.length} tel=${phones.length} email=${emails.length}`)
+    log.log('SCRAPE', `${new URL(url).hostname} → KRS:${krsNumbers.length} tel:${phones.length} email:${emails.length}`, true)
     return { url, krsNumbers, phones, emails }
   } catch (e) {
-    console.log(`[SCRAPE] ${url}: błąd`, (e as Error).message)
+    log.log('SCRAPE', `${url} → ${(e as Error).message}`, false)
     return empty
   }
 }
 
-/** Scrape known registries directly by name — no Google API needed */
-async function scrapeRegistriesDirect(name: string): Promise<ScrapedPage[]> {
+async function scrapeRegistriesDirect(name: string, log: DebugLog): Promise<ScrapedPage[]> {
   const encoded = encodeURIComponent(name)
   const directUrls = [
     `https://rejestr.io/szukaj?q=${encoded}`,
     `https://www.krs-online.com.pl/szukaj.php?q=${encoded}`,
     `https://mojepanstwo.pl/szukanie?q=${encoded}`,
   ]
-  console.log(`[KRS] Scraping bezpośredni rejestrów dla "${name}"`)
-  return Promise.all(directUrls.map(scrapePage))
+  log.log('SCRAPE', `Bezpośredni scraping ${directUrls.length} rejestrów`)
+  return Promise.all(directUrls.map(u => scrapePage(u, log)))
 }
 
-async function searchKRS(name: string, googleResults: GoogleResult[]): Promise<{ entities: KrsEntity[], contacts: ExtractedContact[] }> {
+async function searchKRS(name: string, googleResults: GoogleResult[], log: DebugLog): Promise<{ entities: KrsEntity[], contacts: ExtractedContact[] }> {
   const entities: KrsEntity[] = []
   const contacts: ExtractedContact[] = []
-
-  // Step 1: extract KRS numbers from Google snippets/titles/links
   const krsNumbers = new Set<string>()
-  const krsSourceMap = new Map<string, string>() // krsNumber → sourceUrl
+  const krsSourceMap = new Map<string, string>()
 
   for (const g of googleResults) {
     for (const n of extractKrsNumbers(`${g.title} ${g.snippet} ${g.link}`)) {
       krsNumbers.add(n)
       if (!krsSourceMap.has(n)) krsSourceMap.set(n, g.link)
     }
-    // Also grab contacts from snippet text
     const { phones, emails } = extractContactInfo(`${g.title} ${g.snippet}`)
-    if (phones.length > 0 || emails.length > 0) {
+    if (phones.length > 0 || emails.length > 0)
       contacts.push({ phones, emails, sourceUrl: g.link, sourceTitle: g.title })
-    }
   }
-  console.log(`[KRS] Ze snippetów Google: ${krsNumbers.size} numerów KRS`)
+  log.log('KRS', `Ze snippetów Google: ${krsNumbers.size} numerów KRS`)
 
-  // Step 2: scrape registry pages from Google results + always scrape known registries directly
   const registryUrls = googleResults.map(g => g.link).filter(isRegistryUrl).slice(0, 3)
   const extraUrls = krsNumbers.size === 0
     ? googleResults.map(g => g.link).filter(u => !isRegistryUrl(u)).slice(0, 2)
     : []
   const urlsToScrape = Array.from(new Set(registryUrls.concat(extraUrls)))
 
-  // Run Google-sourced scraping and direct registry scraping in parallel
   const [googleScraped, directScraped] = await Promise.all([
-    urlsToScrape.length > 0
-      ? Promise.all(urlsToScrape.map(scrapePage))
-      : Promise.resolve([] as ScrapedPage[]),
-    scrapeRegistriesDirect(name),
+    urlsToScrape.length > 0 ? Promise.all(urlsToScrape.map(u => scrapePage(u, log))) : Promise.resolve([] as ScrapedPage[]),
+    scrapeRegistriesDirect(name, log),
   ])
 
-  const allScraped = googleScraped.concat(directScraped)
-  console.log(`[KRS] Scraping łącznie ${allScraped.length} stron`)
-
-  for (const page of allScraped) {
+  for (const page of googleScraped.concat(directScraped)) {
     for (const n of page.krsNumbers) {
       krsNumbers.add(n)
       if (!krsSourceMap.has(n)) krsSourceMap.set(n, page.url)
     }
     if (page.phones.length > 0 || page.emails.length > 0) {
       const googleItem = googleResults.find(g => g.link === page.url)
-      contacts.push({
-        phones: page.phones,
-        emails: page.emails,
-        sourceUrl: page.url,
-        sourceTitle: googleItem?.title || new URL(page.url).hostname,
-      })
+      contacts.push({ phones: page.phones, emails: page.emails, sourceUrl: page.url, sourceTitle: googleItem?.title || new URL(page.url).hostname })
     }
   }
-  console.log(`[KRS] Po scrapingu: ${krsNumbers.size} numerów KRS łącznie`)
+  log.log('KRS', `Po scrapingu: ${krsNumbers.size} numerów KRS łącznie`)
 
-  // Step 3: fetch KRS entity data for each number found
   if (krsNumbers.size > 0) {
     const numbered = Array.from(krsNumbers).slice(0, 5)
-    console.log(`[KRS] Pobieranie danych dla: ${numbered.join(', ')}`)
-    const fetched = await Promise.all(numbered.map(fetchKrsByNumber))
+    log.log('KRS', `Pobieranie OdpisAktualny dla: ${numbered.join(', ')}`)
+    const fetched = await Promise.all(numbered.map(n => fetchKrsByNumber(n, log)))
     for (let i = 0; i < fetched.length; i++) {
       const entity = fetched[i]
-      if (entity) {
-        entity.sourceUrl = krsSourceMap.get(numbered[i])
-        entities.push(entity)
-      }
+      if (entity) { entity.sourceUrl = krsSourceMap.get(numbered[i]); entities.push(entity) }
     }
   }
 
-  // Step 4: fallback — direct KRS OsobaFizyczna API by name
   try {
     const nameParts = name.trim().split(/\s+/)
     if (nameParts.length >= 2) {
       const lastName = nameParts[nameParts.length - 1]
       const firstName = nameParts.slice(0, -1).join(' ')
-
       const personUrl = `https://api-krs.ms.gov.pl/api/krs/OsobaFizyczna?imie=${encodeURIComponent(firstName)}&nazwisko=${encodeURIComponent(lastName)}&format=json`
-      console.log(`[KRS] Fallback OsobaFizyczna: ${personUrl}`)
-      const personRes = await fetch(personUrl, {
-        headers: { 'Accept': 'application/json' },
-        signal: AbortSignal.timeout(15000),
-      })
-
+      log.log('KRS', `Fallback OsobaFizyczna: ${firstName} ${lastName}`)
+      const personRes = await fetch(personUrl, { headers: { 'Accept': 'application/json' }, signal: AbortSignal.timeout(15000) })
       if (personRes.ok) {
         const personData = await personRes.json()
         const personList: Array<{ numerKRS?: string }> = Array.isArray(personData) ? personData : (personData?.items || [])
-        console.log(`[KRS] OsobaFizyczna zwróciła ${personList.length} wyników`)
-        const newNumbers = personList
-          .map(item => item.numerKRS || '')
-          .filter(n => n && !entities.some(r => r.krs === n))
-          .slice(0, 5)
-
-        const fetched = await Promise.all(newNumbers.map(fetchKrsByNumber))
+        log.log('KRS', `OsobaFizyczna: ${personList.length} wyników`)
+        const newNumbers = personList.map(item => item.numerKRS || '').filter(n => n && !entities.some(r => r.krs === n)).slice(0, 5)
+        const fetched = await Promise.all(newNumbers.map(n => fetchKrsByNumber(n, log)))
         for (const entity of fetched) {
-          if (entity) {
-            entity.sourceUrl = `https://api-krs.ms.gov.pl/api/krs/OsobaFizyczna?imie=${encodeURIComponent(firstName)}&nazwisko=${encodeURIComponent(lastName)}&format=json`
-            entities.push(entity)
-          }
+          if (entity) { entity.sourceUrl = personUrl; entities.push(entity) }
         }
       } else {
-        console.log(`[KRS] OsobaFizyczna HTTP ${personRes.status}`)
+        log.log('KRS', `OsobaFizyczna HTTP ${personRes.status}`, false)
       }
     }
   } catch (e) {
-    console.error('[KRS] Fallback search error:', e)
+    log.log('KRS', `Fallback error: ${(e as Error).message}`, false)
   }
 
-  console.log(`[KRS] Wynik końcowy: ${entities.length} podmiotów, ${contacts.length} kontaktów`)
+  log.log('KRS', `Wynik: ${entities.length} podmiotów, ${contacts.length} kontaktów`)
   return { entities, contacts }
 }
 
-async function searchCEIDG(name: string): Promise<CeidgEntry[]> {
+async function searchCEIDG(name: string, log: DebugLog): Promise<CeidgEntry[]> {
   const results: CeidgEntry[] = []
-
   try {
     const nameParts = name.trim().split(/\s+/)
     if (nameParts.length < 2) return results
-
     const firstName = nameParts[0]
     const lastName = nameParts.slice(1).join(' ')
-
     const token = process.env.CEIDG_API_TOKEN
-    if (!token) {
-      console.log('[CEIDG] Brak CEIDG_API_TOKEN — pomijam')
-      return results
-    }
-
+    if (!token) { log.log('CEIDG', 'Brak tokena — pomijam', false); return results }
     const url = `https://dane.biznes.gov.pl/api/ceidg/v2/firmy?imie=${encodeURIComponent(firstName)}&nazwisko=${encodeURIComponent(lastName)}`
-    console.log(`[CEIDG] Szukam: ${url}`)
-    const res = await fetch(url, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Accept': 'application/json',
-      },
-      signal: AbortSignal.timeout(10000),
-    })
-
+    log.log('CEIDG', `Szukam: ${firstName} ${lastName}`)
+    const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }, signal: AbortSignal.timeout(10000) })
     if (res.ok) {
       const data = await res.json()
-      console.log(`[CEIDG] Znaleziono ${data?.firmy?.length || 0} firm`)
+      log.log('CEIDG', `Znaleziono ${data?.firmy?.length || 0} firm`)
       if (data?.firmy) {
         for (const firma of data.firmy.slice(0, 20)) {
           results.push({
-            name: firma.nazwa || '',
-            nip: firma.wlasciciel?.nip || '',
-            regon: firma.regon || '',
-            address: firma.adresDzialalnosci
-              ? [firma.adresDzialalnosci.miasto, firma.adresDzialalnosci.ulica, firma.adresDzialalnosci.budynek].filter(Boolean).join(', ')
-              : '',
-            phone: firma.dataKontaktowe?.telefon || null,
-            email: firma.dataKontaktowe?.email || null,
+            name: firma.nazwa || '', nip: firma.wlasciciel?.nip || '', regon: firma.regon || '',
+            address: firma.adresDzialalnosci ? [firma.adresDzialalnosci.miasto, firma.adresDzialalnosci.ulica, firma.adresDzialalnosci.budynek].filter(Boolean).join(', ') : '',
+            phone: firma.dataKontaktowe?.telefon || null, email: firma.dataKontaktowe?.email || null,
             status: firma.status === 1 ? 'Aktywna' : firma.status === 2 ? 'Zawieszona' : 'Wykreślona',
           })
         }
       }
     } else {
-      console.log(`[CEIDG] HTTP ${res.status}`)
+      log.log('CEIDG', `HTTP ${res.status}`, false)
     }
   } catch (e) {
-    console.error('[CEIDG] search error:', e)
+    log.log('CEIDG', `Błąd: ${(e as Error).message}`, false)
   }
-
   return results
 }
 
-async function searchGoogle(name: string): Promise<GoogleResult[]> {
+async function searchGoogle(name: string, log: DebugLog): Promise<GoogleResult[]> {
   const results: GoogleResult[] = []
-
   try {
     const apiKey = process.env.GOOGLE_API_KEY
     const cx = process.env.GOOGLE_CX
-    if (!apiKey || !cx) {
-      console.log('[GOOGLE] Brak GOOGLE_API_KEY lub GOOGLE_CX — pomijam')
-      return results
-    }
+    if (!apiKey || !cx) { log.log('GOOGLE', 'Brak API_KEY lub CX — pomijam', false); return results }
 
-    // 3 queries per search (uses 3 of 100 daily quota = ~33 searches/day)
+    log.log('GOOGLE', `API_KEY: ${apiKey.slice(0, 8)}... CX: ${cx}`)
+
     const registrySites = 'site:rejestr.io OR site:krs-online.com.pl OR site:mojepanstwo.pl OR site:infoveriti.pl OR site:aleo.com OR site:panoramafirm.pl OR site:biznesradar.pl'
     const queries = [
-      `"${name}" (${registrySites})`,        // targeted: find person in known registries
-      `"${name}" KRS numer spółka`,          // general: find KRS numbers
-      `"${name}" telefon kontakt email`,     // general: find contact info
+      `"${name}" (${registrySites})`,
+      `"${name}" KRS numer spółka`,
+      `"${name}" telefon kontakt email`,
     ]
 
     for (const q of queries) {
       const url = `https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${cx}&q=${encodeURIComponent(q)}&num=5&lr=lang_pl`
-      console.log(`[GOOGLE] Zapytanie: ${q}`)
       const res = await fetch(url, { signal: AbortSignal.timeout(10000) })
-
       if (res.ok) {
         const data = await res.json()
-        console.log(`[GOOGLE] Wyników: ${data?.items?.length || 0} (searchInformation: ${JSON.stringify(data?.searchInformation?.totalResults)})`)
+        if (data?.error) {
+          log.log('GOOGLE', `Błąd API ${data.error.code}: ${data.error.message}`, false)
+          continue
+        }
+        const count = data?.items?.length || 0
+        log.log('GOOGLE', `"${q.slice(0, 50)}..." → ${count} wyników`)
         if (data?.items) {
           for (const item of data.items) {
             if (results.some(r => r.link === item.link)) continue
-            results.push({
-              title: item.title || '',
-              link: item.link || '',
-              snippet: item.snippet || '',
-            })
+            results.push({ title: item.title || '', link: item.link || '', snippet: item.snippet || '' })
           }
-        }
-        if (data?.error) {
-          console.log(`[GOOGLE] Błąd API: ${JSON.stringify(data.error)}`)
         }
       } else {
         const errText = await res.text().catch(() => '')
-        console.log(`[GOOGLE] HTTP ${res.status}: ${errText.slice(0, 200)}`)
+        log.log('GOOGLE', `HTTP ${res.status}: ${errText.slice(0, 150)}`, false)
       }
     }
   } catch (e) {
-    console.error('[GOOGLE] search error:', e)
+    log.log('GOOGLE', `Wyjątek: ${(e as Error).message}`, false)
   }
-
-  console.log(`[GOOGLE] Łącznie ${results.length} unikalnych wyników`)
+  log.log('GOOGLE', `Łącznie ${results.length} unikalnych wyników`)
   return results
 }
 
 function generateSearchLinks(name: string, kwNumber?: string): { label: string; url: string }[] {
-  const encodedName = encodeURIComponent(name)
-  const links: { label: string; url: string }[] = []
-
-  links.push({ label: 'Google', url: `https://www.google.com/search?q=${encodedName}` })
-  links.push({ label: 'Google + telefon', url: `https://www.google.com/search?q=${encodedName}+telefon+kontakt` })
-  links.push({ label: 'Google + firma', url: `https://www.google.com/search?q=${encodedName}+firma+spółka` })
-  links.push({ label: 'Facebook', url: `https://www.facebook.com/search/people/?q=${encodedName}` })
-  links.push({ label: 'LinkedIn', url: `https://www.linkedin.com/search/results/people/?keywords=${encodedName}` })
-  links.push({ label: 'Rejestr.io', url: `https://rejestr.io/szukaj?q=${encodedName}` })
-  links.push({ label: 'Panorama Firm', url: `https://panoramafirm.pl/szukaj?k=${encodedName}` })
-  links.push({ label: 'KRS Online', url: `https://www.krs-online.com.pl/szukaj.php?q=${encodedName}` })
-
-  if (kwNumber) {
-    links.push({
-      label: 'Księga Wieczysta',
-      url: `https://przegladarka-ekw.ms.gov.pl/eukw_prz/KsijkiWieczyste/wyszukiwanieKW?nrKW=${encodeURIComponent(kwNumber)}`,
-    })
-  }
-
+  const n = encodeURIComponent(name)
+  const links = [
+    { label: 'Google', url: `https://www.google.com/search?q=${n}` },
+    { label: 'Google + telefon', url: `https://www.google.com/search?q=${n}+telefon+kontakt` },
+    { label: 'Google + firma', url: `https://www.google.com/search?q=${n}+firma+spółka` },
+    { label: 'Facebook', url: `https://www.facebook.com/search/people/?q=${n}` },
+    { label: 'LinkedIn', url: `https://www.linkedin.com/search/results/people/?keywords=${n}` },
+    { label: 'Rejestr.io', url: `https://rejestr.io/szukaj?q=${n}` },
+    { label: 'Panorama Firm', url: `https://panoramafirm.pl/szukaj?k=${n}` },
+    { label: 'KRS Online', url: `https://www.krs-online.com.pl/szukaj.php?q=${n}` },
+  ]
+  if (kwNumber) links.push({ label: 'Księga Wieczysta', url: `https://przegladarka-ekw.ms.gov.pl/eukw_prz/KsijkiWieczyste/wyszukiwanieKW?nrKW=${encodeURIComponent(kwNumber)}` })
   return links
 }
 
@@ -475,26 +384,17 @@ export async function POST(req: NextRequest) {
   if (!user) return unauthorized()
 
   const { personName, kwNumber } = await req.json()
-
-  if (!personName?.trim()) {
-    return NextResponse.json({ error: 'Wymagane imię i nazwisko' }, { status: 400 })
-  }
+  if (!personName?.trim()) return NextResponse.json({ error: 'Wymagane imię i nazwisko' }, { status: 400 })
 
   const name = personName.trim()
-  console.log(`\n[SEARCH] ===== Wyszukiwanie: "${name}" =====`)
+  const log = new DebugLog()
+  log.log('SEARCH', `Start: "${name}"`)
 
-  // Google + CEIDG równolegle; KRS czeka na wyniki Google
-  const [google, ceidg] = await Promise.all([
-    searchGoogle(name),
-    searchCEIDG(name),
-  ])
-
-  const { entities: krs, contacts } = await searchKRS(name, google)
-
+  const [google, ceidg] = await Promise.all([searchGoogle(name, log), searchCEIDG(name, log)])
+  const { entities: krs, contacts } = await searchKRS(name, google, log)
   const searchLinks = generateSearchLinks(name, kwNumber)
 
-  console.log(`[SEARCH] ===== Koniec: KRS=${krs.length} CEIDG=${ceidg.length} Google=${google.length} Kontakty=${contacts.length} =====\n`)
+  log.log('SEARCH', `Koniec: KRS=${krs.length} CEIDG=${ceidg.length} Google=${google.length} Kontakty=${contacts.length}`)
 
-  const results: SearchResults = { krs, ceidg, google, contacts, searchLinks }
-  return NextResponse.json(results)
+  return NextResponse.json({ krs, ceidg, google, contacts, searchLinks, _debug: log.get() })
 }
