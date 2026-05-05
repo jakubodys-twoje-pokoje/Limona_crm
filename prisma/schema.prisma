@@ -207,3 +207,20 @@ model Notification {
   @@index([user_id, read, created_at(sort: Desc)])
   @@map("notifications")
 }
+
+model ResearchQuery {
+  id          String   @id @default(uuid()) @db.Uuid
+  property_id String?  @db.Uuid
+  person_name String
+  kw_number   String?
+  notes       String?
+  status      String   @default("pending")
+  results     Json?
+  created_by  String?  @db.Uuid
+  created_at  DateTime @default(now()) @db.Timestamptz()
+  updated_at  DateTime @default(now()) @updatedAt @db.Timestamptz()
+
+  @@index([person_name])
+  @@index([created_at(sort: Desc)])
+  @@map("research_queries")
+}

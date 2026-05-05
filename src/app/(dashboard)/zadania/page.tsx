@@ -2,9 +2,9 @@
 
 export const dynamic = 'force-dynamic'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
-import { Plus, Calendar, Link as LinkIcon, Trash2, CheckCircle, Clock, AlertCircle, XCircle, MessageCircle } from 'lucide-react'
+import { Plus, Calendar, Link as LinkIcon, Trash2, CheckCircle, Clock, AlertCircle, XCircle } from 'lucide-react'
 import { useTasks } from '@/hooks/useTasks'
 import { useAuth } from '@/hooks/useAuth'
 import { useVisibleUserIds } from '@/hooks/useTeamVisibility'
@@ -13,8 +13,9 @@ import { Badge } from '@/components/ui/Badge'
 import { Avatar } from '@/components/ui/Avatar'
 import { Modal } from '@/components/ui/Modal'
 import { Skeleton } from '@/components/ui/Skeleton'
+import { TaskDetailModal } from '@/components/tasks/TaskDetailModal'
 import { cn } from '@/lib/utils'
-import type { Task, TaskStatus, TaskPriority } from '@/types/database'
+import type { Task, TaskStatus, TaskPriority, Profile } from '@/types/database'
 
 const columns: { status: TaskStatus; label: string; icon: React.ReactNode; color: string }[] = [
   { status: 'todo', label: 'Do zrobienia', icon: <Circle16 />, color: 'border-t-gray-500' },
@@ -37,6 +38,7 @@ interface TaskFormData {
   priority: TaskPriority
   due_date: string
   status: TaskStatus
+  assigned_to: string
 }
 
 const EMPTY_FORM: TaskFormData = {
@@ -45,6 +47,7 @@ const EMPTY_FORM: TaskFormData = {
   priority: 'medium',
   due_date: '',
   status: 'todo',
+  assigned_to: '',
 }
 
 export default function ZadaniaPage() {
@@ -57,6 +60,22 @@ export default function ZadaniaPage() {
   const [showAddModal, setShowAddModal] = useState(false)
   const [addStatus, setAddStatus] = useState<TaskStatus>('todo')
   const [form, setForm] = useState<TaskFormData>({ ...EMPTY_FORM })
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null)
+  const [profiles, setProfiles] = useState<Profile[]>([])
+
+  const profilesFetched = useRef(false)
+  useEffect(() => {
+    if (profilesFetched.current) return
+    profilesFetched.current = true
+    fetch('/api/profiles').then(r => r.json()).then(data => setProfiles(data || []))
+  }, [])
+
+  useEffect(() => {
+    if (selectedTask) {
+      const updated = tasks.find(t => t.id === selectedTask.id)
+      if (updated) setSelectedTask(updated)
+    }
+  }, [tasks, selectedTask])
 
   const byStatus = (status: TaskStatus) => tasks.filter(t => t.status === status)
 
@@ -70,6 +89,7 @@ export default function ZadaniaPage() {
       priority: form.priority,
       due_date: form.due_date || null,
       status: addStatus,
+      assigned_to: form.assigned_to || null,
     }, user.id)
 
     if (error) { showToast(error, 'error'); return }
@@ -87,6 +107,15 @@ export default function ZadaniaPage() {
   async function moveTask(task: Task, status: TaskStatus) {
     if (!user) return
     await updateTask(task.id, { status }, user.id)
+  }
+
+  async function handleUpdateTask(id: string, updates: Partial<Task>) {
+    if (!user) return { error: 'No user' }
+    return await updateTask(id, updates, user.id)
+  }
+
+  async function handleDeleteTask(id: string) {
+    return await deleteTask(id)
   }
 
   function isOverdue(task: Task): boolean {
@@ -141,7 +170,6 @@ export default function ZadaniaPage() {
             const colTasks = byStatus(col.status)
             return (
               <div key={col.status} className={`limona-card border-t-2 ${col.color} flex flex-col`}>
-                {/* Column header */}
                 <div className="p-3 border-b border-limona-border flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="text-limona-text-muted">{col.icon}</span>
@@ -153,8 +181,6 @@ export default function ZadaniaPage() {
                     <Plus size={14} />
                   </button>
                 </div>
-
-                {/* Tasks */}
                 <div className="p-2 space-y-2 flex-1">
                   {colTasks.map(task => (
                     <TaskCard
@@ -163,8 +189,7 @@ export default function ZadaniaPage() {
                       isOverdue={isOverdue(task)}
                       onMove={moveTask}
                       onDelete={() => deleteTask(task.id)}
-                      userId={user?.id || ''}
-                      isAdmin={profile?.role === 'admin'}
+                      onOpen={() => setSelectedTask(task)}
                     />
                   ))}
                   {colTasks.length === 0 && (
@@ -186,9 +211,9 @@ export default function ZadaniaPage() {
                 <th className="text-left py-3 px-4 text-xs uppercase tracking-wider text-limona-text-muted">Zadanie</th>
                 <th className="text-left py-3 px-4 text-xs uppercase tracking-wider text-limona-text-muted">Status</th>
                 <th className="text-left py-3 px-4 text-xs uppercase tracking-wider text-limona-text-muted">Priorytet</th>
+                <th className="text-left py-3 px-4 text-xs uppercase tracking-wider text-limona-text-muted">Przypisane</th>
                 <th className="text-left py-3 px-4 text-xs uppercase tracking-wider text-limona-text-muted">Termin</th>
                 <th className="text-left py-3 px-4 text-xs uppercase tracking-wider text-limona-text-muted">Nieruchomość</th>
-                <th className="w-10" />
               </tr>
             </thead>
             <tbody>
@@ -196,7 +221,9 @@ export default function ZadaniaPage() {
                 <tr><td colSpan={6} className="text-center text-limona-text-muted py-12">Brak zadań</td></tr>
               ) : (
                 tasks.map(task => (
-                  <tr key={task.id} className="border-b border-limona-border/50 hover:bg-limona-surface-2/50 transition-colors group">
+                  <tr key={task.id}
+                    className="border-b border-limona-border/50 hover:bg-limona-surface-2/50 transition-colors cursor-pointer"
+                    onClick={() => setSelectedTask(task)}>
                     <td className="py-3 px-4">
                       <p className={cn('font-medium', task.status === 'done' && 'line-through text-limona-text-muted')}>
                         {task.title}
@@ -204,6 +231,14 @@ export default function ZadaniaPage() {
                     </td>
                     <td className="py-3 px-4"><Badge value={task.status} /></td>
                     <td className="py-3 px-4"><Badge value={task.priority} /></td>
+                    <td className="py-3 px-4">
+                      {task.assignee ? (
+                        <div className="flex items-center gap-1.5">
+                          <Avatar name={task.assignee.full_name} url={task.assignee.avatar_url} size="sm" />
+                          <span className="text-xs">{task.assignee.full_name}</span>
+                        </div>
+                      ) : <span className="text-limona-text-dim text-xs">—</span>}
+                    </td>
                     <td className="py-3 px-4">
                       {task.due_date ? (
                         <span className={cn('text-xs font-mono', isOverdue(task) && 'text-limona-red')}>
@@ -213,18 +248,11 @@ export default function ZadaniaPage() {
                     </td>
                     <td className="py-3 px-4">
                       {task.property ? (
-                        <Link href={`/nieruchomosci/${task.property_id}`}
-                          className="text-xs text-limona-blue hover:text-limona-blue/80 flex items-center gap-1">
+                        <span className="text-xs text-limona-blue flex items-center gap-1">
                           <LinkIcon size={11} />
                           {task.property.location}
-                        </Link>
+                        </span>
                       ) : <span className="text-limona-text-dim">—</span>}
-                    </td>
-                    <td className="py-3 px-4">
-                      <button onClick={() => deleteTask(task.id)}
-                        className="p-1 text-limona-text-dim hover:text-limona-red opacity-0 group-hover:opacity-100 transition-all">
-                        <Trash2 size={14} />
-                      </button>
                     </td>
                   </tr>
                 ))
@@ -260,46 +288,71 @@ export default function ZadaniaPage() {
               <input type="date" className="limona-input" value={form.due_date} onChange={e => setForm(f => ({ ...f, due_date: e.target.value }))} />
             </div>
           </div>
+          <div>
+            <label className="limona-label block mb-2">Przypisz do</label>
+            <select className="limona-select" value={form.assigned_to} onChange={e => setForm(f => ({ ...f, assigned_to: e.target.value }))}>
+              <option value="">Nieprzypisane</option>
+              {profiles.map(p => (
+                <option key={p.id} value={p.id}>{p.full_name}</option>
+              ))}
+            </select>
+          </div>
           <div className="flex gap-3 justify-end pt-2">
             <button type="button" onClick={() => setShowAddModal(false)} className="limona-btn-outline">Anuluj</button>
             <button type="submit" className="limona-btn">Dodaj zadanie</button>
           </div>
         </form>
       </Modal>
+
+      {/* Task Detail Modal (Trello-style) */}
+      {selectedTask && (
+        <TaskDetailModal
+          task={selectedTask}
+          isOpen={!!selectedTask}
+          onClose={() => setSelectedTask(null)}
+          onUpdate={handleUpdateTask}
+          onDelete={handleDeleteTask}
+          userId={user?.id || ''}
+          userName={profile?.full_name || ''}
+          isAdmin={profile?.role === 'admin'}
+          profiles={profiles}
+          tasks={tasks}
+        />
+      )}
     </div>
   )
 }
 
-function TaskCard({ task, isOverdue, onMove, onDelete, userId, isAdmin }: {
+function TaskCard({ task, isOverdue, onMove, onDelete, onOpen }: {
   task: Task
   isOverdue: boolean
   onMove: (task: Task, status: TaskStatus) => void
   onDelete: () => void
-  userId: string
-  isAdmin: boolean
+  onOpen: () => void
 }) {
-  const [showComments, setShowComments] = useState(false)
   const statuses: TaskStatus[] = ['todo', 'in_progress', 'done', 'blocked']
 
-  // Lazy import TaskComments to avoid circular deps
-  const TaskCommentsComponent = showComments
-    ? require('@/components/tasks/TaskComments').TaskComments
-    : null
-
   return (
-    <div className={cn(
-      'limona-card p-3 space-y-2 group cursor-default',
-      task.status === 'done' && 'opacity-60'
-    )}>
+    <div
+      className={cn(
+        'limona-card p-3 space-y-2 group cursor-pointer hover:border-limona-lime/30 transition-all',
+        task.status === 'done' && 'opacity-60'
+      )}
+      onClick={onOpen}
+    >
       <div className="flex items-start justify-between gap-1">
         <p className={cn('text-sm font-medium leading-snug flex-1', task.status === 'done' && 'line-through text-limona-text-muted')}>
           {task.title}
         </p>
-        <button onClick={onDelete}
+        <button onClick={(e) => { e.stopPropagation(); onDelete() }}
           className="opacity-0 group-hover:opacity-100 p-0.5 text-limona-text-dim hover:text-limona-red transition-all flex-shrink-0">
           <Trash2 size={12} />
         </button>
       </div>
+
+      {task.description && (
+        <p className="text-[11px] text-limona-text-dim line-clamp-2">{task.description}</p>
+      )}
 
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
@@ -323,38 +376,21 @@ function TaskCard({ task, isOverdue, onMove, onDelete, userId, isAdmin }: {
       </div>
 
       {task.property && (
-        <Link href={`/nieruchomosci/${task.property_id}`}
-          className="flex items-center gap-1 text-[10px] text-limona-blue hover:text-limona-blue/80 truncate">
+        <div className="flex items-center gap-1 text-[10px] text-limona-blue truncate">
           <LinkIcon size={9} />
           {task.property.location}
-        </Link>
+        </div>
       )}
 
-      {/* Actions row */}
-      <div className="flex items-center justify-between">
-        {/* Quick move */}
-        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          {statuses.filter(s => s !== task.status).map(s => (
-            <button key={s} onClick={() => onMove(task, s)}
-              className="text-[9px] px-2 py-0.5 bg-limona-border/30 hover:bg-limona-lime/20 hover:text-limona-lime rounded-full uppercase tracking-wider transition-colors">
-              {s === 'todo' ? 'Todo' : s === 'in_progress' ? 'W trakcie' : s === 'done' ? 'Done' : 'Blocked'}
-            </button>
-          ))}
-        </div>
-        {/* Comments toggle */}
-        <button onClick={() => setShowComments(!showComments)}
-          className={cn('p-1 transition-colors text-[10px] flex items-center gap-1',
-            showComments ? 'text-limona-lime' : 'text-limona-text-dim hover:text-limona-text-muted')}>
-          <MessageCircle size={10} />
-        </button>
+      {/* Quick move buttons */}
+      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        {statuses.filter(s => s !== task.status).map(s => (
+          <button key={s} onClick={(e) => { e.stopPropagation(); onMove(task, s) }}
+            className="text-[9px] px-2 py-0.5 bg-limona-border/30 hover:bg-limona-lime/20 hover:text-limona-lime rounded-full uppercase tracking-wider transition-colors">
+            {s === 'todo' ? 'Todo' : s === 'in_progress' ? 'W trakcie' : s === 'done' ? 'Done' : 'Blocked'}
+          </button>
+        ))}
       </div>
-
-      {/* Comments section */}
-      {showComments && TaskCommentsComponent && (
-        <div className="pt-2 border-t border-limona-border/50">
-          <TaskCommentsComponent taskId={task.id} userId={userId} isAdmin={isAdmin} />
-        </div>
-      )}
     </div>
   )
 }

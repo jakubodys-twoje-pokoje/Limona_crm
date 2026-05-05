@@ -11,6 +11,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { useToast } from '@/components/ui/Toast'
 import { Avatar } from '@/components/ui/Avatar'
 import { Skeleton } from '@/components/ui/Skeleton'
+import { MentionInput } from '@/components/ui/MentionInput'
 import { parseMentions, parseTaskRefs, extractMentionedUserIds, isTaskVisibleToUser } from '@/lib/mentions'
 import { createNotification } from '@/hooks/useNotifications'
 import { useVisibleUserIds } from '@/hooks/useTeamVisibility'
@@ -185,15 +186,17 @@ export default function WallPage() {
         <div className="flex gap-3">
           {profile && <Avatar name={profile.full_name} url={profile.avatar_url} size="md" />}
           <div className="flex-1">
-            <textarea
-              className="limona-input min-h-[60px] resize-none"
+            <MentionInput
               value={newMsg}
-              onChange={e => setNewMsg(e.target.value)}
+              onChange={setNewMsg}
+              profiles={profiles}
+              tasks={tasks}
               placeholder='Napisz do zespołu... (@Jan aby oznaczyć, #"Zadanie" aby odnieść)'
               maxLength={2000}
-              onKeyDown={e => {
-                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handlePost(e) }
-              }}
+              multiline
+              rows={3}
+              className="min-h-[60px]"
+              onSubmit={() => { if (newMsg.trim()) handlePost(new Event('submit') as any) }}
             />
             <div className="flex items-center justify-between mt-2">
               <span className="text-xs text-limona-text-dim">{newMsg.length}/2000</span>

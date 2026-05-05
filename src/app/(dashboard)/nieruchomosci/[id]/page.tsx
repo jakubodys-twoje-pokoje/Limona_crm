@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic'
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Edit, ExternalLink, Clock, User, Phone, Plus, CheckCircle, Circle, Trash2 } from 'lucide-react'
+import { ArrowLeft, Edit, Clock, User, Phone, Plus, CheckCircle, Circle, Trash2 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { useProperties } from '@/hooks/useProperties'
 import { useTasks } from '@/hooks/useTasks'
@@ -146,13 +146,6 @@ export default function PropertyDetailPage() {
             <Badge value={property.status} />
             {property.property_type && (
               <span className="text-xs text-limona-text-muted capitalize">{property.property_type}</span>
-            )}
-            {property.trello_link && (
-              <a href={property.trello_link} target="_blank" rel="noopener noreferrer"
-                className="flex items-center gap-1 text-xs text-limona-blue hover:text-limona-blue/80 transition-colors">
-                <ExternalLink size={12} />
-                Trello
-              </a>
             )}
           </div>
         </div>
