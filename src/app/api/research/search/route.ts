@@ -197,9 +197,10 @@ async function scrapePage(url: string, log: DebugLog): Promise<ScrapedPage> {
 async function scrapeRegistriesDirect(name: string, log: DebugLog): Promise<ScrapedPage[]> {
   const encoded = encodeURIComponent(name)
   const directUrls = [
-    `https://rejestr.io/szukaj?q=${encoded}`,
-    `https://www.krs-online.com.pl/szukaj.php?q=${encoded}`,
-    `https://mojepanstwo.pl/szukanie?q=${encoded}`,
+    `https://www.infoveriti.pl/firma,szukaj,${encoded}.html`,
+    `https://aleo.com/pl/firmy?search=${encoded}`,
+    `https://panoramafirm.pl/szukaj?k=${encoded}`,
+    `https://biznesradar.pl/spolki/szukaj?q=${encoded}`,
   ]
   log.log('SCRAPE', `Bezpośredni scraping ${directUrls.length} rejestrów`)
   return Promise.all(directUrls.map(u => scrapePage(u, log)))
