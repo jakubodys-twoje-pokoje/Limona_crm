@@ -190,9 +190,18 @@ export default function WyszukiwarkaPage() {
     setShowHistory(false)
   }
 
-  const totalContacts = results
-    ? (results.ceidg.filter(c => c.phone || c.email).length + results.krs.length)
-    : 0
+  const unifiedEntities = results ? [
+    ...results.krs.map(e => ({
+      name: e.name, address: e.address, phone: null as string | null, email: null as string | null,
+      nip: e.nip, id: `KRS: ${e.krs}`, source: 'KRS' as const, url: e.sourceUrl,
+      badge: e.role, status: null as string | null,
+    })),
+    ...results.ceidg.map(e => ({
+      name: e.name, address: e.address, phone: e.phone, email: e.email,
+      nip: e.nip, id: e.nip ? `NIP: ${e.nip}` : '', source: 'CEIDG' as const, url: null as string | null,
+      badge: e.status, status: e.status,
+    })),
+  ] : []
 
   return (
     <div className="space-y-6 max-w-5xl">
@@ -308,116 +317,73 @@ export default function WyszukiwarkaPage() {
             </div>
           </div>
 
-          {/* CEIDG Results - contacts first since they have phone/email */}
-          {results.ceidg.length > 0 && (
+          {/* Unified entities: KRS + CEIDG */}
+          {unifiedEntities.length > 0 && (
             <div className="limona-card">
               <div className="p-4 border-b border-limona-border">
                 <h3 className="text-sm font-bold uppercase tracking-wider text-limona-text-muted flex items-center gap-2">
-                  <Building size={14} className="text-limona-blue" />
-                  CEIDG — Działalność gospodarcza ({results.ceidg.length})
+                  <Building size={14} className="text-limona-lime" />
+                  Podmioty ({unifiedEntities.length})
                 </h3>
               </div>
               <div className="divide-y divide-limona-border/50">
-                {results.ceidg.map((entry, i) => (
+                {unifiedEntities.map((e, i) => (
                   <div key={i} className="p-4 hover:bg-limona-surface-2/30 transition-colors">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-limona-white text-sm">{entry.name}</p>
-                        <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1.5">
-                          {entry.nip && (
-                            <span className="text-xs text-limona-text-dim">NIP: {entry.nip}</span>
-                          )}
-                          {entry.regon && (
-                            <span className="text-xs text-limona-text-dim">REGON: {entry.regon}</span>
-                          )}
-                          {entry.address && (
-                            <span className="text-xs text-limona-text-dim flex items-center gap-1">
-                              <MapPin size={10} />{entry.address}
-                            </span>
-                          )}
-                        </div>
+                    <div className="flex items-start justify-between gap-3 mb-2">
+                      <p className="font-semibold text-limona-white text-sm leading-snug flex-1 min-w-0">{e.name}</p>
+                      <div className="flex gap-1.5 flex-shrink-0">
+                        <span className={cn(
+                          'text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider',
+                          e.source === 'KRS' ? 'bg-limona-yellow/20 text-limona-yellow' : 'bg-limona-blue/20 text-limona-blue'
+                        )}>
+                          {e.source}
+                        </span>
+                        {e.status && (
+                          <span className={cn(
+                            'text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider',
+                            e.status === 'Aktywna' ? 'bg-limona-green/20 text-limona-green' :
+                              e.status === 'Zawieszona' ? 'bg-limona-yellow/20 text-limona-yellow' :
+                                'bg-limona-red/20 text-limona-red'
+                          )}>
+                            {e.status}
+                          </span>
+                        )}
                       </div>
-                      <span className={cn(
-                        'text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider',
-                        entry.status === 'Aktywna' ? 'bg-limona-green/20 text-limona-green' :
-                          entry.status === 'Zawieszona' ? 'bg-limona-yellow/20 text-limona-yellow' :
-                            'bg-limona-red/20 text-limona-red'
-                      )}>
-                        {entry.status}
-                      </span>
                     </div>
-                    {(entry.phone || entry.email) && (
-                      <div className="flex gap-4 mt-2 pt-2 border-t border-limona-border/30">
-                        {entry.phone && (
-                          <a href={`tel:${entry.phone}`} className="flex items-center gap-1.5 text-xs text-limona-lime hover:text-limona-lime/80">
-                            <Phone size={12} />
-                            {entry.phone}
-                          </a>
-                        )}
-                        {entry.email && (
-                          <a href={`mailto:${entry.email}`} className="flex items-center gap-1.5 text-xs text-limona-lime hover:text-limona-lime/80">
-                            <Mail size={12} />
-                            {entry.email}
-                          </a>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* KRS Results */}
-          {results.krs.length > 0 && (
-            <div className="limona-card">
-              <div className="p-4 border-b border-limona-border">
-                <h3 className="text-sm font-bold uppercase tracking-wider text-limona-text-muted flex items-center gap-2">
-                  <Building size={14} className="text-limona-yellow" />
-                  KRS — Spółki i podmioty ({results.krs.length})
-                </h3>
-              </div>
-              <div className="divide-y divide-limona-border/50">
-                {results.krs.map((entity, i) => (
-                  <div key={i} className="p-4 hover:bg-limona-surface-2/30 transition-colors">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-limona-white text-sm">{entity.name}</p>
-                        <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1.5">
-                          {entity.krs && (
-                            <a
-                              href={`https://ekrs.ms.gov.pl/web/wyszukiwarka-krs/strona-glowna?numer=${entity.krs}`}
-                              target="_blank" rel="noopener noreferrer"
-                              className="text-xs text-limona-blue hover:text-limona-blue/80 flex items-center gap-0.5"
-                            >
-                              KRS: {entity.krs} <ExternalLink size={9} />
-                            </a>
-                          )}
-                          {entity.sourceUrl && (
-                            <a
-                              href={entity.sourceUrl}
-                              target="_blank" rel="noopener noreferrer"
-                              className="text-xs text-limona-text-dim hover:text-limona-lime flex items-center gap-0.5"
-                            >
-                              Źródło <ExternalLink size={9} />
-                            </a>
-                          )}
-                          {entity.nip && (
-                            <span className="text-xs text-limona-text-dim">NIP: {entity.nip}</span>
-                          )}
-                          {entity.regon && (
-                            <span className="text-xs text-limona-text-dim">REGON: {entity.regon}</span>
-                          )}
-                          {entity.address && (
-                            <span className="text-xs text-limona-text-dim flex items-center gap-1">
-                              <MapPin size={10} />{entity.address}
-                            </span>
-                          )}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5">
+                      {e.address && (
+                        <div className="flex items-center gap-1.5 text-xs text-limona-text-muted">
+                          <MapPin size={11} className="flex-shrink-0 text-limona-text-dim" />
+                          <span>{e.address}</span>
                         </div>
-                      </div>
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-limona-border/50 text-limona-text-muted uppercase tracking-wider">
-                        {entity.role}
-                      </span>
+                      )}
+                      {e.id && (
+                        e.url ? (
+                          <a href={e.url} target="_blank" rel="noopener noreferrer"
+                            className="flex items-center gap-1.5 text-xs text-limona-text-dim hover:text-limona-lime transition-colors">
+                            <ExternalLink size={11} className="flex-shrink-0" />
+                            <span>{e.id}</span>
+                          </a>
+                        ) : (
+                          <div className="flex items-center gap-1.5 text-xs text-limona-text-dim">
+                            <span>{e.id}</span>
+                          </div>
+                        )
+                      )}
+                      {e.phone && (
+                        <a href={`tel:${e.phone.replace(/\s/g, '')}`}
+                          className="flex items-center gap-1.5 text-xs text-limona-lime hover:text-limona-lime/80 transition-colors">
+                          <Phone size={11} className="flex-shrink-0" />
+                          <span>{e.phone}</span>
+                        </a>
+                      )}
+                      {e.email && (
+                        <a href={`mailto:${e.email}`}
+                          className="flex items-center gap-1.5 text-xs text-limona-lime hover:text-limona-lime/80 transition-colors">
+                          <Mail size={11} className="flex-shrink-0" />
+                          <span>{e.email}</span>
+                        </a>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -425,38 +391,13 @@ export default function WyszukiwarkaPage() {
             </div>
           )}
 
-          {/* Google Results */}
-          {results.google && results.google.length > 0 && (
-            <div className="limona-card">
-              <div className="p-4 border-b border-limona-border">
-                <h3 className="text-sm font-bold uppercase tracking-wider text-limona-text-muted flex items-center gap-2">
-                  <Search size={14} className="text-limona-green" />
-                  Google — wyniki wyszukiwania ({results.google.length})
-                </h3>
-              </div>
-              <div className="divide-y divide-limona-border/50">
-                {results.google.map((item, i) => (
-                  <a key={i} href={item.link} target="_blank" rel="noopener noreferrer"
-                    className="block p-4 hover:bg-limona-surface-2/30 transition-colors group">
-                    <p className="text-sm font-medium text-limona-blue group-hover:text-limona-lime transition-colors flex items-center gap-1">
-                      {item.title}
-                      <ExternalLink size={10} className="opacity-0 group-hover:opacity-100" />
-                    </p>
-                    <p className="text-xs text-limona-text-dim mt-1 line-clamp-2">{item.snippet}</p>
-                    <p className="text-[10px] text-limona-text-dim/50 mt-1 truncate">{item.link}</p>
-                  </a>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Extracted contacts from scraped pages */}
+          {/* Extracted contacts from Google-scraped pages */}
           {results.contacts && results.contacts.length > 0 && (
             <div className="limona-card">
               <div className="p-4 border-b border-limona-border">
                 <h3 className="text-sm font-bold uppercase tracking-wider text-limona-text-muted flex items-center gap-2">
                   <Phone size={14} className="text-limona-lime" />
-                  Kontakty znalezione online ({results.contacts.reduce((s, c) => s + c.phones.length + c.emails.length, 0)})
+                  Kontakty ze stron ({results.contacts.reduce((s, c) => s + c.phones.length + c.emails.length, 0)})
                 </h3>
               </div>
               <div className="divide-y divide-limona-border/50">
@@ -487,8 +428,33 @@ export default function WyszukiwarkaPage() {
             </div>
           )}
 
-          {/* No results from APIs */}
-          {results.krs.length === 0 && results.ceidg.length === 0 && (!results.google || results.google.length === 0) && (
+          {/* Google Results */}
+          {results.google && results.google.length > 0 && (
+            <div className="limona-card">
+              <div className="p-4 border-b border-limona-border">
+                <h3 className="text-sm font-bold uppercase tracking-wider text-limona-text-muted flex items-center gap-2">
+                  <Search size={14} className="text-limona-green" />
+                  Google ({results.google.length})
+                </h3>
+              </div>
+              <div className="divide-y divide-limona-border/50">
+                {results.google.map((item, i) => (
+                  <a key={i} href={item.link} target="_blank" rel="noopener noreferrer"
+                    className="block p-4 hover:bg-limona-surface-2/30 transition-colors group">
+                    <p className="text-sm font-medium text-limona-blue group-hover:text-limona-lime transition-colors flex items-center gap-1">
+                      {item.title}
+                      <ExternalLink size={10} className="opacity-0 group-hover:opacity-100" />
+                    </p>
+                    <p className="text-xs text-limona-text-dim mt-1 line-clamp-2">{item.snippet}</p>
+                    <p className="text-[10px] text-limona-text-dim/50 mt-1 truncate">{item.link}</p>
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* No results */}
+          {unifiedEntities.length === 0 && (!results.google || results.google.length === 0) && (
             <div className="limona-card p-6 text-center">
               <User size={32} className="text-limona-text-dim mx-auto mb-3" />
               <p className="text-limona-text-muted">Brak wyników w KRS/CEIDG/Google</p>

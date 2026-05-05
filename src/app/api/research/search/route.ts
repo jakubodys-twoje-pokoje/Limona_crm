@@ -196,10 +196,11 @@ async function scrapePage(url: string, log: DebugLog): Promise<ScrapedPage> {
 
 async function scrapeRegistriesDirect(name: string, log: DebugLog): Promise<ScrapedPage[]> {
   const encoded = encodeURIComponent(name)
+  const panoramaSlug = name.toLowerCase().replace(/\s+/g, '_')
   const directUrls = [
     `https://www.infoveriti.pl/firma,szukaj,${encoded}.html`,
-    `https://aleo.com/pl/firmy?search=${encoded}`,
-    `https://panoramafirm.pl/szukaj?k=${encoded}`,
+    `https://aleo.com/pl/firmy?phrase=${encoded}`,
+    `https://panoramafirm.pl/${panoramaSlug}`,
     `https://biznesradar.pl/spolki/szukaj?q=${encoded}`,
   ]
   log.log('SCRAPE', `Bezpośredni scraping ${directUrls.length} rejestrów`)
