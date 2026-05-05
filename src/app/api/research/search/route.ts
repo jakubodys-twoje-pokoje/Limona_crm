@@ -38,12 +38,10 @@ interface SearchResults {
 function extractKrsNumbers(text: string): string[] {
   const found = new Set<string>()
   // Matches: "KRS 0000123456", "KRS: 0000123456", "KRS0000123456"
-  const withPrefix = text.matchAll(/KRS[\s:]*(\d{10})/gi)
-  for (const m of withPrefix) found.add(m[1].padStart(10, '0'))
+  Array.from(text.matchAll(/KRS[\s:]*(\d{10})/gi), m => found.add(m[1].padStart(10, '0')))
   // Bare 10-digit numbers that look like KRS (start with 0000)
-  const bare = text.matchAll(/\b(0000\d{6})\b/g)
-  for (const m of bare) found.add(m[1])
-  return [...found]
+  Array.from(text.matchAll(/\b(0000\d{6})\b/g), m => found.add(m[1]))
+  return Array.from(found)
 }
 
 /** Fetch full KRS entity data by KRS number from prs.ms.gov.pl */
