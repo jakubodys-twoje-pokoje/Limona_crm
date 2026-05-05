@@ -301,47 +301,70 @@ async function searchCEIDG(name: string, log: DebugLog): Promise<CeidgEntry[]> {
   return results
 }
 
+function parseGoogleHtml(html: string): GoogleResult[] {
+  const results: GoogleResult[] = []
+  const seen = new Set<string>()
+
+  // Extract all <a href="..."> with an <h3> inside — these are organic results
+  const blockRe = /<a\s[^>]*href="(https?:\/\/(?!google\.)[^"]+)"[^>]*>[\s\S]{0,600}?<h3[^>]*>([\s\S]{0,300}?)<\/h3>/gi
+  let m: RegExpExecArray | null
+  while ((m = blockRe.exec(html)) !== null) {
+    const link = m[1].split('&amp;')[0]
+    if (seen.has(link)) continue
+    seen.add(link)
+    const title = stripHtml(m[2]).trim()
+    if (!title) continue
+
+    const after = html.slice(m.index + m[0].length, m.index + m[0].length + 800)
+    const snippet = stripHtml(after).trim().slice(0, 250)
+
+    results.push({ title, link, snippet })
+    if (results.length >= 15) break
+  }
+  return results
+}
+
 async function searchGoogle(name: string, log: DebugLog): Promise<GoogleResult[]> {
   const results: GoogleResult[] = []
-  try {
-    const apiKey = process.env.GOOGLE_API_KEY
-    const cx = process.env.GOOGLE_CX
-    if (!apiKey || !cx) { log.log('GOOGLE', 'Brak API_KEY lub CX — pomijam', false); return results }
-
-    log.log('GOOGLE', `API_KEY: ${apiKey.slice(0, 8)}... CX: ${cx}`)
-
-    const registrySites = 'site:rejestr.io OR site:krs-online.com.pl OR site:mojepanstwo.pl OR site:infoveriti.pl OR site:aleo.com OR site:panoramafirm.pl OR site:biznesradar.pl'
-    const queries = [
-      `"${name}" (${registrySites})`,
-      `"${name}" KRS numer spółka`,
-      `"${name}" telefon kontakt email`,
-    ]
-
-    for (const q of queries) {
-      const url = `https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${cx}&q=${encodeURIComponent(q)}&num=5&lr=lang_pl`
-      const res = await fetch(url, { signal: AbortSignal.timeout(10000) })
-      if (res.ok) {
-        const data = await res.json()
-        if (data?.error) {
-          log.log('GOOGLE', `Błąd API ${data.error.code}: ${data.error.message}`, false)
-          continue
-        }
-        const count = data?.items?.length || 0
-        log.log('GOOGLE', `"${q.slice(0, 50)}..." → ${count} wyników`)
-        if (data?.items) {
-          for (const item of data.items) {
-            if (results.some(r => r.link === item.link)) continue
-            results.push({ title: item.title || '', link: item.link || '', snippet: item.snippet || '' })
-          }
-        }
-      } else {
-        const errText = await res.text().catch(() => '')
-        log.log('GOOGLE', `HTTP ${res.status}: ${errText.slice(0, 150)}`, false)
-      }
-    }
-  } catch (e) {
-    log.log('GOOGLE', `Wyjątek: ${(e as Error).message}`, false)
+  const seen = new Set<string>()
+  const headers = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+    'Accept-Language': 'pl-PL,pl;q=0.9,en;q=0.8',
+    'Accept-Encoding': 'gzip, deflate, br',
   }
+
+  const registrySites = 'site:rejestr.io OR site:krs-online.com.pl OR site:infoveriti.pl OR site:aleo.com OR site:panoramafirm.pl'
+  const queries = [
+    `"${name}" (${registrySites})`,
+    `"${name}" KRS numer spółka firma`,
+    `"${name}" telefon kontakt email`,
+  ]
+
+  for (const q of queries) {
+    try {
+      const url = `https://www.google.com/search?q=${encodeURIComponent(q)}&hl=pl&num=10&gl=pl`
+      const res = await fetch(url, { headers, signal: AbortSignal.timeout(10000) })
+      if (!res.ok) {
+        log.log('GOOGLE', `HTTP ${res.status} dla zapytania`, false)
+        continue
+      }
+      const html = await res.text()
+      if (html.includes('detected unusual traffic') || html.includes('CAPTCHA')) {
+        log.log('GOOGLE', 'Blokada CAPTCHA — pomijam', false)
+        break
+      }
+      const parsed = parseGoogleHtml(html)
+      let added = 0
+      for (const r of parsed) {
+        if (!seen.has(r.link)) { seen.add(r.link); results.push(r); added++ }
+      }
+      log.log('GOOGLE', `"${q.slice(0, 50)}..." → ${added} wyników`)
+    } catch (e) {
+      log.log('GOOGLE', `Wyjątek: ${(e as Error).message}`, false)
+    }
+  }
+
   log.log('GOOGLE', `Łącznie ${results.length} unikalnych wyników`)
   return results
 }
