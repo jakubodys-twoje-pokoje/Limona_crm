@@ -74,7 +74,7 @@ export const Sidebar = memo(function Sidebar() {
       {/* User section */}
       <div className="p-4 border-t border-limona-border">
         <div className="flex items-center gap-3 mb-3">
-          <NotificationBell userId={user?.id} />
+          <NotificationBell userId={user?.id} placement="sidebar" />
           <Link href="/profil" className="flex items-center gap-3 flex-1 min-w-0 hover:opacity-80 transition-opacity">
             <Avatar name={profile?.full_name || 'User'} url={profile?.avatar_url} size="sm" />
             <div className="flex-1 min-w-0">

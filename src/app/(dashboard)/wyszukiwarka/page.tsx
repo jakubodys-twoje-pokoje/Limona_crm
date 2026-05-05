@@ -19,6 +19,14 @@ interface KrsEntity {
   regon: string
   address: string
   role: string
+  sourceUrl?: string
+}
+
+interface ExtractedContact {
+  phones: string[]
+  emails: string[]
+  sourceUrl: string
+  sourceTitle: string
 }
 
 interface CeidgEntry {
@@ -46,6 +54,7 @@ interface SearchResults {
   krs: KrsEntity[]
   ceidg: CeidgEntry[]
   google: GoogleResult[]
+  contacts: ExtractedContact[]
   searchLinks: SearchLink[]
 }
 
@@ -344,11 +353,20 @@ export default function WyszukiwarkaPage() {
                         <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1.5">
                           {entity.krs && (
                             <a
-                              href={`https://api-krs.ms.gov.pl/api/krs/OdsijkiPelne/${entity.krs}?rejestr=P&format=json`}
+                              href={`https://ekrs.ms.gov.pl/web/wyszukiwarka-krs/strona-glowna?numer=${entity.krs}`}
                               target="_blank" rel="noopener noreferrer"
                               className="text-xs text-limona-blue hover:text-limona-blue/80 flex items-center gap-0.5"
                             >
                               KRS: {entity.krs} <ExternalLink size={9} />
+                            </a>
+                          )}
+                          {entity.sourceUrl && (
+                            <a
+                              href={entity.sourceUrl}
+                              target="_blank" rel="noopener noreferrer"
+                              className="text-xs text-limona-text-dim hover:text-limona-lime flex items-center gap-0.5"
+                            >
+                              Źródło <ExternalLink size={9} />
                             </a>
                           )}
                           {entity.nip && (
@@ -394,6 +412,43 @@ export default function WyszukiwarkaPage() {
                     <p className="text-xs text-limona-text-dim mt-1 line-clamp-2">{item.snippet}</p>
                     <p className="text-[10px] text-limona-text-dim/50 mt-1 truncate">{item.link}</p>
                   </a>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Extracted contacts from scraped pages */}
+          {results.contacts && results.contacts.length > 0 && (
+            <div className="limona-card">
+              <div className="p-4 border-b border-limona-border">
+                <h3 className="text-sm font-bold uppercase tracking-wider text-limona-text-muted flex items-center gap-2">
+                  <Phone size={14} className="text-limona-lime" />
+                  Kontakty znalezione online ({results.contacts.reduce((s, c) => s + c.phones.length + c.emails.length, 0)})
+                </h3>
+              </div>
+              <div className="divide-y divide-limona-border/50">
+                {results.contacts.filter(c => c.phones.length > 0 || c.emails.length > 0).map((contact, i) => (
+                  <div key={i} className="p-4">
+                    <a href={contact.sourceUrl} target="_blank" rel="noopener noreferrer"
+                      className="text-[10px] text-limona-text-dim hover:text-limona-lime flex items-center gap-1 mb-2 truncate">
+                      <ExternalLink size={9} />
+                      {contact.sourceTitle || contact.sourceUrl}
+                    </a>
+                    <div className="flex flex-wrap gap-3">
+                      {contact.phones.map((phone, j) => (
+                        <a key={j} href={`tel:${phone.replace(/\s/g, '')}`}
+                          className="flex items-center gap-1.5 text-xs text-limona-lime hover:text-limona-lime/80">
+                          <Phone size={12} />{phone}
+                        </a>
+                      ))}
+                      {contact.emails.map((email, j) => (
+                        <a key={j} href={`mailto:${email}`}
+                          className="flex items-center gap-1.5 text-xs text-limona-lime hover:text-limona-lime/80">
+                          <Mail size={12} />{email}
+                        </a>
+                      ))}
+                    </div>
+                  </div>
                 ))}
               </div>
             </div>

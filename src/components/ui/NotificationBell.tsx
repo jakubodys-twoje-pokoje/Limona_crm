@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils'
 
 interface NotificationBellProps {
   userId: string | undefined
+  placement?: 'topbar' | 'sidebar'
 }
 
 const typeLabels: Record<string, string> = {
@@ -25,7 +26,7 @@ const typeColors: Record<string, string> = {
   comment_added: 'text-limona-text-muted',
 }
 
-export function NotificationBell({ userId }: NotificationBellProps) {
+export function NotificationBell({ userId, placement = 'topbar' }: NotificationBellProps) {
   const { notifications, unreadCount, markAsRead, markAllRead, deleteNotification } = useNotifications(userId)
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -79,7 +80,12 @@ export function NotificationBell({ userId }: NotificationBellProps) {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-80 sm:w-96 max-h-[70vh] overflow-hidden bg-limona-surface border border-limona-border rounded shadow-lg z-50 flex flex-col">
+        <div className={cn(
+          'absolute w-80 max-h-[70vh] overflow-hidden bg-limona-surface border border-limona-border rounded shadow-lg z-50 flex flex-col',
+          placement === 'sidebar'
+            ? 'left-0 bottom-full mb-2'
+            : 'right-0 top-full mt-2 sm:w-96'
+        )}>
           {/* Header */}
           <div className="flex items-center justify-between p-3 border-b border-limona-border">
             <h3 className="text-xs uppercase tracking-wider font-bold text-limona-text-muted">
