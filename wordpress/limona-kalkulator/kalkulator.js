@@ -19,7 +19,7 @@ function calculateBelow(input) {
   var investment = costs;
   var profit = rw - investment;
   var roi = investment > 0 ? profit / investment : 0;
-  var decision = (profit >= 120000 || roi >= 0.36) ? "OK" : "NIE";
+  var decision = (profit >= 60000 || roi >= 0.36) ? "OK" : "NIE";
   var result = { rw: rw, offerMinus30: offer30, pcc: pcc, costs: costs, investment: investment, profit: profit, roi: roi, decision: decision };
   if (input.manualOffer != null && input.manualOffer > 0) {
     var mo = input.manualOffer;
@@ -30,7 +30,7 @@ function calculateBelow(input) {
     var inv2 = costs2;
     var profit2 = rw - inv2;
     var roi2 = inv2 > 0 ? profit2 / inv2 : 0;
-    var dec2 = (profit2 >= 120000 || roi2 >= 0.36) ? "OK" : "NIE";
+    var dec2 = (profit2 >= 60000 || roi2 >= 0.36) ? "OK" : "NIE";
     result.manual = { firstOffer: fo, maxOffer: mo, pcc: pcc2, notaryFee: nf2, costs: costs2, investment: inv2, profit: profit2, roi: roi2, decision: dec2 };
   }
   return result;
@@ -71,7 +71,7 @@ function calculateAbove(input) {
   var investment = costs;
   var profit = rw - investment;
   var roi = investment > 0 ? profit / investment : 0;
-  var decision = (profit >= 120000 || roi >= 0.36) ? "OK" : "NIE";
+  var decision = (profit >= 60000 || roi >= 0.36) ? "OK" : "NIE";
   var result = {
     rw: rw, creditor1Share: c1s, creditor2Share: c2s, creditor3Share: c3s,
     offerMinus30: offer30, ownerOffer: ownerOffer,
@@ -86,7 +86,7 @@ function calculateAbove(input) {
     var mpcc = mo * 0.02;
     var mc = mo + (mo * input.commissionPct) + mpcc + input.notaryFee;
     var mi = mc; var mprofit = rw - mi; var mroi = mi > 0 ? mprofit / mi : 0;
-    var mdec = (mprofit >= 120000 || mroi >= 0.36) ? "OK" : "NIE";
+    var mdec = (mprofit >= 60000 || mroi >= 0.36) ? "OK" : "NIE";
     result.manual = {
       maxOffer: mo, ownerOffer: oom,
       creditor1Offer: mbd[0].offerAmount, creditor2Offer: mbd[1].offerAmount, creditor3Offer: mbd[2].offerAmount,
@@ -127,7 +127,7 @@ function Decision(props) {
         e("p", { className: "lk-profit-value " + (props.roi >= 0.36 ? "lk-green" : "lk-red") }, formatPercent(props.roi))
       )
     ),
-    !ok && e("p", { style: { fontSize: "0.7rem", color: "var(--lk-text-dim)", marginTop: "12px" } }, "Min. zysk: 120 000 zł lub ROI ≥ 36%")
+    !ok && e("p", { style: { fontSize: "0.7rem", color: "var(--lk-text-dim)", marginTop: "12px" } }, "Min. zysk: 60 000 zł lub ROI ≥ 36%")
   );
 }
 
