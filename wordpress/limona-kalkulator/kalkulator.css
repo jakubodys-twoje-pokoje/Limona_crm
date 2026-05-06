@@ -1,0 +1,181 @@
+.limona-kalkulator-root {
+  --lk-bg: #0f1117;
+  --lk-surface: #1a1d27;
+  --lk-surface2: #242836;
+  --lk-border: #2d3344;
+  --lk-text: #c8cdd8;
+  --lk-text-muted: #8b92a5;
+  --lk-text-dim: #5a6178;
+  --lk-white: #eef0f6;
+  --lk-lime: #c8ee44;
+  --lk-green: #34d399;
+  --lk-red: #f87171;
+  --lk-blue: #60a5fa;
+  --lk-yellow: #fbbf24;
+  --lk-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+
+  font-family: var(--lk-font);
+  color: var(--lk-text);
+  background: var(--lk-bg);
+  line-height: 1.5;
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 24px 16px;
+  box-sizing: border-box;
+  border-radius: 12px;
+}
+
+.limona-kalkulator-root.lk-light {
+  --lk-bg: #ffffff;
+  --lk-surface: #f8f9fb;
+  --lk-surface2: #f0f1f5;
+  --lk-border: #e2e4ea;
+  --lk-text: #374151;
+  --lk-text-muted: #6b7280;
+  --lk-text-dim: #9ca3af;
+  --lk-white: #111827;
+  --lk-lime: #65a30d;
+  --lk-green: #16a34a;
+  --lk-red: #dc2626;
+}
+
+.limona-kalkulator-root *, .limona-kalkulator-root *::before, .limona-kalkulator-root *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+.limona-kalkulator-root .lk-heading { color: var(--lk-white); font-size: 1.75rem; font-weight: 800; letter-spacing: -0.02em; }
+.limona-kalkulator-root .lk-eyebrow { font-size: 0.65rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--lk-lime); }
+.limona-kalkulator-root .lk-sub { font-size: 0.875rem; color: var(--lk-text-muted); margin-top: 4px; }
+.limona-kalkulator-root .lk-label { display: block; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--lk-text-muted); margin-bottom: 6px; }
+
+.limona-kalkulator-root .lk-card {
+  background: var(--lk-surface);
+  border: 1px solid var(--lk-border);
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 16px;
+}
+.limona-kalkulator-root .lk-card-accent { background: var(--lk-surface2); border: 1px solid var(--lk-border); border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+
+.limona-kalkulator-root .lk-input {
+  width: 100%;
+  padding: 10px 12px;
+  background: var(--lk-surface2);
+  border: 1px solid var(--lk-border);
+  border-radius: 6px;
+  color: var(--lk-white);
+  font-size: 0.875rem;
+  font-family: var(--lk-font);
+  outline: none;
+  transition: border-color 0.15s;
+}
+.limona-kalkulator-root .lk-input:focus { border-color: var(--lk-lime); }
+.limona-kalkulator-root .lk-input::placeholder { color: var(--lk-text-dim); }
+
+.limona-kalkulator-root .lk-grid { display: grid; gap: 16px; }
+.limona-kalkulator-root .lk-grid-2 { grid-template-columns: 1fr 1fr; }
+.limona-kalkulator-root .lk-grid-3 { grid-template-columns: repeat(3, 1fr); }
+.limona-kalkulator-root .lk-col-span-2 { grid-column: span 2; }
+@media (max-width: 600px) {
+  .limona-kalkulator-root .lk-grid-2, .limona-kalkulator-root .lk-grid-3 { grid-template-columns: 1fr; }
+  .limona-kalkulator-root .lk-col-span-2 { grid-column: span 1; }
+}
+
+.limona-kalkulator-root .lk-toggle-wrap { display: flex; gap: 4px; padding: 4px; background: var(--lk-surface); border-radius: 8px; width: fit-content; margin-bottom: 20px; }
+.limona-kalkulator-root .lk-toggle-btn {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: var(--lk-font);
+}
+.limona-kalkulator-root .lk-toggle-btn.active { background: var(--lk-lime); color: #000; }
+.limona-kalkulator-root .lk-toggle-btn:not(.active) { background: transparent; color: var(--lk-text-muted); }
+.limona-kalkulator-root .lk-toggle-btn:not(.active):hover { color: var(--lk-white); }
+
+.limona-kalkulator-root .lk-result-card {
+  background: var(--lk-surface);
+  border: 1px solid var(--lk-border);
+  border-radius: 8px;
+  padding: 14px;
+}
+.limona-kalkulator-root .lk-result-label { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--lk-text-muted); margin-bottom: 4px; }
+.limona-kalkulator-root .lk-result-value { font-family: 'SF Mono', Monaco, Consolas, monospace; font-weight: 700; font-size: 1.1rem; color: var(--lk-text-muted); }
+.limona-kalkulator-root .lk-result-sublabel { font-size: 0.65rem; color: var(--lk-text-dim); margin-top: 4px; }
+
+.limona-kalkulator-root .lk-decision {
+  padding: 20px;
+  background: var(--lk-surface);
+  border: 1px solid var(--lk-border);
+  border-radius: 8px;
+  border-left: 4px solid;
+  margin-top: 16px;
+}
+.limona-kalkulator-root .lk-decision.ok { border-left-color: var(--lk-green); }
+.limona-kalkulator-root .lk-decision.nie { border-left-color: var(--lk-red); }
+
+.limona-kalkulator-root .lk-decision-title { font-size: 1.5rem; font-weight: 800; text-transform: uppercase; }
+.limona-kalkulator-root .lk-decision-title.ok { color: var(--lk-green); }
+.limona-kalkulator-root .lk-decision-title.nie { color: var(--lk-red); }
+
+.limona-kalkulator-root .lk-profit-value { font-family: 'SF Mono', Monaco, Consolas, monospace; font-weight: 700; font-size: 1.2rem; }
+.limona-kalkulator-root .lk-green { color: var(--lk-green); }
+.limona-kalkulator-root .lk-red { color: var(--lk-red); }
+
+.limona-kalkulator-root .lk-empty { text-align: center; padding: 40px; color: var(--lk-text-muted); }
+
+.limona-kalkulator-root .lk-btn {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  font-family: var(--lk-font);
+  transition: all 0.15s;
+}
+.limona-kalkulator-root .lk-btn-outline {
+  background: transparent;
+  border: 1px solid var(--lk-border);
+  color: var(--lk-text);
+}
+.limona-kalkulator-root .lk-btn-outline:hover { border-color: var(--lk-text-muted); color: var(--lk-white); }
+
+.limona-kalkulator-root .lk-spacer { margin-top: 24px; }
+
+.limona-kalkulator-root .lk-bar-track { flex: 1; height: 8px; background: rgba(45,51,68,0.3); border-radius: 99px; overflow: hidden; }
+.limona-kalkulator-root .lk-bar-fill { height: 100%; background: var(--lk-lime); border-radius: 99px; }
+
+.limona-kalkulator-root .lk-cred-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.limona-kalkulator-root .lk-cred-label { font-size: 0.7rem; color: var(--lk-text-muted); width: 90px; flex-shrink: 0; }
+.limona-kalkulator-root .lk-cred-val { font-size: 0.7rem; font-family: 'SF Mono', Monaco, Consolas, monospace; color: var(--lk-lime); width: 100px; text-align: right; flex-shrink: 0; }
+.limona-kalkulator-root .lk-cred-pct { font-size: 0.7rem; color: var(--lk-text-dim); width: 50px; text-align: right; flex-shrink: 0; }
+.limona-kalkulator-root .lk-cred-wgt { font-size: 0.7rem; color: var(--lk-text-dim); width: 44px; text-align: right; flex-shrink: 0; }
+
+.limona-kalkulator-root .lk-range { width: 100%; accent-color: var(--lk-lime); }
+
+.limona-kalkulator-root .lk-weights-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+@media (max-width: 600px) { .limona-kalkulator-root .lk-weights-grid { grid-template-columns: 1fr; } }
+.limona-kalkulator-root .lk-weight-val { font-size: 0.7rem; font-family: 'SF Mono', Monaco, Consolas, monospace; color: var(--lk-lime); }
+
+.limona-kalkulator-root .lk-reset-btn {
+  margin-top: 10px;
+  background: none;
+  border: none;
+  color: var(--lk-text-dim);
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  font-family: var(--lk-font);
+}
+.limona-kalkulator-root .lk-reset-btn:hover { color: var(--lk-text-muted); }
