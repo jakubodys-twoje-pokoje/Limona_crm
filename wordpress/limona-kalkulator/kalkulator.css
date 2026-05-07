@@ -83,7 +83,8 @@
   .limona-kalkulator-root .lk-col-span-2 { grid-column: span 1; }
 }
 
-.limona-kalkulator-root .lk-toggle-wrap { display: flex; gap: 4px; padding: 4px; background: var(--lk-surface); border-radius: 8px; width: fit-content; margin-bottom: 20px; }
+.limona-kalkulator-root .lk-toggle-wrap { display: flex; gap: 4px; padding: 4px; background: var(--lk-surface); border-radius: 8px; width: fit-content; max-width: 100%; margin-bottom: 20px; }
+@media (max-width: 600px) { .limona-kalkulator-root .lk-toggle-wrap { width: 100%; } }
 .limona-kalkulator-root .lk-toggle-btn {
   padding: 10px 20px;
   border: none;
@@ -95,6 +96,11 @@
   cursor: pointer;
   transition: all 0.15s;
   font-family: var(--lk-font);
+  white-space: nowrap;
+  min-width: 0;
+}
+@media (max-width: 600px) {
+  .limona-kalkulator-root .lk-toggle-btn { flex: 1; padding: 10px 8px; font-size: 0.7rem; letter-spacing: 0.04em; }
 }
 .limona-kalkulator-root .lk-toggle-btn.active { background: var(--lk-lime); color: #000; }
 .limona-kalkulator-root .lk-toggle-btn:not(.active) { background: transparent; color: var(--lk-text-muted); }

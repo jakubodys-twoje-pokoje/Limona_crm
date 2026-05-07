@@ -77,7 +77,8 @@
     .lk-col-span-2 { grid-column: span 1; }
   }
 
-  .lk-toggle-wrap { display: flex; gap: 4px; padding: 4px; background: var(--lk-surface); border-radius: 8px; width: fit-content; margin-bottom: 20px; }
+  .lk-toggle-wrap { display: flex; gap: 4px; padding: 4px; background: var(--lk-surface); border-radius: 8px; width: fit-content; max-width: 100%; margin-bottom: 20px; }
+  @media (max-width: 600px) { .lk-toggle-wrap { width: 100%; } }
   .lk-toggle-btn {
     padding: 10px 20px;
     border: none;
@@ -89,6 +90,11 @@
     cursor: pointer;
     transition: all 0.15s;
     font-family: var(--lk-font);
+    white-space: nowrap;
+    min-width: 0;
+  }
+  @media (max-width: 600px) {
+    .lk-toggle-btn { flex: 1; padding: 10px 8px; font-size: 0.7rem; letter-spacing: 0.04em; }
   }
   .lk-toggle-btn.active { background: var(--lk-lime); color: #000; }
   .lk-toggle-btn:not(.active) { background: transparent; color: var(--lk-text-muted); }
