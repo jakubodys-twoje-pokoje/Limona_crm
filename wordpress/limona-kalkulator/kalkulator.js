@@ -140,6 +140,7 @@ function InputField(props) {
       inputMode: props.inputMode,
       value: props.value,
       onChange: props.onChange,
+      onBlur: props.onBlur,
       placeholder: props.placeholder,
       min: props.min,
       step: props.step,
@@ -149,17 +150,39 @@ function InputField(props) {
   );
 }
 
+function usePctField(commissionPct, onChangeCommission) {
+  var st = React.useState(commissionPct ? (commissionPct * 100).toString() : "");
+  var raw = st[0]; var setRaw = st[1];
+  var lastExternal = React.useRef(commissionPct);
+  if (commissionPct !== lastExternal.current) {
+    lastExternal.current = commissionPct;
+    var expected = commissionPct ? (commissionPct * 100).toString() : "";
+    var currentNum = parseFloat(raw.replace(",", "."));
+    if (isNaN(currentNum) || Math.abs(currentNum - commissionPct * 100) > 0.0001) {
+      setRaw(expected);
+    }
+  }
+  function onChange(ev) {
+    var val = ev.target.value.replace(",", ".");
+    if (val === "" || /^\d*\.?\d*$/.test(val)) {
+      setRaw(val);
+      var v = parseFloat(val);
+      onChangeCommission("commissionPct", isNaN(v) ? 0 : v / 100);
+    }
+  }
+  function onBlur() {
+    var v = parseFloat(raw.replace(",", "."));
+    if (isNaN(v) || raw === "") { setRaw(""); }
+  }
+  return { value: raw, onChange: onChange, onBlur: onBlur };
+}
+
 function Calc1(props) {
   var inp = props.input;
   var result = inp.valuePerSqm ? calculateBelow(inp) : null;
+  var pct = usePctField(inp.commissionPct, props.onChange);
 
   function hn(key, val) { var n = parseFloat(val); props.onChange(key, isNaN(n) ? null : n); }
-  function pctChange(ev) {
-    var raw = ev.target.value.replace(",", ".");
-    if (raw === "" || /^\d*\.?\d*$/.test(raw)) {
-      var v = parseFloat(raw); props.onChange("commissionPct", isNaN(v) ? 0 : v / 100);
-    }
-  }
 
   return e("div", null,
     e("div", null,
@@ -167,7 +190,7 @@ function Calc1(props) {
       e("div", { className: "lk-grid lk-grid-2" },
         InputField({ label: "Wartość po najniższej m² (I) [zł]", value: inp.valuePerSqm || "", onChange: function(ev) { hn("valuePerSqm", ev.target.value); }, placeholder: "656000", min: "0", step: "1000" }),
         InputField({ label: "Zadłużenie (K) [zł]", value: inp.totalDebt || "", onChange: function(ev) { hn("totalDebt", ev.target.value); }, placeholder: "0", min: "0", step: "1000" }),
-        InputField({ label: "Prowizja pośrednika (L) [%]", type: "text", inputMode: "decimal", value: inp.commissionPct ? (inp.commissionPct * 100).toString() : "", onChange: pctChange, placeholder: "2.46" }),
+        InputField({ label: "Prowizja pośrednika (L) [%]", type: "text", inputMode: "decimal", value: pct.value, onChange: pct.onChange, onBlur: pct.onBlur, placeholder: "2.46" }),
         InputField({ label: "Taksa notarialna (O) [zł]", value: inp.notaryFee || "", onChange: function(ev) { hn("notaryFee", ev.target.value); }, placeholder: "1000", min: "0" }),
         InputField({ label: "Ręczna oferta (U) [zł] — opcjonalnie", className: "lk-col-span-2", value: inp.manualOffer || "", onChange: function(ev) { var v = parseFloat(ev.target.value); props.onChange("manualOffer", isNaN(v) ? null : v); }, placeholder: "445000", min: "0", step: "1000" })
       )
@@ -204,16 +227,11 @@ function Calc2(props) {
   var weightsState = React.useState({ largest: 1.3, middle: 1.0, smallest: 0.7 });
   var weights = weightsState[0];
   var setWeights = weightsState[1];
+  var pct = usePctField(inp.commissionPct, props.onChange);
 
   var result = inp.valuePerSqm ? calculateAbove(Object.assign({}, inp, { weights: weights })) : null;
 
   function hn(key, val) { var n = parseFloat(val); props.onChange(key, isNaN(n) ? null : n); }
-  function pctChange(ev) {
-    var raw = ev.target.value.replace(",", ".");
-    if (raw === "" || /^\d*\.?\d*$/.test(raw)) {
-      var v = parseFloat(raw); props.onChange("commissionPct", isNaN(v) ? 0 : v / 100);
-    }
-  }
 
   var credLabels = [
     { key: "creditor1", label: "Kwota 1. wierzyciela (L) [zł]", ph: "600000" },
@@ -233,7 +251,7 @@ function Calc2(props) {
       e("div", { className: "lk-grid lk-grid-2" },
         InputField({ label: "Wartość po najniższej m² (I) [zł]", value: inp.valuePerSqm || "", onChange: function(ev) { hn("valuePerSqm", ev.target.value); }, placeholder: "656000", min: "0", step: "1000" }),
         InputField({ label: "Całk. zadłużenie (K) [zł]", value: inp.totalDebt || "", onChange: function(ev) { hn("totalDebt", ev.target.value); }, placeholder: "790000", min: "0", step: "1000" }),
-        InputField({ label: "Prowizja pośrednika (W) [%]", type: "text", inputMode: "decimal", value: inp.commissionPct ? (inp.commissionPct * 100).toString() : "", onChange: pctChange, placeholder: "2.46" }),
+        InputField({ label: "Prowizja pośrednika (W) [%]", type: "text", inputMode: "decimal", value: pct.value, onChange: pct.onChange, onBlur: pct.onBlur, placeholder: "2.46" }),
         InputField({ label: "Taksa notarialna (Z) [zł]", value: inp.notaryFee || "", onChange: function(ev) { hn("notaryFee", ev.target.value); }, placeholder: "1000", min: "0" })
       )
     ),
