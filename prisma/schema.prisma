@@ -16,19 +16,22 @@ model Profile {
   created_at DateTime @default(now()) @db.Timestamptz()
   updated_at DateTime @default(now()) @updatedAt @db.Timestamptz()
 
-  properties_created     Property[]       @relation("PropertyCreator")
-  properties_assigned    Property[]       @relation("PropertyAssignee")
-  tasks_created          Task[]           @relation("TaskCreator")
-  tasks_assigned         Task[]           @relation("TaskAssignee")
+  properties_created     Property[]         @relation("PropertyCreator")
+  properties_assigned    Property[]         @relation("PropertyAssignee")
+  tasks_created          Task[]             @relation("TaskCreator")
+  tasks_assigned         Task[]             @relation("TaskAssignee")
   activity_logs          ActivityLog[]
   wall_messages          WallMessage[]
   wall_reads             WallRead[]
   task_comments          TaskComment[]
-  notifications_received Notification[]   @relation("NotificationRecipient")
-  notifications_sent     Notification[]   @relation("NotificationSender")
-  managed_by             TeamVisibility[] @relation("TeamManager")
-  member_of              TeamVisibility[] @relation("TeamMember")
-  team_rules_created     TeamVisibility[] @relation("TeamRuleCreator")
+  notifications_received Notification[]     @relation("NotificationRecipient")
+  notifications_sent     Notification[]     @relation("NotificationSender")
+  managed_by             TeamVisibility[]   @relation("TeamManager")
+  member_of              TeamVisibility[]   @relation("TeamMember")
+  team_rules_created     TeamVisibility[]   @relation("TeamRuleCreator")
+  kontakty_created       Kontakt[]          @relation("KontaktCreator")
+  kontakty_assigned      Kontakt[]          @relation("KontaktAssignee")
+  kontakt_komentarze     KontaktKomentarz[]
 
   @@map("profiles")
 }
@@ -206,6 +209,70 @@ model Notification {
 
   @@index([user_id, read, created_at(sort: Desc)])
   @@map("notifications")
+}
+
+model Kontakt {
+  id                             String   @id @default(uuid()) @db.Uuid
+  // typ: spoldzielnia | wspolnota_zarzadca | posrednik_nieruchomosci | posrednik_finansowy
+  //       kancelaria_spadkowa | kancelaria_rozwodowa | notariusz | rzeczoznawca
+  typ                            String
+  nazwa                          String
+  wojewodztwo                    String?
+  miasto                         String?
+  ulica                          String?
+  godziny_otwarcia               String?
+  telefon                        String?
+  email                          String?
+  opis                           String?
+  assigned_to                    String?  @db.Uuid
+  oddzial                        String?
+  created_by                     String?  @db.Uuid
+
+  // Pola zależne od typu: spółdzielnia / wspólnota
+  liczba_budynkow                Int?
+  liczba_mieszkan                Int?
+
+  // Statusy realizacji
+  wizyta_osobista                Boolean  @default(false)
+  wyslany_mail_oferta            Boolean  @default(false)
+
+  // Statusy wykonawcze (część wspólna + specyficzne dla spółdzielni/wspólnoty)
+  zgoda_ulotki                   Boolean  @default(false)
+  zgoda_plakat                   Boolean  @default(false)
+  chec_wspolpracy                Boolean  @default(false)
+  niezainteresowani              Boolean  @default(false)
+  operator_budowy_zainteresowani Boolean  @default(false)
+
+  // Pola przy chęci współpracy (pośrednicy/kancelarie/notariusz/rzeczoznawca)
+  ustalona_prowizja              String?
+  umowa_url                      String?
+
+  created_at                     DateTime @default(now()) @db.Timestamptz()
+  updated_at                     DateTime @default(now()) @updatedAt @db.Timestamptz()
+
+  assignee   Profile?          @relation("KontaktAssignee", fields: [assigned_to], references: [id])
+  creator    Profile?          @relation("KontaktCreator", fields: [created_by], references: [id])
+  komentarze KontaktKomentarz[]
+
+  @@index([typ])
+  @@index([assigned_to])
+  @@index([created_at(sort: Desc)])
+  @@map("kontakty")
+}
+
+model KontaktKomentarz {
+  id         String   @id @default(uuid()) @db.Uuid
+  kontakt_id String   @db.Uuid
+  user_id    String?  @db.Uuid
+  content    String
+  created_at DateTime @default(now()) @db.Timestamptz()
+
+  kontakt Kontakt  @relation(fields: [kontakt_id], references: [id], onDelete: Cascade)
+  user    Profile? @relation(fields: [user_id], references: [id], onDelete: SetNull)
+
+  @@index([kontakt_id])
+  @@index([created_at(sort: Desc)])
+  @@map("kontakt_komentarze")
 }
 
 model ResearchQuery {

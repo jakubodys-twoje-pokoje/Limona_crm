@@ -3,7 +3,7 @@
 import { memo } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Building2, Calculator, ListTodo, MessageSquare, User } from 'lucide-react'
+import { Building2, Calculator, ListTodo, MessageSquare, User, BookUser } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { useWallContext } from '@/hooks/useWallProvider'
 import { cn } from '@/lib/utils'
@@ -13,6 +13,7 @@ const tabs = [
   { href: '/kalkulator', icon: Calculator, label: 'Kalk' },
   { href: '/zadania', icon: ListTodo, label: 'Zadania' },
   { href: '/wall', icon: MessageSquare, label: 'Wall', showCounter: true },
+  { href: '/kontakty', icon: BookUser, label: 'Kontakty' },
   { href: '/profil', icon: User, label: 'Profil' },
 ]
 

@@ -100,6 +100,94 @@ export interface Document {
   created_at: string
 }
 
+export type KontaktTyp =
+  | 'spoldzielnia'
+  | 'wspolnota_zarzadca'
+  | 'posrednik_nieruchomosci'
+  | 'posrednik_finansowy'
+  | 'kancelaria_spadkowa'
+  | 'kancelaria_rozwodowa'
+  | 'notariusz'
+  | 'rzeczoznawca'
+
+export const KONTAKT_TYP_LABELS: Record<KontaktTyp, string> = {
+  spoldzielnia: 'Spółdzielnia',
+  wspolnota_zarzadca: 'Wspólnota/Zarządca',
+  posrednik_nieruchomosci: 'Pośrednik nieruchomości',
+  posrednik_finansowy: 'Pośrednik finansowy',
+  kancelaria_spadkowa: 'Kancelaria spadkowa',
+  kancelaria_rozwodowa: 'Kancelaria rozwodowa',
+  notariusz: 'Notariusz',
+  rzeczoznawca: 'Rzeczoznawca',
+}
+
+export const KONTAKT_TYPY: KontaktTyp[] = [
+  'spoldzielnia',
+  'wspolnota_zarzadca',
+  'posrednik_nieruchomosci',
+  'posrednik_finansowy',
+  'kancelaria_spadkowa',
+  'kancelaria_rozwodowa',
+  'notariusz',
+  'rzeczoznawca',
+]
+
+// Types that are spółdzielnia / wspólnota (have building/flat counts + specific statuses)
+export const TYPY_SPOLDZIELNIA = new Set<KontaktTyp>(['spoldzielnia', 'wspolnota_zarzadca'])
+
+// Types that can have chec_wspolpracy → prowizja/umowa
+export const TYPY_Z_PROWIZJA = new Set<KontaktTyp>([
+  'posrednik_nieruchomosci',
+  'posrednik_finansowy',
+  'kancelaria_spadkowa',
+  'kancelaria_rozwodowa',
+  'notariusz',
+  'rzeczoznawca',
+])
+
+export interface Kontakt {
+  id: string
+  typ: KontaktTyp
+  nazwa: string
+  wojewodztwo: string | null
+  miasto: string | null
+  ulica: string | null
+  godziny_otwarcia: string | null
+  telefon: string | null
+  email: string | null
+  opis: string | null
+  assigned_to: string | null
+  oddzial: string | null
+  created_by: string | null
+  liczba_budynkow: number | null
+  liczba_mieszkan: number | null
+  wizyta_osobista: boolean
+  wyslany_mail_oferta: boolean
+  zgoda_ulotki: boolean
+  zgoda_plakat: boolean
+  chec_wspolpracy: boolean
+  niezainteresowani: boolean
+  operator_budowy_zainteresowani: boolean
+  ustalona_prowizja: string | null
+  umowa_url: string | null
+  created_at: string
+  updated_at: string
+  // Joined fields
+  assignee?: Profile
+  creator?: Profile
+  komentarze?: KontaktKomentarz[]
+}
+
+export interface KontaktKomentarz {
+  id: string
+  kontakt_id: string
+  user_id: string | null
+  content: string
+  created_at: string
+  // Joined fields
+  user?: { id: string; full_name: string; avatar_url: string | null }
+}
+
 export interface Database {
   public: {
     Tables: {
