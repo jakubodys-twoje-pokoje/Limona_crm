@@ -73,15 +73,17 @@ export function KontaktForm({ initial, profiles, onSubmit, onCancel, submitLabel
 
     const payload: Partial<Kontakt> = {
       ...form,
-      // Null out irrelevant fields based on type
       liczba_budynkow: isSpoldzielnia ? (form.liczba_budynkow ?? null) : null,
       liczba_mieszkan: isSpoldzielnia ? (form.liczba_mieszkan ?? null) : null,
       ustalona_prowizja: (hasWspolpracaWithProwizja && form.chec_wspolpracy) ? (form.ustalona_prowizja || null) : null,
       umowa_url:         (hasWspolpracaWithProwizja && form.chec_wspolpracy) ? (form.umowa_url || null) : null,
     }
 
-    await onSubmit(payload)
-    setSubmitting(false)
+    try {
+      await onSubmit(payload)
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (

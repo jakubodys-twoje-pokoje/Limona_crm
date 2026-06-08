@@ -64,27 +64,41 @@ export function useKontakty(filters?: KontaktyFilters) {
   }, [fetchKontakty, debouncedFetch])
 
   const createKontakt = async (data: Partial<Kontakt>): Promise<{ data: Kontakt | null; error: string | null }> => {
-    const res = await fetch('/api/kontakty', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    })
-    if (!res.ok) return { data: null, error: (await res.json()).error || 'Błąd' }
-    const created = await res.json()
-    fetchKontakty()
-    return { data: created, error: null }
+    try {
+      const res = await fetch('/api/kontakty', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        return { data: null, error: body.error || `Błąd serwera (${res.status})` }
+      }
+      const created = await res.json()
+      fetchKontakty()
+      return { data: created, error: null }
+    } catch {
+      return { data: null, error: 'Błąd połączenia z serwerem' }
+    }
   }
 
   const updateKontakt = async (id: string, updates: Partial<Kontakt>): Promise<{ data: Kontakt | null; error: string | null }> => {
-    const res = await fetch(`/api/kontakty/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updates),
-    })
-    if (!res.ok) return { data: null, error: (await res.json()).error || 'Błąd' }
-    const updated = await res.json()
-    fetchKontakty()
-    return { data: updated, error: null }
+    try {
+      const res = await fetch(`/api/kontakty/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        return { data: null, error: body.error || `Błąd serwera (${res.status})` }
+      }
+      const updated = await res.json()
+      fetchKontakty()
+      return { data: updated, error: null }
+    } catch {
+      return { data: null, error: 'Błąd połączenia z serwerem' }
+    }
   }
 
   const deleteKontakt = async (id: string): Promise<{ error: string | null }> => {

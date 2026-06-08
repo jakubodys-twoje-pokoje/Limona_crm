@@ -54,13 +54,14 @@ export function KontaktyTable({ kontakty, loading, profiles, onAdd }: Props) {
   const [showFilters, setShowFilters]   = useState(false)
 
   // Boolean status filters
-  const [fWizyta, setFWizyta]       = useState(false)
-  const [fMail, setFMail]           = useState(false)
-  const [fCoop, setFCoop]           = useState(false)
-  const [fNie, setFNie]             = useState(false)
-  const [fUlotki, setFUlotki]       = useState(false)
-  const [fPlakat, setFPlakat]       = useState(false)
-  const [fOperator, setFOperator]   = useState(false)
+  const [fWizyta, setFWizyta]         = useState(false)
+  const [fMail, setFMail]             = useState(false)
+  const [fCoop, setFCoop]             = useState(false)
+  const [fNie, setFNie]               = useState(false)
+  const [fUlotki, setFUlotki]         = useState(false)
+  const [fPlakat, setFPlakat]         = useState(false)
+  const [fOperator, setFOperator]     = useState(false)
+  const [fGodziny, setFGodziny]       = useState(false)
 
   const [sortKey, setSortKey]   = useState<SortKey>('nazwa')
   const [sortDir, setSortDir]   = useState<'asc' | 'desc'>('asc')
@@ -79,16 +80,17 @@ export function KontaktyTable({ kontakty, loading, profiles, onAdd }: Props) {
         if (assignedFilter && k.assigned_to !== assignedFilter) return false
         if (search) {
           const q = search.toLowerCase()
-          const haystack = [k.nazwa, k.miasto, k.ulica, k.wojewodztwo].join(' ').toLowerCase()
+          const haystack = [k.nazwa, k.miasto, k.ulica, k.wojewodztwo, k.godziny_otwarcia].join(' ').toLowerCase()
           if (!haystack.includes(q)) return false
         }
-        if (fWizyta   && !k.wizyta_osobista)   return false
-        if (fMail     && !k.wyslany_mail_oferta) return false
-        if (fCoop     && !k.chec_wspolpracy)   return false
-        if (fNie      && !k.niezainteresowani) return false
-        if (fUlotki   && !k.zgoda_ulotki)      return false
-        if (fPlakat   && !k.zgoda_plakat)      return false
+        if (fWizyta   && !k.wizyta_osobista)             return false
+        if (fMail     && !k.wyslany_mail_oferta)         return false
+        if (fCoop     && !k.chec_wspolpracy)             return false
+        if (fNie      && !k.niezainteresowani)           return false
+        if (fUlotki   && !k.zgoda_ulotki)                return false
+        if (fPlakat   && !k.zgoda_plakat)                return false
         if (fOperator && !k.operator_budowy_zainteresowani) return false
+        if (fGodziny  && !k.godziny_otwarcia?.trim())   return false
         return true
       })
       .sort((a, b) => {
@@ -101,7 +103,7 @@ export function KontaktyTable({ kontakty, loading, profiles, onAdd }: Props) {
         return sortDir === 'asc' ? aVal.localeCompare(bVal, 'pl') : bVal.localeCompare(aVal, 'pl')
       })
   }, [kontakty, typFilter, wojFilter, miastoFilter, assignedFilter, search,
-      fWizyta, fMail, fCoop, fNie, fUlotki, fPlakat, fOperator, sortKey, sortDir])
+      fWizyta, fMail, fCoop, fNie, fUlotki, fPlakat, fOperator, fGodziny, sortKey, sortDir])
 
   function SortIcon({ col }: { col: SortKey }) {
     if (sortKey !== col) return <ChevronUp size={12} className="text-limona-border" />
@@ -173,6 +175,7 @@ export function KontaktyTable({ kontakty, loading, profiles, onAdd }: Props) {
               [fUlotki,   setFUlotki,   'Zgoda na ulotki'],
               [fPlakat,   setFPlakat,   'Zgoda na plakat'],
               [fOperator, setFOperator, 'Operator budowy'],
+              [fGodziny,  setFGodziny,  'Ma godziny otwarcia'],
             ] as [boolean, (v: boolean) => void, string][]).map(([val, set, label]) => (
               <label key={label} className="flex items-center gap-2 cursor-pointer text-sm text-limona-text-muted hover:text-limona-white transition-colors">
                 <input
