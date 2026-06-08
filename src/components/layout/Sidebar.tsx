@@ -3,7 +3,7 @@
 import { memo } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Building2, Calculator, ListTodo, MessageSquare, Users, UserCog, User, LogOut, Search, BookUser } from 'lucide-react'
+import { LayoutDashboard, Building2, Calculator, ListTodo, MessageSquare, Users, UserCog, User, LogOut, Search, BookUser, MapPin } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { useWallContext } from '@/hooks/useWallProvider'
 import { NotificationBell } from '@/components/ui/NotificationBell'
@@ -19,6 +19,7 @@ const navItems = [
   { href: '/zespol', icon: Users, label: 'Zespół' },
   { href: '/wyszukiwarka', icon: Search, label: 'Wyszukiwarka' },
   { href: '/kontakty', icon: BookUser, label: 'Baza kontaktów' },
+  { href: '/mapa',     icon: MapPin,   label: 'Mapa' },
 ]
 
 const adminItems = [

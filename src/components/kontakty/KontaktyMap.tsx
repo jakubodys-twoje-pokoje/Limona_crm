@@ -2,11 +2,13 @@
 
 import { useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
+import { cn } from '@/lib/utils'
 import type { Kontakt, KontaktTyp } from '@/types/database'
 import { KONTAKT_TYP_LABELS } from '@/types/database'
 
 interface Props {
   kontakty: Kontakt[]
+  height?: string
 }
 
 function markerColor(k: Kontakt): string {
@@ -15,7 +17,7 @@ function markerColor(k: Kontakt): string {
   return '#808080'
 }
 
-export default function KontaktyMap({ kontakty }: Props) {
+export default function KontaktyMap({ kontakty, height = '560px' }: Props) {
   const mapRef    = useRef<HTMLDivElement>(null)
   const mapObj    = useRef<unknown>(null)
   const router    = useRouter()
@@ -133,23 +135,31 @@ export default function KontaktyMap({ kontakty }: Props) {
     })
   }, [kontakty]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  const isFullHeight = height === '100%'
+
   return (
-    <div className="space-y-2">
-      <div ref={mapRef} className="w-full rounded border border-limona-border" style={{ height: '560px' }} />
-      <div className="flex items-center gap-4 text-[11px] text-limona-text-dim">
-        <span className="flex items-center gap-1.5">
-          <span className="w-3 h-3 rounded-full bg-limona-lime inline-block" /> Chęć współpracy
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className="w-3 h-3 rounded-full bg-limona-red inline-block" /> Niezainteresowani
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className="w-3 h-3 rounded-full bg-[#808080] inline-block" /> Brak danych
-        </span>
-        <span className="ml-auto">
-          {withCoords.length} z {kontakty.length} kontaktów ma współrzędne
-        </span>
-      </div>
+    <div className={isFullHeight ? 'flex flex-col h-full' : 'space-y-2'}>
+      <div
+        ref={mapRef}
+        className={cn('w-full', isFullHeight ? 'flex-1 min-h-0' : 'rounded border border-limona-border')}
+        style={{ height: isFullHeight ? undefined : height }}
+      />
+      {!isFullHeight && (
+        <div className="flex items-center gap-4 text-[11px] text-limona-text-dim">
+          <span className="flex items-center gap-1.5">
+            <span className="w-3 h-3 rounded-full bg-limona-lime inline-block" /> Chęć współpracy
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="w-3 h-3 rounded-full bg-limona-red inline-block" /> Niezainteresowani
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="w-3 h-3 rounded-full bg-[#808080] inline-block" /> Brak danych
+          </span>
+          <span className="ml-auto">
+            {withCoords.length} z {kontakty.length} kontaktów ma współrzędne
+          </span>
+        </div>
+      )}
     </div>
   )
 }

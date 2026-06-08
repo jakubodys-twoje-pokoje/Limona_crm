@@ -3,7 +3,7 @@
 import { memo } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Building2, Calculator, ListTodo, MessageSquare, User, BookUser } from 'lucide-react'
+import { Building2, Calculator, ListTodo, MessageSquare, User, BookUser, MapPin } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { useWallContext } from '@/hooks/useWallProvider'
 import { cn } from '@/lib/utils'
@@ -14,7 +14,8 @@ const tabs = [
   { href: '/zadania', icon: ListTodo, label: 'Zadania' },
   { href: '/wall', icon: MessageSquare, label: 'Wall', showCounter: true },
   { href: '/kontakty', icon: BookUser, label: 'Kontakty' },
-  { href: '/profil', icon: User, label: 'Profil' },
+  { href: '/mapa',     icon: MapPin,   label: 'Mapa' },
+  { href: '/profil',   icon: User,     label: 'Profil' },
 ]
 
 export const MobileNav = memo(function MobileNav() {

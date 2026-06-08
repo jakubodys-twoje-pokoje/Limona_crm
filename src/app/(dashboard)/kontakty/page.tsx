@@ -73,18 +73,21 @@ export default function KontaktyPage() {
       </div>
 
       {/* Content */}
-      <div className="limona-card p-4 lg:p-6">
-        {view === 'lista' ? (
+      {view === 'lista' ? (
+        <div className="limona-card p-4 lg:p-6">
           <KontaktyTable
             kontakty={kontakty}
             loading={loading}
             profiles={profiles}
             onAdd={() => setShowAddModal(true)}
           />
-        ) : (
-          <KontaktyMap kontakty={kontakty} />
-        )}
-      </div>
+        </div>
+      ) : (
+        /* Full-bleed map — escapes the p-4 lg:p-8 dashboard padding */
+        <div className="-mx-4 lg:-mx-8 -mb-4 lg:-mb-8">
+          <KontaktyMap kontakty={kontakty} height="calc(100vh - 220px)" />
+        </div>
+      )}
 
       <Modal
         isOpen={showAddModal}
