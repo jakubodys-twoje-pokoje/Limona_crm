@@ -247,6 +247,9 @@ model Kontakt {
   ustalona_prowizja              String?
   umowa_url                      String?
 
+  lat                            Float?
+  lng                            Float?
+
   created_at                     DateTime @default(now()) @db.Timestamptz()
   updated_at                     DateTime @default(now()) @updatedAt @db.Timestamptz()
 

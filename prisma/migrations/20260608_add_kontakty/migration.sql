@@ -26,6 +26,8 @@ CREATE TABLE "kontakty" (
     "operator_budowy_zainteresowani" BOOLEAN NOT NULL DEFAULT false,
     "ustalona_prowizja"              TEXT,
     "umowa_url"                      TEXT,
+    "lat"                            DOUBLE PRECISION,
+    "lng"                            DOUBLE PRECISION,
     "created_at"                     TIMESTAMPTZ NOT NULL DEFAULT now(),
     "updated_at"                     TIMESTAMPTZ NOT NULL DEFAULT now(),
 

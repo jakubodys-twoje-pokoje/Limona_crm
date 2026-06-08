@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSessionUser, unauthorized } from '@/lib/api-auth'
 import { serialize } from '@/lib/serialize'
+import { geocodeAddress } from '@/lib/geocode'
 
 const includeRelations = {
   creator:  { select: { id: true, full_name: true, avatar_url: true } },
@@ -67,8 +68,11 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json()
 
+  // Auto-geocode on create (non-blocking)
+  const coords = await geocodeAddress(body.ulica, body.miasto, body.wojewodztwo)
+
   const kontakt = await prisma.kontakt.create({
-    data: { ...body, created_by: user.id },
+    data: { ...body, created_by: user.id, ...(coords ?? {}) },
     include: includeRelations,
   })
 

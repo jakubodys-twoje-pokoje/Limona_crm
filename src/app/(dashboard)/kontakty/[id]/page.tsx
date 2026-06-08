@@ -1,10 +1,9 @@
 'use client'
 
-export const dynamic = 'force-dynamic'
-
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
+import dynamic from 'next/dynamic'
 import {
   ArrowLeft, Phone, Mail, MapPin, Clock, User,
   Building2, Home, CheckSquare, Square, Edit, Trash2, ExternalLink
@@ -18,6 +17,8 @@ import { KontaktForm } from '@/components/kontakty/KontaktForm'
 import { KontaktKomentarze } from '@/components/kontakty/KontaktKomentarze'
 import { cn } from '@/lib/utils'
 import type { Kontakt, KontaktTyp, Profile } from '@/types/database'
+
+const KontaktMiniMap = dynamic(() => import('@/components/kontakty/KontaktMiniMap'), { ssr: false })
 import { KONTAKT_TYP_LABELS, TYPY_SPOLDZIELNIA, TYPY_Z_PROWIZJA } from '@/types/database'
 
 function InfoRow({ icon: Icon, label, value }: { icon: React.ElementType; label: string; value: string | null | undefined }) {
@@ -209,6 +210,18 @@ export default function KontaktDetailPage() {
                 <p className="text-sm text-limona-text whitespace-pre-wrap">{kontakt.opis}</p>
               </div>
             )}
+
+            {/* Mini-mapa */}
+            <div className="mt-4 pt-4 border-t border-limona-border/40">
+              <p className="text-[10px] uppercase tracking-wider text-limona-text-dim mb-3">Lokalizacja</p>
+              <KontaktMiniMap
+                lat={kontakt.lat}
+                lng={kontakt.lng}
+                nazwa={kontakt.nazwa}
+                kontaktId={kontaktId}
+                onGeocode={(newLat: number, newLng: number) => setKontakt(prev => prev ? { ...prev, lat: newLat, lng: newLng } : prev)}
+              />
+            </div>
           </div>
 
           {/* Type-specific data */}

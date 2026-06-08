@@ -170,6 +170,8 @@ export interface Kontakt {
   operator_budowy_zainteresowani: boolean
   ustalona_prowizja: string | null
   umowa_url: string | null
+  lat: number | null
+  lng: number | null
   created_at: string
   updated_at: string
   // Joined fields

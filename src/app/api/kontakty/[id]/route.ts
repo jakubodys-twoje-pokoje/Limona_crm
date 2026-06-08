@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSessionUser, unauthorized } from '@/lib/api-auth'
 import { serialize } from '@/lib/serialize'
+import { geocodeAddress } from '@/lib/geocode'
 
 const includeRelations = {
   creator:  { select: { id: true, full_name: true, avatar_url: true } },
@@ -34,9 +35,23 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
   const body = await req.json()
 
+  // Re-geocode if address fields changed
+  const addressFields = ['ulica', 'miasto', 'wojewodztwo']
+  const needsGeocode = addressFields.some(f => f in body)
+  let coordPatch = {}
+  if (needsGeocode) {
+    const current = await prisma.kontakt.findUnique({ where: { id: params.id }, select: { ulica: true, miasto: true, wojewodztwo: true } })
+    const coords = await geocodeAddress(
+      body.ulica ?? current?.ulica,
+      body.miasto ?? current?.miasto,
+      body.wojewodztwo ?? current?.wojewodztwo,
+    )
+    if (coords) coordPatch = coords
+  }
+
   const kontakt = await prisma.kontakt.update({
     where: { id: params.id },
-    data: body,
+    data: { ...body, ...coordPatch },
     include: includeRelations,
   })
 
