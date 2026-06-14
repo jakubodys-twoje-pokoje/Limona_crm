@@ -32,6 +32,8 @@ model Profile {
   kontakty_created       Kontakt[]          @relation("KontaktCreator")
   kontakty_assigned      Kontakt[]          @relation("KontaktAssignee")
   kontakt_komentarze     KontaktKomentarz[]
+  leads_created          Lead[]             @relation("LeadCreator")
+  leads_assigned         Lead[]             @relation("LeadAssignee")
 
   @@map("profiles")
 }
@@ -90,6 +92,7 @@ model Task {
   priority     String    @default("medium")
   due_date     DateTime? @db.Date
   assigned_to  String?   @db.Uuid
+  co_assignees String[]  @default([])
   created_by   String?   @db.Uuid
   completed_at DateTime? @db.Timestamptz()
   created_at   DateTime  @default(now()) @db.Timestamptz()
@@ -301,4 +304,29 @@ model ResearchQuery {
   @@index([person_name])
   @@index([created_at(sort: Desc)])
   @@map("research_queries")
+}
+
+model Lead {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String
+  phone       String?
+  email       String?
+  location    String?
+  source      String?
+  notes       String?
+  // new | contacted | qualified | assigned | converted | rejected
+  status      String   @default("new")
+  assigned_to String?  @db.Uuid
+  property_id String?  @db.Uuid
+  created_by  String?  @db.Uuid
+  created_at  DateTime @default(now()) @db.Timestamptz()
+  updated_at  DateTime @default(now()) @updatedAt @db.Timestamptz()
+
+  assignee Profile? @relation("LeadAssignee", fields: [assigned_to], references: [id], onDelete: SetNull)
+  creator  Profile? @relation("LeadCreator", fields: [created_by], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@index([assigned_to])
+  @@index([created_at(sort: Desc)])
+  @@map("leads")
 }

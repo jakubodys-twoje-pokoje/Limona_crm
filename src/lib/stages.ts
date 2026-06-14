@@ -81,6 +81,88 @@ export function getStages(dealType: DealType | null | undefined): StageInfo[] {
   return STAGES[dealType] ?? LEGACY_STAGES
 }
 
+export const STAGE_TASK_TEMPLATES: Partial<Record<string, string[]>> = {
+  analiza: [
+    'Zamów operat szacunkowy',
+    'Sprawdź KW w przeglądarce e-KW',
+    'Weryfikacja zadłużeń i wierzycieli',
+    'Ocena stanu technicznego nieruchomości',
+  ],
+  oferta: [
+    'Przygotuj ofertę zakupu',
+    'Wyślij ofertę właścicielowi',
+    'Potwierdź odbiór oferty telefonicznie',
+  ],
+  negocjacje_wierzyciele: [
+    'Skontaktuj się z 1. wierzycielem',
+    'Skontaktuj się z 2. wierzycielem',
+    'Skontaktuj się z 3. wierzycielem',
+    'Ustal warunki redukcji długu',
+  ],
+  umowa_przedwstepna_kupna: [
+    'Przygotuj draft umowy przedwstępnej',
+    'Umów wizytę u notariusza',
+    'Sprawdź tożsamość właściciela',
+    'Pobierz zaświadczenie o niezaleganiu z czynszem',
+  ],
+  umowa_kupna: [
+    'Finalizuj umowę kupna u notariusza',
+    'Opłać podatek PCC',
+    'Złóż wniosek o zmianę właściciela w KW',
+  ],
+  zaplata_ceny: [
+    'Przelej cenę na konto właściciela',
+    'Przelej spłatę dla wierzycieli',
+    'Zbierz potwierdzenia przelewów',
+    'Uzyskaj potwierdzenia wykreślenia hipotek',
+  ],
+  odebranie_posiadania: [
+    'Umów protokół zdawczo-odbiorczy',
+    'Odbierz klucze',
+    'Zrób dokumentację fotograficzną stanu',
+    'Wymień zamki',
+  ],
+  odswiezenie: [
+    'Zamów ekipę remontową',
+    'Ustal zakres i kosztorys prac',
+    'Kup materiały',
+    'Nadzoruj prace',
+    'Odbiór końcowy prac',
+  ],
+  reklama_sprzedazy: [
+    'Zrób profesjonalne zdjęcia',
+    'Przygotuj opis oferty',
+    'Wystaw ogłoszenie na OLX',
+    'Wystaw ogłoszenie na Otodom',
+    'Ustaw cenę sprzedaży',
+  ],
+  pokazywanie: [
+    'Potwierdź terminy pokazywania',
+    'Przygotuj nieruchomość na pokazywanie',
+    'Zebranie feedbacku od oglądających',
+  ],
+  umowa_przedwstepna_sprzedazy: [
+    'Podpisz umowę przedwstępną sprzedaży',
+    'Pobierz zaliczkę / zadatek',
+    'Sprawdź financing kupującego',
+  ],
+  sprzedaz: [
+    'Podpisz umowę sprzedaży u notariusza',
+    'Przekaż klucze kupującemu',
+    'Protokół zdawczo-odbiorczy sprzedaży',
+  ],
+  umowa_savedeal: [
+    'Podpisz umowę SaveDeal',
+    'Weryfikacja tytułu prawnego nieruchomości',
+    'Sprawdź stan prawny u notariusza',
+  ],
+  wycena: [
+    'Zamów niezależną wycenę (rzeczoznawca)',
+    'Przygotuj raport wyceny',
+    'Ustal cenę ofertową na podstawie wyceny',
+  ],
+}
+
 export function getStageLabel(status: string, dealType?: DealType | null): string {
   if (dealType) {
     const found = STAGES[dealType]?.find(s => s.value === status)

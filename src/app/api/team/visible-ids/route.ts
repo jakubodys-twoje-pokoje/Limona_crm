@@ -7,8 +7,8 @@ export async function GET() {
   const user = await getSessionUser()
   if (!user) return unauthorized()
 
-  // Admin sees all
-  if (user.role === 'admin') {
+  // Admin and manager see all
+  if (user.role === 'admin' || user.role === 'manager') {
     return NextResponse.json({ visibleIds: null })
   }
 

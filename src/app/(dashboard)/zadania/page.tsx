@@ -39,6 +39,7 @@ interface TaskFormData {
   due_date: string
   status: TaskStatus
   assigned_to: string
+  co_assignees: string[]
 }
 
 const EMPTY_FORM: TaskFormData = {
@@ -48,6 +49,7 @@ const EMPTY_FORM: TaskFormData = {
   due_date: '',
   status: 'todo',
   assigned_to: '',
+  co_assignees: [],
 }
 
 export default function ZadaniaPage() {
@@ -90,6 +92,7 @@ export default function ZadaniaPage() {
       due_date: form.due_date || null,
       status: addStatus,
       assigned_to: form.assigned_to || null,
+      co_assignees: form.co_assignees,
     }, user.id)
 
     if (error) { showToast(error, 'error'); return }
@@ -289,13 +292,42 @@ export default function ZadaniaPage() {
             </div>
           </div>
           <div>
-            <label className="limona-label block mb-2">Przypisz do</label>
+            <label className="limona-label block mb-2">Główny wykonawca</label>
             <select className="limona-select" value={form.assigned_to} onChange={e => setForm(f => ({ ...f, assigned_to: e.target.value }))}>
               <option value="">Nieprzypisane</option>
               {profiles.map(p => (
                 <option key={p.id} value={p.id}>{p.full_name}</option>
               ))}
             </select>
+          </div>
+          <div>
+            <label className="limona-label block mb-2">Dodatkowi wykonawcy (CC)</label>
+            <div className="space-y-1.5 max-h-32 overflow-y-auto">
+              {profiles
+                .filter(p => p.id !== form.assigned_to)
+                .map(p => (
+                  <label key={p.id} className="flex items-center gap-2 cursor-pointer hover:bg-limona-surface-2/50 px-2 py-1 rounded">
+                    <input
+                      type="checkbox"
+                      className="accent-limona-lime"
+                      checked={form.co_assignees.includes(p.id)}
+                      onChange={e => setForm(f => ({
+                        ...f,
+                        co_assignees: e.target.checked
+                          ? [...f.co_assignees, p.id]
+                          : f.co_assignees.filter(id => id !== p.id),
+                      }))}
+                    />
+                    <span className="text-sm text-limona-text">{p.full_name}</span>
+                    <span className="text-xs text-limona-text-dim">{p.role}</span>
+                  </label>
+                ))}
+            </div>
+            {form.co_assignees.length > 0 && (
+              <p className="text-xs text-limona-text-dim mt-1">
+                {form.co_assignees.length} dodatkowych wykonawców
+              </p>
+            )}
           </div>
           <div className="flex gap-3 justify-end pt-2">
             <button type="button" onClick={() => setShowAddModal(false)} className="limona-btn-outline">Anuluj</button>

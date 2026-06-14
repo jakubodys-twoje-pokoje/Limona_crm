@@ -25,7 +25,7 @@ export type TaskStatus = 'todo' | 'in_progress' | 'done' | 'blocked'
 
 export type TaskPriority = 'low' | 'medium' | 'high' | 'urgent'
 
-export type UserRole = 'admin' | 'user' | 'viewer'
+export type UserRole = 'admin' | 'manager' | 'user' | 'viewer'
 
 export interface Profile {
   id: string
@@ -82,12 +82,34 @@ export interface Task {
   priority: TaskPriority
   due_date: string | null
   assigned_to: string | null
+  co_assignees: string[]
   created_by: string | null
   completed_at: string | null
   created_at: string
   updated_at: string
   // Joined fields
   property?: Property
+  assignee?: Profile
+  creator?: Profile
+}
+
+export type LeadStatus = 'new' | 'contacted' | 'qualified' | 'assigned' | 'converted' | 'rejected'
+
+export interface Lead {
+  id: string
+  name: string
+  phone: string | null
+  email: string | null
+  location: string | null
+  source: string | null
+  notes: string | null
+  status: LeadStatus
+  assigned_to: string | null
+  property_id: string | null
+  created_by: string | null
+  created_at: string
+  updated_at: string
+  // Joined fields
   assignee?: Profile
   creator?: Profile
 }

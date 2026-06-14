@@ -24,6 +24,7 @@ export async function GET(req: NextRequest) {
     where.OR = [
       { assigned_to: { in: visibleIds } },
       { created_by: { in: visibleIds } },
+      { co_assignees: { hasSome: visibleIds } },
     ]
   }
 

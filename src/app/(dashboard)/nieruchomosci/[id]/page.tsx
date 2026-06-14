@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic'
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Edit, Clock, User, Phone, Plus, CheckCircle, Circle, Trash2 } from 'lucide-react'
+import { ArrowLeft, Edit, Clock, User, Phone, Plus, CheckCircle, Circle, Trash2, Tag, Home, BookOpen, Layers } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { useProperties } from '@/hooks/useProperties'
 import { useTasks } from '@/hooks/useTasks'
@@ -21,6 +21,8 @@ import { Skeleton } from '@/components/ui/Skeleton'
 import { formatMoney, cn } from '@/lib/utils'
 import type { Property, Task } from '@/types/database'
 import type { Calc1Input, Calc2Input } from '@/lib/calculator'
+import { STAGE_TASK_TEMPLATES, getStageLabel, DEAL_TYPE_LABELS } from '@/lib/stages'
+import type { DealType } from '@/types/database'
 
 function actionLabel(action: string): string {
   const map: Record<string, string> = {
@@ -48,6 +50,8 @@ export default function PropertyDetailPage() {
   const [activeTab, setActiveTab] = useState<'calc' | 'tasks' | 'log'>('calc')
   const [showEditModal, setShowEditModal] = useState(false)
   const [newTaskTitle, setNewTaskTitle] = useState('')
+  const [showTemplates, setShowTemplates] = useState(false)
+  const [selectedTemplates, setSelectedTemplates] = useState<string[]>([])
 
   const [calc1Input, setCalc1Input] = useState<Calc1Input>({
     valuePerSqm: 0, totalDebt: 0, commissionPct: 0, notaryFee: 1000, manualOffer: null,
@@ -64,7 +68,7 @@ export default function PropertyDetailPage() {
       const p: Property = await res.json()
       setProperty(p)
 
-      if (p.debt_type === 'above_value') {
+      if (p.deal_type === 'zadluzony_powyzej' || p.debt_type === 'above_value') {
         setCalc2Input({
           valuePerSqm: p.value_per_sqm || 0,
           totalDebt: p.total_debt || 0,
@@ -131,7 +135,19 @@ export default function PropertyDetailPage() {
 
   if (!property) return null
 
-  const isAbove = property.debt_type === 'above_value'
+  const isAbove = property.deal_type === 'zadluzony_powyzej' || property.debt_type === 'above_value'
+  const stageTemplates = STAGE_TASK_TEMPLATES[property.status] ?? []
+
+  async function applyTemplates() {
+    if (!user || selectedTemplates.length === 0) return
+    await Promise.all(
+      selectedTemplates.map(title =>
+        createTask({ title, property_id: propertyId, status: 'todo', priority: 'medium' }, user.id)
+      )
+    )
+    setShowTemplates(false)
+    setSelectedTemplates([])
+  }
 
   return (
     <div className="space-y-6 max-w-5xl">
@@ -144,6 +160,16 @@ export default function PropertyDetailPage() {
           <h1 className="limona-heading text-2xl lg:text-3xl">{property.location}</h1>
           <div className="flex items-center gap-2 mt-2 flex-wrap">
             <Badge value={property.status} />
+            {property.deal_type && (
+              <span className={cn(
+                'text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded',
+                property.deal_type === 'zadluzony_ponizej' ? 'bg-limona-blue/15 text-limona-blue' :
+                property.deal_type === 'zadluzony_powyzej' ? 'bg-limona-yellow/15 text-limona-yellow' :
+                'bg-limona-lime/15 text-limona-lime'
+              )}>
+                {DEAL_TYPE_LABELS[property.deal_type as DealType]}
+              </span>
+            )}
             {property.property_type && (
               <span className="text-xs text-limona-text-muted capitalize">{property.property_type}</span>
             )}
@@ -200,6 +226,49 @@ export default function PropertyDetailPage() {
           </span>
         </div>
       </div>
+
+      {/* Extended property info */}
+      {(property.owner_name || property.kw_number || property.source || property.czynsz_miesieczny) && (
+        <div className="limona-card p-4 grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
+          {property.owner_name && (
+            <div className="flex items-start gap-2">
+              <Home size={14} className="text-limona-text-muted mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="text-[10px] text-limona-text-dim uppercase tracking-wider">Właściciel</p>
+                <p className="text-limona-text">{property.owner_name}</p>
+              </div>
+            </div>
+          )}
+          {property.kw_number && (
+            <div className="flex items-start gap-2">
+              <BookOpen size={14} className="text-limona-text-muted mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="text-[10px] text-limona-text-dim uppercase tracking-wider">Numer KW</p>
+                <p className="text-limona-text font-mono text-xs">{property.kw_number}</p>
+                {property.kw_opis && <p className="text-limona-text-dim text-xs mt-0.5">{property.kw_opis}</p>}
+              </div>
+            </div>
+          )}
+          {property.source && (
+            <div className="flex items-start gap-2">
+              <Tag size={14} className="text-limona-text-muted mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="text-[10px] text-limona-text-dim uppercase tracking-wider">Źródło</p>
+                <p className="text-limona-text">{property.source}</p>
+              </div>
+            </div>
+          )}
+          {property.czynsz_miesieczny && (
+            <div className="flex items-start gap-2">
+              <Layers size={14} className="text-limona-text-muted mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="text-[10px] text-limona-text-dim uppercase tracking-wider">Czynsz / mies.</p>
+                <p className="text-limona-text font-mono">{formatMoney(property.czynsz_miesieczny)}</p>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {property.notes && (
         <div className="limona-card-accent p-4">
@@ -260,7 +329,51 @@ export default function PropertyDetailPage() {
               <Plus size={14} />
               Dodaj
             </button>
+            {stageTemplates.length > 0 && (
+              <button
+                type="button"
+                onClick={() => { setShowTemplates(true); setSelectedTemplates([...stageTemplates]) }}
+                className="limona-btn-outline text-xs flex items-center gap-1 whitespace-nowrap"
+              >
+                <Layers size={14} />
+                Szablony etapu
+              </button>
+            )}
           </form>
+
+          {/* Stage templates modal */}
+          {showTemplates && (
+            <div className="limona-card-accent p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-limona-lime uppercase tracking-wider font-bold">
+                  Szablony zadań — {getStageLabel(property.status)}
+                </p>
+                <button onClick={() => setShowTemplates(false)} className="text-limona-text-dim hover:text-limona-text text-xs">✕</button>
+              </div>
+              <div className="space-y-2">
+                {stageTemplates.map(t => (
+                  <label key={t} className="flex items-center gap-3 cursor-pointer group">
+                    <input
+                      type="checkbox"
+                      checked={selectedTemplates.includes(t)}
+                      onChange={e => setSelectedTemplates(prev =>
+                        e.target.checked ? [...prev, t] : prev.filter(x => x !== t)
+                      )}
+                      className="w-4 h-4 accent-limona-lime"
+                    />
+                    <span className="text-sm text-limona-text group-hover:text-limona-white transition-colors">{t}</span>
+                  </label>
+                ))}
+              </div>
+              <div className="flex gap-2 pt-1">
+                <button onClick={applyTemplates} disabled={selectedTemplates.length === 0}
+                  className="limona-btn-sm disabled:opacity-40">
+                  Utwórz zaznaczone ({selectedTemplates.length})
+                </button>
+                <button onClick={() => setShowTemplates(false)} className="limona-btn-outline text-xs">Anuluj</button>
+              </div>
+            </div>
+          )}
 
           {tasks.length === 0 ? (
             <p className="text-center text-limona-text-muted py-8">Brak zadań</p>
