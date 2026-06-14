@@ -76,6 +76,7 @@ function DirectChatTab({ currentUser }: { currentUser: ChatPeer }) {
   const [sending, setSending] = useState(false)
   const [loadingConvs, setLoadingConvs] = useState(true)
   const [loadingMsgs, setLoadingMsgs] = useState(false)
+  const [archiveMode, setArchiveMode] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
 
   const fetchConversations = useCallback(async () => {
@@ -91,19 +92,20 @@ function DirectChatTab({ currentUser }: { currentUser: ChatPeer }) {
     fetch('/api/profiles').then(r => r.json()).then(data => setAllProfiles(data as ChatPeer[]))
   }, [fetchConversations])
 
-  const fetchMessages = useCallback(async (peerId: string) => {
+  const fetchMessages = useCallback(async (peerId: string, archive: boolean) => {
     setLoadingMsgs(true)
-    const res = await fetch(`/api/dm/${peerId}`)
+    const days = archive ? 90 : 30
+    const res = await fetch(`/api/dm/${peerId}?days=${days}`)
     if (res.ok) setMessages(await res.json())
     setLoadingMsgs(false)
   }, [])
 
   useEffect(() => {
     if (!selectedPeer) return
-    fetchMessages(selectedPeer.id)
-    const id = setInterval(() => fetchMessages(selectedPeer.id), 10000)
+    fetchMessages(selectedPeer.id, archiveMode)
+    const id = setInterval(() => fetchMessages(selectedPeer.id, archiveMode), 10000)
     return () => clearInterval(id)
-  }, [selectedPeer, fetchMessages])
+  }, [selectedPeer, fetchMessages, archiveMode])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -206,10 +208,22 @@ function DirectChatTab({ currentUser }: { currentUser: ChatPeer }) {
           <>
             <div className="flex items-center gap-3 p-4 border-b border-limona-border bg-limona-surface">
               <Avatar name={selectedPeer.full_name} url={selectedPeer.avatar_url} size="sm" />
-              <div>
+              <div className="flex-1">
                 <p className="text-sm font-medium text-limona-white">{selectedPeer.full_name}</p>
                 <p className="text-xs text-limona-text-dim capitalize">{selectedPeer.role}</p>
               </div>
+              <button
+                onClick={() => setArchiveMode(!archiveMode)}
+                className={cn(
+                  'text-[10px] uppercase tracking-wider px-2 py-1 rounded border transition-colors',
+                  archiveMode
+                    ? 'border-limona-yellow text-limona-yellow bg-limona-yellow/10'
+                    : 'border-limona-border text-limona-text-dim hover:border-limona-text-muted'
+                )}
+                title={archiveMode ? 'Pokaż ostatnie 30 dni' : 'Pokaż archiwum (30–90 dni)'}
+              >
+                {archiveMode ? '📦 Archiwum' : '🕐 Ostatnie 30 dni'}
+              </button>
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 space-y-3">
@@ -217,7 +231,7 @@ function DirectChatTab({ currentUser }: { currentUser: ChatPeer }) {
                 <div className="space-y-3">{[...Array(4)].map((_, i) => <Skeleton key={i} className="h-12" />)}</div>
               ) : messages.length === 0 ? (
                 <div className="text-center py-12 text-limona-text-dim text-sm">
-                  Brak wiadomości — napisz pierwszą!
+                  {archiveMode ? 'Brak wiadomości w archiwum (30–90 dni)' : 'Brak wiadomości z ostatnich 30 dni'}
                 </div>
               ) : (
                 messages.map(msg => {
@@ -274,6 +288,7 @@ function GroupsTab({ currentUser }: { currentUser: ChatPeer }) {
   const [sending, setSending] = useState(false)
   const [loadingGroups, setLoadingGroups] = useState(true)
   const [loadingMsgs, setLoadingMsgs] = useState(false)
+  const [archiveMode, setArchiveMode] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -282,19 +297,20 @@ function GroupsTab({ currentUser }: { currentUser: ChatPeer }) {
       .then(data => { setGroups(data as Group[]); setLoadingGroups(false) })
   }, [])
 
-  const fetchMessages = useCallback(async (groupId: string) => {
+  const fetchMessages = useCallback(async (groupId: string, archive: boolean) => {
     setLoadingMsgs(true)
-    const res = await fetch(`/api/groups/${groupId}/messages`)
+    const days = archive ? 90 : 30
+    const res = await fetch(`/api/groups/${groupId}/messages?days=${days}`)
     if (res.ok) setMessages(await res.json())
     setLoadingMsgs(false)
   }, [])
 
   useEffect(() => {
     if (!selectedGroup) return
-    fetchMessages(selectedGroup.id)
-    const id = setInterval(() => fetchMessages(selectedGroup.id), 10000)
+    fetchMessages(selectedGroup.id, archiveMode)
+    const id = setInterval(() => fetchMessages(selectedGroup.id, archiveMode), 10000)
     return () => clearInterval(id)
-  }, [selectedGroup, fetchMessages])
+  }, [selectedGroup, fetchMessages, archiveMode])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -363,13 +379,24 @@ function GroupsTab({ currentUser }: { currentUser: ChatPeer }) {
         ) : (
           <>
             <div className="flex items-center gap-3 p-4 border-b border-limona-border bg-limona-surface">
-              <div className="w-8 h-8 rounded bg-limona-lime/20 flex items-center justify-center">
+              <div className="w-8 h-8 rounded bg-limona-lime/20 flex items-center justify-center flex-shrink-0">
                 <Users size={14} className="text-limona-lime" />
               </div>
-              <div>
+              <div className="flex-1">
                 <p className="text-sm font-medium text-limona-white">{selectedGroup.name}</p>
                 <p className="text-xs text-limona-text-dim">{selectedGroup.memberCount} członków</p>
               </div>
+              <button
+                onClick={() => setArchiveMode(!archiveMode)}
+                className={cn(
+                  'text-[10px] uppercase tracking-wider px-2 py-1 rounded border transition-colors',
+                  archiveMode
+                    ? 'border-limona-yellow text-limona-yellow bg-limona-yellow/10'
+                    : 'border-limona-border text-limona-text-dim hover:border-limona-text-muted'
+                )}
+              >
+                {archiveMode ? '📦 Archiwum' : '🕐 Ostatnie 30 dni'}
+              </button>
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 space-y-3">
@@ -377,7 +404,7 @@ function GroupsTab({ currentUser }: { currentUser: ChatPeer }) {
                 <div className="space-y-3">{[...Array(4)].map((_, i) => <Skeleton key={i} className="h-12" />)}</div>
               ) : messages.length === 0 ? (
                 <div className="text-center py-12 text-limona-text-dim text-sm">
-                  Brak wiadomości — napisz pierwszą!
+                  {archiveMode ? 'Brak wiadomości w archiwum (30–90 dni)' : 'Brak wiadomości z ostatnich 30 dni'}
                 </div>
               ) : (
                 messages.map(msg => {

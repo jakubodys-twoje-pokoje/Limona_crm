@@ -20,6 +20,23 @@ export async function GET() {
   return NextResponse.json(serialize(notifications))
 }
 
+// DELETE /api/notifications?read=1 — delete all read, omit param = delete all
+export async function DELETE(req: NextRequest) {
+  const user = await getSessionUser()
+  if (!user) return unauthorized()
+
+  const readOnly = req.nextUrl.searchParams.get('read') === '1'
+
+  await prisma.notification.deleteMany({
+    where: {
+      user_id: user.id,
+      ...(readOnly ? { read: true } : {}),
+    },
+  })
+
+  return NextResponse.json({ ok: true })
+}
+
 export async function POST(req: NextRequest) {
   const user = await getSessionUser()
   if (!user) return unauthorized()

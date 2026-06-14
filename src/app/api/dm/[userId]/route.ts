@@ -5,11 +5,14 @@ import { getSessionUser, unauthorized } from '@/lib/api-auth'
 import { serialize } from '@/lib/serialize'
 
 // GET /api/dm/[userId] — fetch conversation thread
-export async function GET(_req: NextRequest, { params }: { params: { userId: string } }) {
+// ?days=30 (default) | ?days=90 (archive view)
+export async function GET(req: NextRequest, { params }: { params: { userId: string } }) {
   const user = await getSessionUser()
   if (!user) return unauthorized()
 
   const peerId = params.userId
+  const days = parseInt(req.nextUrl.searchParams.get('days') ?? '30', 10)
+  const cutoff = new Date(Date.now() - days * 86400000)
 
   const messages = await prisma.directMessage.findMany({
     where: {
@@ -17,12 +20,13 @@ export async function GET(_req: NextRequest, { params }: { params: { userId: str
         { from_id: user.id, to_id: peerId },
         { from_id: peerId,  to_id: user.id },
       ],
+      created_at: { gte: cutoff },
     },
     orderBy: { created_at: 'asc' },
     include: {
       sender: { select: { id: true, full_name: true, avatar_url: true } },
     },
-    take: 100,
+    take: 200,
   })
 
   // Mark incoming messages as read

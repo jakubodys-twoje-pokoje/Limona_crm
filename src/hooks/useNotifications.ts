@@ -70,7 +70,19 @@ export function useNotifications(userId: string | undefined) {
     setNotifications(prev => prev.filter(n => n.id !== id))
   }
 
-  return { notifications, unreadCount, loading, markAsRead, markAllRead, deleteNotification, refetch: fetchNotifications }
+  const deleteAllRead = async () => {
+    await fetch('/api/notifications?read=1', { method: 'DELETE' })
+    setNotifications(prev => prev.filter(n => !n.read))
+  }
+
+  const deleteAll = async () => {
+    await fetch('/api/notifications', { method: 'DELETE' })
+    setNotifications([])
+    setUnreadCount(0)
+    prevCountRef.current = 0
+  }
+
+  return { notifications, unreadCount, loading, markAsRead, markAllRead, deleteNotification, deleteAllRead, deleteAll, refetch: fetchNotifications }
 }
 
 // Helper: create a notification

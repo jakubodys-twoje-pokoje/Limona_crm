@@ -3,7 +3,7 @@
 export const dynamic = 'force-dynamic'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Shield, Trash2, Edit, Save, X, UserPlus } from 'lucide-react'
+import { Shield, Trash2, Edit, Save, X, UserPlus, Database } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { useToast } from '@/components/ui/Toast'
 import { Avatar } from '@/components/ui/Avatar'
@@ -28,6 +28,32 @@ export default function AdminPage() {
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [createForm, setCreateForm] = useState({ email: '', password: '', fullName: '', role: 'user' as UserRole })
   const [creating, setCreating] = useState(false)
+
+  // DB cleanup
+  const [cleanupPreview, setCleanupPreview] = useState<{ directMessages: number; groupMessages: number; wallMessages: number; readNotifications: number } | null>(null)
+  const [cleanupRunning, setCleanupRunning] = useState(false)
+  const [cleanupResult, setCleanupResult] = useState<string | null>(null)
+
+  async function fetchCleanupPreview() {
+    const res = await fetch('/api/cleanup')
+    if (res.ok) {
+      const data = await res.json()
+      setCleanupPreview(data.toDelete)
+    }
+  }
+
+  async function runCleanup() {
+    if (!window.confirm('Usunąć stare wiadomości (>90 dni) i przeczytane powiadomienia (>30 dni)?')) return
+    setCleanupRunning(true)
+    const res = await fetch('/api/cleanup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ target: 'all' }) })
+    if (res.ok) {
+      const data = await res.json()
+      const total = Object.values(data.deleted as Record<string, number>).reduce((a, b) => a + b, 0)
+      setCleanupResult(`Usunięto ${total} rekordów (DM: ${data.deleted.directMessages ?? 0}, Grupy: ${data.deleted.groupMessages ?? 0}, Wall: ${data.deleted.wallMessages ?? 0}, Powiadomienia: ${data.deleted.notifications ?? 0})`)
+      setCleanupPreview(null)
+    }
+    setCleanupRunning(false)
+  }
 
   const fetchProfiles = useCallback(async () => {
     const res = await fetch('/api/profiles')
@@ -137,6 +163,50 @@ export default function AdminPage() {
           ))}
         </div>
       )}
+
+      {/* DB Cleanup */}
+      <div className="limona-card p-4 lg:p-6">
+        <div className="flex items-center gap-3 mb-4">
+          <Database size={18} className="text-limona-text-muted" />
+          <h2 className="limona-heading text-lg">Zarządzanie danymi</h2>
+        </div>
+        <div className="space-y-3 text-sm text-limona-text-muted mb-4">
+          <p>Polityka retencji wiadomości:</p>
+          <ul className="ml-4 space-y-1 text-xs">
+            <li>• <span className="text-limona-white">Chat (DM i Grupy)</span> — domyślnie wyświetlane ostatnie <strong>30 dni</strong>, archiwum dostępne w widoku 30–90 dni</li>
+            <li>• Po <span className="text-limona-red">90 dniach</span> — trwałe usunięcie wiadomości (czat, grupy, wall nieprzypięte)</li>
+            <li>• <span className="text-limona-yellow">Powiadomienia przeczytane</span> — trwałe usunięcie po 30 dniach</li>
+          </ul>
+        </div>
+        {cleanupResult && (
+          <div className="bg-limona-green/10 border border-limona-green/30 rounded p-3 text-sm text-limona-green mb-4">
+            {cleanupResult}
+          </div>
+        )}
+        {cleanupPreview ? (
+          <div className="bg-limona-surface-2 rounded p-4 mb-4 space-y-2">
+            <p className="text-xs text-limona-text-muted font-bold uppercase tracking-wider mb-2">Do usunięcia (starsze niż 90 dni):</p>
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <span>DM: <strong className="text-limona-white">{cleanupPreview.directMessages}</strong></span>
+              <span>Grupy: <strong className="text-limona-white">{cleanupPreview.groupMessages}</strong></span>
+              <span>Wall: <strong className="text-limona-white">{cleanupPreview.wallMessages}</strong></span>
+              <span>Powiadomienia: <strong className="text-limona-white">{cleanupPreview.readNotifications}</strong></span>
+            </div>
+          </div>
+        ) : null}
+        <div className="flex gap-3">
+          <button onClick={fetchCleanupPreview} className="limona-btn-outline text-xs">
+            Podgląd do usunięcia
+          </button>
+          <button
+            onClick={runCleanup}
+            disabled={cleanupRunning}
+            className="text-xs bg-limona-red/10 border border-limona-red/40 text-limona-red hover:bg-limona-red/20 rounded-full px-4 py-2 font-medium uppercase tracking-wider transition-colors disabled:opacity-40"
+          >
+            {cleanupRunning ? 'Czyszczenie...' : 'Wyczyść stare dane'}
+          </button>
+        </div>
+      </div>
 
       {/* Create User Modal */}
       <Modal isOpen={showCreateModal} onClose={() => setShowCreateModal(false)} title="Dodaj użytkownika" size="md">

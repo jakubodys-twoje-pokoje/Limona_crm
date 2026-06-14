@@ -14,7 +14,8 @@ async function canAccessGroup(userId: string, userRole: string, groupId: string)
 }
 
 // GET /api/groups/[groupId]/messages
-export async function GET(_req: NextRequest, { params }: { params: { groupId: string } }) {
+// ?days=30 (default) | ?days=90 (archive view)
+export async function GET(req: NextRequest, { params }: { params: { groupId: string } }) {
   const user = await getSessionUser()
   if (!user) return unauthorized()
 
@@ -22,13 +23,19 @@ export async function GET(_req: NextRequest, { params }: { params: { groupId: st
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
+  const days = parseInt(req.nextUrl.searchParams.get('days') ?? '30', 10)
+  const cutoff = new Date(Date.now() - days * 86400000)
+
   const messages = await prisma.groupMessage.findMany({
-    where: { group_id: params.groupId },
+    where: {
+      group_id: params.groupId,
+      created_at: { gte: cutoff },
+    },
     orderBy: { created_at: 'asc' },
     include: {
       author: { select: { id: true, full_name: true, avatar_url: true } },
     },
-    take: 100,
+    take: 200,
   })
 
   return NextResponse.json(serialize(messages))
