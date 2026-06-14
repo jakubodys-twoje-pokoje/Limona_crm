@@ -83,6 +83,9 @@ export interface Task {
   due_date: string | null
   assigned_to: string | null
   co_assignees: string[]
+  board_id: string | null
+  list_id: string | null
+  position: number
   created_by: string | null
   completed_at: string | null
   created_at: string
@@ -91,6 +94,28 @@ export interface Task {
   property?: Property
   assignee?: Profile
   creator?: Profile
+  board?: Board
+  list?: BoardList
+}
+
+export interface Board {
+  id: string
+  name: string
+  color: string
+  description: string | null
+  created_by: string | null
+  created_at: string
+  updated_at: string
+  creator?: Profile
+  lists?: BoardList[]
+}
+
+export interface BoardList {
+  id: string
+  board_id: string
+  name: string
+  position: number
+  tasks?: Task[]
 }
 
 export type LeadStatus = 'new' | 'contacted' | 'qualified' | 'assigned' | 'converted' | 'rejected'

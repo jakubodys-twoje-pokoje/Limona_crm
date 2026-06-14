@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { useDebouncedCallback } from '@/hooks/useDebouncedCallback'
 import type { Task } from '@/types/database'
 
-export function useTasks(propertyId?: string, visibleUserIds?: string[] | null) {
+export function useTasks(propertyId?: string, visibleUserIds?: string[] | null, boardId?: string | null) {
   const [tasks, setTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -13,11 +13,12 @@ export function useTasks(propertyId?: string, visibleUserIds?: string[] | null) 
     const params = new URLSearchParams()
     if (propertyId) params.set('propertyId', propertyId)
     if (visibleUserIds?.length) params.set('visibleIds', visibleUserIds.join(','))
+    if (boardId !== undefined) params.set('boardId', boardId ?? 'none')
 
     const res = await fetch(`/api/tasks?${params}`)
     if (res.ok) setTasks(await res.json())
     setLoading(false)
-  }, [propertyId, visibleUserIds])
+  }, [propertyId, visibleUserIds, boardId])
 
   const debouncedFetch = useDebouncedCallback(fetchTasks, 500)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)

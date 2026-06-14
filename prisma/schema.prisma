@@ -37,6 +37,7 @@ model Profile {
   direct_messages_sent   DirectMessage[]    @relation("DMSender")
   direct_messages_recv   DirectMessage[]    @relation("DMRecipient")
   group_messages         GroupMessage[]     @relation("GroupMessageAuthor")
+  boards_created         Board[]            @relation("BoardCreator")
 
   @@map("profiles")
 }
@@ -96,6 +97,9 @@ model Task {
   due_date     DateTime? @db.Date
   assigned_to  String?   @db.Uuid
   co_assignees String[]  @default([])
+  board_id     String?   @db.Uuid
+  list_id      String?   @db.Uuid
+  position     Int       @default(0)
   created_by   String?   @db.Uuid
   completed_at DateTime? @db.Timestamptz()
   created_at   DateTime  @default(now()) @db.Timestamptz()
@@ -104,6 +108,8 @@ model Task {
   property      Property?     @relation(fields: [property_id], references: [id], onDelete: Cascade)
   assignee      Profile?      @relation("TaskAssignee", fields: [assigned_to], references: [id])
   creator       Profile?      @relation("TaskCreator", fields: [created_by], references: [id])
+  board         Board?        @relation("BoardTasks",     fields: [board_id], references: [id], onDelete: SetNull)
+  list          BoardList?    @relation("BoardListTasks", fields: [list_id],  references: [id], onDelete: SetNull)
   comments      TaskComment[]
   activity_logs ActivityLog[]
 
@@ -361,4 +367,34 @@ model GroupMessage {
 
   @@index([group_id, created_at(sort: Desc)])
   @@map("group_messages")
+}
+
+model Board {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String
+  color       String   @default("#84cc16")
+  description String?
+  created_by  String?  @db.Uuid
+  created_at  DateTime @default(now()) @db.Timestamptz()
+  updated_at  DateTime @default(now()) @updatedAt @db.Timestamptz()
+
+  creator Profile?    @relation("BoardCreator", fields: [created_by], references: [id], onDelete: SetNull)
+  lists   BoardList[]
+  tasks   Task[]      @relation("BoardTasks")
+
+  @@index([created_at(sort: Desc)])
+  @@map("boards")
+}
+
+model BoardList {
+  id       String @id @default(uuid()) @db.Uuid
+  board_id String @db.Uuid
+  name     String
+  position Int    @default(0)
+
+  board Board  @relation(fields: [board_id], references: [id], onDelete: Cascade)
+  tasks Task[] @relation("BoardListTasks")
+
+  @@index([board_id, position])
+  @@map("board_lists")
 }
