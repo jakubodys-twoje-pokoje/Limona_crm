@@ -3,7 +3,8 @@
 import { useState, useMemo } from 'react'
 import Link from 'next/link'
 import { ArrowUpDown, ArrowUp, ArrowDown, Search, Filter, Plus, ExternalLink, Edit, Trash2 } from 'lucide-react'
-import type { Property, PropertyStatus, PropertyType } from '@/types/database'
+import type { Property, PropertyStatus, PropertyType, DealType } from '@/types/database'
+import { DEAL_TYPE_SHORT } from '@/lib/stages'
 import { Badge } from '@/components/ui/Badge'
 import { Avatar } from '@/components/ui/Avatar'
 import { Skeleton } from '@/components/ui/Skeleton'
@@ -97,6 +98,7 @@ export function PropertiesTable({ properties, loading, onAdd, onEdit, onDelete }
   const [statusFilter, setStatusFilter] = useState<string>('')
   const [typeFilter, setTypeFilter] = useState<string>('')
   const [decisionFilter, setDecisionFilter] = useState<string>('')
+  const [dealTypeFilter, setDealTypeFilter] = useState<string>('')
   const [sortKey, setSortKey] = useState<SortKey>('created_at')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
 
@@ -106,6 +108,7 @@ export function PropertiesTable({ properties, loading, onAdd, onEdit, onDelete }
         if (search && !p.location.toLowerCase().includes(search.toLowerCase())) return false
         if (statusFilter && p.status !== statusFilter) return false
         if (typeFilter && p.property_type !== typeFilter) return false
+        if (dealTypeFilter && p.deal_type !== dealTypeFilter) return false
         if (decisionFilter) {
           const dec = getDecision(p)
           if (dec !== decisionFilter) return false
@@ -172,19 +175,58 @@ export function PropertiesTable({ properties, loading, onAdd, onEdit, onDelete }
         <div className="flex gap-2 flex-wrap">
           <select
             className="bg-limona-surface-2 border border-limona-border text-limona-text text-xs px-3 py-2 rounded focus:outline-none focus:border-limona-lime"
+            value={dealTypeFilter}
+            onChange={e => setDealTypeFilter(e.target.value)}
+          >
+            <option value="">Wszystkie typy deal</option>
+            <option value="zadluzony_ponizej">Poniżej wartości</option>
+            <option value="zadluzony_powyzej">Powyżej wartości</option>
+            <option value="savedeal">SaveDeal</option>
+          </select>
+
+          <select
+            className="bg-limona-surface-2 border border-limona-border text-limona-text text-xs px-3 py-2 rounded focus:outline-none focus:border-limona-lime"
             value={statusFilter}
             onChange={e => setStatusFilter(e.target.value)}
           >
             <option value="">Wszystkie statusy</option>
-            <option value="new">Nowa</option>
-            <option value="analysis">Analiza</option>
-            <option value="offer_sent">Oferta wysłana</option>
-            <option value="negotiation">Negocjacja</option>
-            <option value="contract">Umowa</option>
-            <option value="legal_cleanup">Regulacja prawna</option>
-            <option value="sale">Sprzedaż</option>
-            <option value="completed">Zakończona</option>
-            <option value="rejected">Odrzucona</option>
+            <optgroup label="Poniżej wartości">
+              <option value="nowa">Nowa</option>
+              <option value="analiza">Analiza</option>
+              <option value="oferta">Oferta wysłana</option>
+              <option value="umowa_przedwstepna_kupna">Umowa przedw. kupna</option>
+              <option value="umowa_kupna">Umowa kupna</option>
+              <option value="zaplata_ceny">Zapłata ceny</option>
+              <option value="odebranie_posiadania">Odebranie posiadania</option>
+              <option value="odswiezenie">Odświeżenie</option>
+              <option value="reklama_sprzedazy">Reklama sprzedaży</option>
+              <option value="pokazywanie">Pokazywanie</option>
+              <option value="umowa_przedwstepna_sprzedazy">Umowa przedw. sprzedaży</option>
+              <option value="sprzedaz">Sprzedaż</option>
+            </optgroup>
+            <optgroup label="Powyżej wartości (extra)">
+              <option value="negocjacje_wierzyciele">Negocjacje wierzyciele</option>
+              <option value="akt_nabycia">Akt nabycia</option>
+              <option value="wynajem">Wynajem</option>
+            </optgroup>
+            <optgroup label="SaveDeal (extra)">
+              <option value="umowa_savedeal">Umowa SaveDeal</option>
+              <option value="wycena">Wycena</option>
+            </optgroup>
+            <optgroup label="Końcowe">
+              <option value="zakonczona">Zakończona</option>
+              <option value="rejected">Odrzucona</option>
+            </optgroup>
+            <optgroup label="Legacy">
+              <option value="new">Nowa (legacy)</option>
+              <option value="analysis">Analiza (legacy)</option>
+              <option value="offer_sent">Oferta (legacy)</option>
+              <option value="negotiation">Negocjacja (legacy)</option>
+              <option value="contract">Umowa (legacy)</option>
+              <option value="legal_cleanup">Regulacja (legacy)</option>
+              <option value="sale">Sprzedaż (legacy)</option>
+              <option value="completed">Zakończona (legacy)</option>
+            </optgroup>
           </select>
 
           <select
@@ -284,9 +326,21 @@ export function PropertiesTable({ properties, loading, onAdd, onEdit, onDelete }
                       <Link href={`/nieruchomosci/${p.id}`} className="hover:text-limona-lime transition-colors font-medium">
                         {p.location}
                       </Link>
-                      {p.property_type && (
-                        <span className="block text-xs text-limona-text-dim capitalize">{p.property_type}</span>
-                      )}
+                      <div className="flex items-center gap-2 mt-0.5">
+                        {p.property_type && (
+                          <span className="text-xs text-limona-text-dim capitalize">{p.property_type}</span>
+                        )}
+                        {p.deal_type && (
+                          <span className={cn(
+                            'text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded',
+                            p.deal_type === 'zadluzony_ponizej' ? 'bg-limona-blue/15 text-limona-blue' :
+                            p.deal_type === 'zadluzony_powyzej' ? 'bg-limona-yellow/15 text-limona-yellow' :
+                            'bg-limona-lime/15 text-limona-lime'
+                          )}>
+                            {DEAL_TYPE_SHORT[p.deal_type as DealType]}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="py-3 px-3 font-mono text-xs">{formatMoney(p.value_per_sqm)}</td>
                     <td className="py-3 px-3 font-mono text-xs text-limona-text-muted">{formatMoney(rw)}</td>

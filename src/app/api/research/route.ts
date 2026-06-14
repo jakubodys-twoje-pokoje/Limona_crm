@@ -25,6 +25,7 @@ export async function POST(req: NextRequest) {
   const query = await prisma.researchQuery.create({
     data: {
       person_name: body.personName,
+      company_name: body.companyName || null,
       kw_number: body.kwNumber || null,
       property_id: body.propertyId || null,
       notes: body.notes || null,

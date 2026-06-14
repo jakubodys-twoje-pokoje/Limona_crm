@@ -89,10 +89,20 @@ export default function DashboardPage() {
     }
   }, [properties])
 
-  const myOverdueTasks = useMemo(() =>
-    tasks.filter(t => t.due_date && new Date(t.due_date) < new Date() && t.status !== 'done')
+  const todayStr = new Date().toISOString().split('T')[0]
+
+  const todayTasks = useMemo(() =>
+    tasks
+      .filter(t => t.due_date && t.due_date.substring(0, 10) === todayStr && t.status !== 'done')
       .slice(0, 5),
-    [tasks]
+    [tasks, todayStr]
+  )
+
+  const myOverdueTasks = useMemo(() =>
+    tasks
+      .filter(t => t.due_date && t.due_date.substring(0, 10) < todayStr && t.status !== 'done')
+      .slice(0, 5),
+    [tasks, todayStr]
   )
 
   const recentProps = properties.slice(0, 5)
@@ -215,37 +225,64 @@ export default function DashboardPage() {
           )}
         </div>
 
-        {/* Overdue tasks */}
+        {/* Tasks — today + overdue */}
         <div className="limona-card p-4 lg:p-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="limona-heading text-lg">Zadania do wykonania</h2>
+            <h2 className="limona-heading text-lg">Zadania</h2>
             <Link href="/zadania" className="text-xs text-limona-lime hover:text-limona-lime-hover transition-colors uppercase tracking-wider">
               Wszystkie
             </Link>
           </div>
           {tasksLoading ? (
             <div className="space-y-3">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-14" />)}</div>
-          ) : myOverdueTasks.length === 0 ? (
+          ) : (todayTasks.length === 0 && myOverdueTasks.length === 0) ? (
             <div className="text-center py-8">
               <CheckCircle size={32} className="text-limona-green mx-auto mb-3" />
-              <p className="text-limona-text-muted text-sm">Brak przeterminowanych zadań</p>
+              <p className="text-limona-text-muted text-sm">Brak zadań na dziś</p>
             </div>
           ) : (
-            <div className="space-y-2">
-              {myOverdueTasks.map(task => (
-                <div key={task.id} className="flex items-center gap-3 p-2 rounded bg-limona-red/5 border border-limona-red/20">
-                  <AlertCircle size={16} className="text-limona-red flex-shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-limona-white truncate">{task.title}</p>
-                    {task.due_date && (
-                      <p className="text-xs text-limona-red">
-                        Termin: {new Date(task.due_date).toLocaleDateString('pl-PL')}
-                      </p>
-                    )}
+            <div className="space-y-3">
+              {todayTasks.length > 0 && (
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider text-limona-lime font-bold mb-2">Na dziś</p>
+                  <div className="space-y-2">
+                    {todayTasks.map(task => (
+                      <Link key={task.id} href={`/zadania`}
+                        className="flex items-center gap-3 p-2 rounded bg-limona-lime/5 border border-limona-lime/20 hover:border-limona-lime/40 transition-colors">
+                        <Clock size={16} className="text-limona-lime flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-limona-white truncate">{task.title}</p>
+                          {task.property && (
+                            <p className="text-xs text-limona-text-dim truncate">{task.property.location}</p>
+                          )}
+                        </div>
+                        <Badge value={task.priority} />
+                      </Link>
+                    ))}
                   </div>
-                  <Badge value={task.priority} />
                 </div>
-              ))}
+              )}
+              {myOverdueTasks.length > 0 && (
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider text-limona-red font-bold mb-2">Przeterminowane</p>
+                  <div className="space-y-2">
+                    {myOverdueTasks.map(task => (
+                      <div key={task.id} className="flex items-center gap-3 p-2 rounded bg-limona-red/5 border border-limona-red/20">
+                        <AlertCircle size={16} className="text-limona-red flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-limona-white truncate">{task.title}</p>
+                          {task.due_date && (
+                            <p className="text-xs text-limona-red">
+                              {new Date(task.due_date).toLocaleDateString('pl-PL')}
+                            </p>
+                          )}
+                        </div>
+                        <Badge value={task.priority} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

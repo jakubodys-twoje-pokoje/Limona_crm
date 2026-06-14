@@ -55,6 +55,13 @@ model Property {
   notary_fee        Decimal  @default(1000) @db.Decimal(10, 2)
   manual_offer      Decimal? @db.Decimal(14, 2)
   status            String   @default("new")
+  deal_type         String?
+  owner_name        String?
+  kw_number         String?
+  kw_opis           String?
+  source            String?
+  czynsz_miesieczny Decimal? @db.Decimal(10, 2)
+  pokazywania_count Int      @default(0)
   decision          String?
   notes             String?
   created_by        String?  @db.Uuid
@@ -281,9 +288,10 @@ model KontaktKomentarz {
 model ResearchQuery {
   id          String   @id @default(uuid()) @db.Uuid
   property_id String?  @db.Uuid
-  person_name String
-  kw_number   String?
-  notes       String?
+  person_name  String
+  company_name String?
+  kw_number    String?
+  notes        String?
   status      String   @default("pending")
   results     Json?
   created_by  String?  @db.Uuid

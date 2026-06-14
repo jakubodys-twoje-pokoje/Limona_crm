@@ -1,13 +1,21 @@
 export type PropertyStatus =
-  | 'new'
-  | 'analysis'
-  | 'offer_sent'
-  | 'negotiation'
-  | 'contract'
-  | 'legal_cleanup'
-  | 'sale'
-  | 'completed'
-  | 'rejected'
+  // Legacy values (backwards compat)
+  | 'new' | 'analysis' | 'offer_sent' | 'negotiation' | 'contract'
+  | 'legal_cleanup' | 'sale' | 'completed' | 'rejected'
+  // Zadłużona poniżej wartości
+  | 'nowa' | 'analiza' | 'oferta'
+  | 'umowa_przedwstepna_kupna' | 'negocjacje_wierzyciele'
+  | 'umowa_kupna' | 'zaplata_ceny' | 'odebranie_posiadania'
+  | 'odswiezenie' | 'reklama_sprzedazy' | 'pokazywanie'
+  | 'umowa_przedwstepna_sprzedazy' | 'sprzedaz'
+  // Zadłużona powyżej wartości (extra stages)
+  | 'akt_nabycia' | 'wynajem'
+  // SaveDeal (extra stages)
+  | 'umowa_savedeal' | 'wycena'
+  // Terminal
+  | 'zakonczona'
+
+export type DealType = 'zadluzony_ponizej' | 'zadluzony_powyzej' | 'savedeal'
 
 export type ContactType = 'posrednik' | 'prywatne'
 
@@ -47,6 +55,13 @@ export interface Property {
   notary_fee: number
   manual_offer: number | null
   status: PropertyStatus
+  deal_type: DealType | null
+  owner_name: string | null
+  kw_number: string | null
+  kw_opis: string | null
+  source: string | null
+  czynsz_miesieczny: number | null
+  pokazywania_count: number
   decision: string | null
   notes: string | null
   created_by: string | null

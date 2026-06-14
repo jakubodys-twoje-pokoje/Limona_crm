@@ -53,6 +53,7 @@ interface SearchResults {
 interface SavedQuery {
   id: string
   person_name: string
+  company_name: string | null
   kw_number: string | null
   notes: string | null
   status: string
@@ -66,6 +67,7 @@ export default function WyszukiwarkaPage() {
   const { showToast } = useToast()
 
   const [personName, setPersonName] = useState('')
+  const [companyName, setCompanyName] = useState('')
   const [kwNumber, setKwNumber] = useState('')
   const [krsNumber, setKrsNumber] = useState('')
   const [searching, setSearching] = useState(false)
@@ -96,7 +98,12 @@ export default function WyszukiwarkaPage() {
       const res = await fetch('/api/research/search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ personName: personName.trim(), kwNumber: kwNumber.trim() || undefined, krsNumber: krsNumber.trim() || undefined }),
+        body: JSON.stringify({
+          personName: personName.trim(),
+          companyName: companyName.trim() || undefined,
+          kwNumber: kwNumber.trim() || undefined,
+          krsNumber: krsNumber.trim() || undefined,
+        }),
       })
 
       if (!res.ok) {
@@ -122,6 +129,7 @@ export default function WyszukiwarkaPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         personName: personName.trim(),
+        companyName: companyName.trim() || null,
         kwNumber: kwNumber.trim() || null,
         results,
       }),
@@ -145,6 +153,7 @@ export default function WyszukiwarkaPage() {
 
   function loadSavedQuery(query: SavedQuery) {
     setPersonName(query.person_name)
+    setCompanyName(query.company_name || '')
     setKwNumber(query.kw_number || '')
     setResults(query.results)
     setShowHistory(false)
@@ -168,7 +177,7 @@ export default function WyszukiwarkaPage() {
 
       {/* Search form */}
       <form onSubmit={handleSearch} className="limona-card p-5 space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="limona-label block mb-2">Imię i nazwisko *</label>
             <input
@@ -178,6 +187,15 @@ export default function WyszukiwarkaPage() {
               placeholder="np. Jan Kowalski"
               required
               autoFocus
+            />
+          </div>
+          <div>
+            <label className="limona-label block mb-2">Nazwa firmy (opcjonalnie)</label>
+            <input
+              className="limona-input"
+              value={companyName}
+              onChange={e => setCompanyName(e.target.value)}
+              placeholder="np. Kowalski Sp. z o.o."
             />
           </div>
           <div>
@@ -231,7 +249,9 @@ export default function WyszukiwarkaPage() {
               {savedQueries.map(q => (
                 <div key={q.id} className="flex items-center gap-3 px-3 py-2 hover:bg-limona-surface-2/50 rounded transition-colors group">
                   <button onClick={() => loadSavedQuery(q)} className="flex-1 text-left min-w-0">
-                    <p className="text-sm font-medium text-limona-white truncate">{q.person_name}</p>
+                    <p className="text-sm font-medium text-limona-white truncate">
+                      {q.person_name}{q.company_name ? ` / ${q.company_name}` : ''}
+                    </p>
                     <p className="text-[10px] text-limona-text-dim">
                       {new Date(q.created_at).toLocaleDateString('pl-PL')}
                       {q.kw_number && ` • KW: ${q.kw_number}`}
