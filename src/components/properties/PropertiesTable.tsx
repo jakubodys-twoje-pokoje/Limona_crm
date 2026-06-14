@@ -17,7 +17,8 @@ type SortDir = 'asc' | 'desc'
 interface PropertiesTableProps {
   properties: Property[]
   loading: boolean
-  onAdd: () => void
+  onAddWithCalc: () => void
+  onAddWithoutCalc: () => void
   onEdit: (p: Property) => void
   onDelete: (p: Property) => void
 }
@@ -93,7 +94,7 @@ function getOfferMinus30(p: Property): number | null {
   return rw * 0.7
 }
 
-export function PropertiesTable({ properties, loading, onAdd, onEdit, onDelete }: PropertiesTableProps) {
+export function PropertiesTable({ properties, loading, onAddWithCalc, onAddWithoutCalc, onEdit, onDelete }: PropertiesTableProps) {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('')
   const [typeFilter, setTypeFilter] = useState<string>('')
@@ -252,10 +253,19 @@ export function PropertiesTable({ properties, loading, onAdd, onEdit, onDelete }
             <option value="NIE">NIE</option>
           </select>
 
-          <button onClick={onAdd} className="limona-btn-sm whitespace-nowrap flex items-center gap-2">
-            <Plus size={14} />
-            Dodaj
-          </button>
+          <div className="flex items-center gap-1">
+            <button onClick={onAddWithCalc} className="limona-btn-sm whitespace-nowrap flex items-center gap-2">
+              <Plus size={14} />
+              Dodaj
+            </button>
+            <button
+              onClick={onAddWithoutCalc}
+              className="text-[10px] text-limona-text-dim hover:text-limona-text-muted transition-colors uppercase tracking-wider whitespace-nowrap px-2 py-1"
+              title="Dodaj bez kalkulatora"
+            >
+              bez kalk.
+            </button>
+          </div>
         </div>
       </div>
 

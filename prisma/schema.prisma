@@ -72,16 +72,19 @@ model Property {
   notes             String?
   created_by        String?  @db.Uuid
   assigned_to       String?  @db.Uuid
+  kontakt_id        String?  @db.Uuid
   created_at        DateTime @default(now()) @db.Timestamptz()
   updated_at        DateTime @default(now()) @updatedAt @db.Timestamptz()
 
   creator       Profile?      @relation("PropertyCreator", fields: [created_by], references: [id])
   assignee      Profile?      @relation("PropertyAssignee", fields: [assigned_to], references: [id])
+  kontakt       Kontakt?      @relation(fields: [kontakt_id], references: [id], onDelete: SetNull)
   tasks         Task[]
   activity_logs ActivityLog[]
   documents     Document[]
 
   @@index([status])
+  @@index([kontakt_id])
   @@index([assigned_to])
   @@index([created_at(sort: Desc)])
   @@map("properties")
@@ -275,6 +278,7 @@ model Kontakt {
   assignee   Profile?          @relation("KontaktAssignee", fields: [assigned_to], references: [id])
   creator    Profile?          @relation("KontaktCreator", fields: [created_by], references: [id])
   komentarze KontaktKomentarz[]
+  properties Property[]
 
   @@index([typ])
   @@index([assigned_to])

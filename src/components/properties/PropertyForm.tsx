@@ -1,8 +1,14 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import type { Property, PropertyStatus, PropertyType, ContactType, DealType } from '@/types/database'
 import { getStages, DEAL_TYPE_LABELS } from '@/lib/stages'
+
+interface KontaktOption {
+  id: string
+  nazwa: string
+  typ: string
+}
 
 interface PropertyFormProps {
   initial?: Partial<Property>
@@ -61,8 +67,20 @@ export function PropertyForm({ initial = {}, onSubmit, onCancel, submitLabel = '
     czynsz_miesieczny: initial.czynsz_miesieczny?.toString() || '',
     trello_link: initial.trello_link || '',
     notes: initial.notes || '',
+    kontakt_id: initial.kontakt_id || '',
   })
   const [loading, setLoading] = useState(false)
+  const [kontakty, setKontakty] = useState<KontaktOption[]>([])
+  const [kontaktSearch, setKontaktSearch] = useState('')
+
+  useEffect(() => {
+    fetch('/api/kontakty?limit=500')
+      .then(r => r.json())
+      .then((data: Array<{ id: string; nazwa: string; typ?: string }>) => {
+        setKontakty(data.map(k => ({ id: k.id, nazwa: k.nazwa, typ: k.typ || '' })))
+      })
+      .catch(() => {})
+  }, [])
 
   const set = (key: string, value: string) => setForm(f => ({ ...f, [key]: value }))
 
@@ -107,6 +125,7 @@ export function PropertyForm({ initial = {}, onSubmit, onCancel, submitLabel = '
         czynsz_miesieczny: form.czynsz_miesieczny ? parseFloat(form.czynsz_miesieczny) : null,
         trello_link: form.trello_link || null,
         notes: form.notes || null,
+        kontakt_id: form.kontakt_id || null,
       }
       await onSubmit(data)
     } finally {
@@ -231,6 +250,32 @@ export function PropertyForm({ initial = {}, onSubmit, onCancel, submitLabel = '
               onChange={e => set('trello_link', e.target.value)}
               placeholder="https://trello.com/..."
             />
+          </div>
+          <div className="md:col-span-2">
+            <label className="limona-label block mb-2">Powiązany kontakt</label>
+            <input
+              list="kontakt-options"
+              className="limona-input"
+              placeholder="Wpisz nazwę kontaktu..."
+              value={kontaktSearch || (form.kontakt_id ? (kontakty.find(k => k.id === form.kontakt_id)?.nazwa || '') : '')}
+              onChange={e => {
+                setKontaktSearch(e.target.value)
+                const match = kontakty.find(k => k.nazwa === e.target.value)
+                if (match) { set('kontakt_id', match.id); setKontaktSearch('') }
+                else if (e.target.value === '') set('kontakt_id', '')
+              }}
+            />
+            <datalist id="kontakt-options">
+              {kontakty.map(k => (
+                <option key={k.id} value={k.nazwa}>{k.typ}</option>
+              ))}
+            </datalist>
+            {form.kontakt_id && (
+              <p className="text-xs text-limona-lime mt-1">
+                Wybrany: {kontakty.find(k => k.id === form.kontakt_id)?.nazwa}{' '}
+                <button type="button" className="text-limona-text-dim hover:text-limona-red ml-1" onClick={() => { set('kontakt_id', ''); setKontaktSearch('') }}>✕</button>
+              </p>
+            )}
           </div>
         </div>
       </div>

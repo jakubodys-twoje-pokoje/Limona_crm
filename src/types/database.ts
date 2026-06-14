@@ -66,6 +66,7 @@ export interface Property {
   notes: string | null
   created_by: string | null
   assigned_to: string | null
+  kontakt_id: string | null
   created_at: string
   updated_at: string
   // Joined fields
