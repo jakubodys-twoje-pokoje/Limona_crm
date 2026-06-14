@@ -194,6 +194,21 @@ export const KONTAKT_TYPY: KontaktTyp[] = [
   'rzeczoznawca',
 ]
 
+// Map pin colors — one distinct color per contact type
+export const KONTAKT_TYP_COLORS: Record<KontaktTyp, string> = {
+  spoldzielnia:             '#1d4ed8', // blue
+  wspolnota_zarzadca:       '#0e7490', // cyan
+  posrednik_nieruchomosci:  '#c2410c', // burnt orange
+  posrednik_finansowy:      '#b45309', // dark amber
+  kancelaria_spadkowa:      '#6d28d9', // violet
+  kancelaria_rozwodowa:     '#be185d', // rose
+  notariusz:                '#047857', // emerald
+  rzeczoznawca:             '#65a30d', // lime-green
+}
+
+// Color used for numbered tour pins (overrides type color)
+export const TOUR_PIN_COLOR = '#eab308' // yellow
+
 // Types that are spółdzielnia / wspólnota (have building/flat counts + specific statuses)
 export const TYPY_SPOLDZIELNIA = new Set<KontaktTyp>(['spoldzielnia', 'wspolnota_zarzadca'])
 

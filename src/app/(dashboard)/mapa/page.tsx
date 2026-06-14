@@ -7,7 +7,7 @@ import { useKontakty } from '@/hooks/useKontakty'
 import { useAuth } from '@/hooks/useAuth'
 import { cn } from '@/lib/utils'
 import type { Kontakt, KontaktTyp } from '@/types/database'
-import { KONTAKT_TYP_LABELS, KONTAKT_TYPY } from '@/types/database'
+import { KONTAKT_TYP_LABELS, KONTAKT_TYPY, KONTAKT_TYP_COLORS, TOUR_PIN_COLOR } from '@/types/database'
 
 const KontaktyMap = dynamic(() => import('@/components/kontakty/KontaktyMap'), { ssr: false })
 
@@ -40,6 +40,7 @@ export default function MapaPage() {
   const [tourMode,      setTourMode]      = useState(false)
   const [showPanel,     setShowPanel]     = useState(false)
   const [tourSearch,    setTourSearch]    = useState('')
+  const [showLegend,    setShowLegend]    = useState(true)
   const tourLoadedRef = useRef(false)
 
   // Load per-user tour from localStorage
@@ -268,6 +269,37 @@ export default function MapaPage() {
             onAddToTour={addToTour}
           />
         )}
+
+        {/* ── Legend overlay ── */}
+        <div className="absolute bottom-8 left-2 z-[999]">
+          {showLegend ? (
+            <div className="bg-limona-surface/95 backdrop-blur-sm border border-limona-border rounded-lg p-3 shadow-xl">
+              <div className="flex items-center justify-between mb-2.5">
+                <span className="text-[9px] uppercase tracking-widest text-limona-text-muted font-bold">Legenda</span>
+                <button onClick={() => setShowLegend(false)} className="p-0.5 text-limona-text-dim hover:text-limona-white ml-4">
+                  <X size={10} />
+                </button>
+              </div>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
+                {KONTAKT_TYPY.map(typ => (
+                  <div key={typ} className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: KONTAKT_TYP_COLORS[typ as KontaktTyp] }} />
+                    <span className="text-[11px] text-limona-text leading-none whitespace-nowrap">{KONTAKT_TYP_LABELS[typ as KontaktTyp]}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-2 pt-2 border-t border-limona-border flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full flex-shrink-0 text-[7px] font-black text-black flex items-center justify-center leading-none" style={{ backgroundColor: TOUR_PIN_COLOR }}>1</span>
+                <span className="text-[11px] text-limona-text">Objazd (numer = kolejność)</span>
+              </div>
+            </div>
+          ) : (
+            <button onClick={() => setShowLegend(true)}
+              className="bg-limona-surface/90 backdrop-blur-sm border border-limona-border rounded px-2.5 py-1.5 text-[11px] text-limona-text-muted hover:text-limona-white transition-colors shadow-lg">
+              Legenda
+            </button>
+          )}
+        </div>
 
         {/* ── Tour panel overlay ── */}
         {showPanel && (

@@ -3,7 +3,7 @@
 import { useEffect, useRef } from 'react'
 import { cn } from '@/lib/utils'
 import type { Kontakt, KontaktTyp } from '@/types/database'
-import { KONTAKT_TYP_LABELS } from '@/types/database'
+import { KONTAKT_TYP_LABELS, KONTAKT_TYP_COLORS, KONTAKT_TYPY, TOUR_PIN_COLOR } from '@/types/database'
 
 interface Props {
   kontakty: Kontakt[]
@@ -28,9 +28,7 @@ function pinSvg(color: string, num?: number): string {
 }
 
 function markerColor(k: Kontakt): string {
-  if (k.chec_wspolpracy)   return '#84cc16'
-  if (k.niezainteresowani) return '#EF4444'
-  return '#6b7280'
+  return KONTAKT_TYP_COLORS[k.typ as KontaktTyp] ?? '#6b7280'
 }
 
 function gmapsNav(k: Kontakt): string {
@@ -132,7 +130,7 @@ export default function KontaktyMap({ kontakty, height = '560px', tourOrder, onA
 
     withC.forEach(k => {
       const num    = tourOrder?.get(k.id)
-      const color  = num !== undefined ? '#f59e0b' : markerColor(k)
+      const color  = num !== undefined ? TOUR_PIN_COLOR : markerColor(k)
       const inTour = tourOrder?.has(k.id) ?? false
 
       const icon = L.divIcon({
@@ -175,9 +173,6 @@ export default function KontaktyMap({ kontakty, height = '560px', tourOrder, onA
   const isFullHeight = height === '100%'
   const withCoords   = kontakty.filter(k => k.lat && k.lng)
 
-  const LEGEND_PIN = (color: string) =>
-    `<svg width="10" height="14" viewBox="0 0 26 36"><path d="M13 2C7.477 2 3 6.477 3 12c0 9 10 22 10 22S23 21 23 12C23 6.477 18.523 2 13 2z" fill="${color}" stroke="rgba(255,255,255,0.7)" stroke-width="1.5"/></svg>`
-
   return (
     <>
       <style>{MAP_CSS}</style>
@@ -188,20 +183,19 @@ export default function KontaktyMap({ kontakty, height = '560px', tourOrder, onA
           style={{ height: isFullHeight ? undefined : height }}
         />
         {!isFullHeight && (
-          <div className="flex items-center gap-4 text-[11px] text-limona-text-dim flex-wrap">
-            {[
-              { color: '#84cc16', label: 'Chęć współpracy' },
-              { color: '#EF4444', label: 'Niezainteresowani' },
-              { color: '#6b7280', label: 'Pozostałe' },
-              { color: '#f59e0b', label: 'W objeździe' },
-            ].map(({ color, label }) => (
-              <span key={label} className="flex items-center gap-1.5">
-                <span dangerouslySetInnerHTML={{ __html: LEGEND_PIN(color) }} />
-                {label}
+          <div className="flex items-center gap-3 text-[11px] text-limona-text-dim flex-wrap">
+            {KONTAKT_TYPY.map(typ => (
+              <span key={typ} className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: KONTAKT_TYP_COLORS[typ] }} />
+                {KONTAKT_TYP_LABELS[typ]}
               </span>
             ))}
+            <span className="flex items-center gap-1.5 pl-2 border-l border-limona-border">
+              <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: TOUR_PIN_COLOR }} />
+              Objazd
+            </span>
             <span className="ml-auto">
-              {withCoords.length} z {kontakty.length} kontaktów na mapie
+              {withCoords.length} z {kontakty.length} na mapie
             </span>
           </div>
         )}
