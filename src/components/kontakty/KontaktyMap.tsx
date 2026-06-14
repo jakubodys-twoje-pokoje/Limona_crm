@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { cn } from '@/lib/utils'
 import type { Kontakt, KontaktTyp } from '@/types/database'
 import { KONTAKT_TYP_LABELS, KONTAKT_TYP_COLORS, KONTAKT_TYPY, TOUR_PIN_COLOR } from '@/types/database'
@@ -12,7 +12,6 @@ interface Props {
   onAddToTour?: (k: Kontakt) => void
 }
 
-// Teardrop pin SVG — tip at bottom center
 function pinSvg(color: string, num?: number): string {
   const inner =
     num !== undefined
@@ -37,7 +36,6 @@ function gmapsNav(k: Kontakt): string {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}`
 }
 
-// Injected once into <head> — overrides Leaflet's default white popup style
 const MAP_CSS = `
 .leaflet-popup-content-wrapper{background:#141414!important;border:1px solid rgba(255,255,255,0.08)!important;border-radius:10px!important;box-shadow:0 8px 32px rgba(0,0,0,0.65)!important;padding:0!important}
 .leaflet-popup-content{margin:0!important;color:#e0e0e0!important;line-height:1.4!important}
@@ -63,22 +61,24 @@ const MAP_CSS = `
 export default function KontaktyMap({ kontakty, height = '560px', tourOrder, onAddToTour }: Props) {
   const mapRef    = useRef<HTMLDivElement>(null)
   const mapObj    = useRef<unknown>(null)
-  const lRef      = useRef<typeof import('leaflet') | null>(null)
   const onAddRef  = useRef(onAddToTour)
   const kontRef   = useRef(kontakty)
+  // fitBounds only on first render with markers — never on polling updates
+  const fittedRef = useRef(false)
+  // Set to true after Leaflet loads + map is ready; triggers the markers effect
+  const [mapReady, setMapReady] = useState(false)
 
   useEffect(() => { onAddRef.current = onAddToTour }, [onAddToTour])
   useEffect(() => { kontRef.current  = kontakty   }, [kontakty])
 
-  // Init map once
+  // ── Init map (runs once) ─────────────────────────────────────────────────
   useEffect(() => {
     if (!mapRef.current || mapObj.current) return
 
     import('leaflet').then(L => {
       import('leaflet/dist/leaflet.css' as never)
-      lRef.current = L
 
-      const withC = kontakty.filter(k => k.lat && k.lng)
+      const withC    = kontRef.current.filter(k => k.lat && k.lng)
       const center: [number, number] = withC.length > 0 ? [withC[0].lat!, withC[0].lng!] : [52.1, 19.4]
 
       const map = L.map(mapRef.current!, {
@@ -94,13 +94,15 @@ export default function KontaktyMap({ kontakty, height = '560px', tourOrder, onA
         maxZoom: 19,
       }).addTo(map)
 
-      // Event delegation — handles "Dodaj do objazdu" button in popups
+      // Event delegation for "Dodaj do objazdu" buttons inside popups
       mapRef.current!.addEventListener('click', (e: MouseEvent) => {
         const id = (e.target as HTMLElement).dataset.addTour
         if (!id) return
         const k = kontRef.current.find(c => c.id === id)
         if (k) onAddRef.current?.(k)
       })
+
+      setMapReady(true) // signals markers effect to run
     })
 
     return () => {
@@ -108,67 +110,78 @@ export default function KontaktyMap({ kontakty, height = '560px', tourOrder, onA
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (mapObj.current as any).remove()
         mapObj.current = null
+        fittedRef.current = false
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Re-render markers whenever kontakty or tourOrder changes
+  // ── Render markers (runs when map is ready or data changes) ─────────────
   useEffect(() => {
-    const L   = lRef.current
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const map = mapObj.current as any
-    if (!L || !map) return
+    // Use import('leaflet') here — same pattern as original code.
+    // This queues BEHIND the init import so it always gets a live `L` instance
+    // regardless of whether the init has completed yet.
+    if (!mapReady || !mapObj.current) return
 
-    // Remove existing markers
-    map.eachLayer((layer: unknown) => {
+    import('leaflet').then(L => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      if ((layer as any) instanceof L.Marker) map.removeLayer(layer)
-    })
+      const map = mapObj.current as any
+      if (!map) return
 
-    const withC = kontakty.filter(k => k.lat && k.lng)
-
-    withC.forEach(k => {
-      const num    = tourOrder?.get(k.id)
-      const color  = num !== undefined ? TOUR_PIN_COLOR : markerColor(k)
-      const inTour = tourOrder?.has(k.id) ?? false
-
-      const icon = L.divIcon({
-        html:        pinSvg(color, num),
-        className:   '',
-        iconSize:    [26, 36],
-        iconAnchor:  [13, 34],
-        popupAnchor: [0, -36],
+      // Remove existing markers (leave tile layer intact)
+      map.eachLayer((layer: unknown) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        if ((layer as any) instanceof L.Marker) map.removeLayer(layer)
       })
 
-      const addr = [k.ulica, k.miasto].filter(Boolean).join(', ')
+      const withC = kontakty.filter(k => k.lat && k.lng)
 
-      const popupHtml = `
-        <div class="lm-p">
-          <div class="lm-name">${k.nazwa}</div>
-          ${k.typ ? `<div class="lm-sub">${KONTAKT_TYP_LABELS[k.typ as KontaktTyp] || k.typ}</div>` : ''}
-          ${addr ? `<div class="lm-sub">${addr}</div>` : ''}
-          <div class="lm-actions">
-            <a href="/kontakty/${k.id}" class="lm-btn lm-open">Otwórz →</a>
-            <a href="${gmapsNav(k)}" target="_blank" rel="noopener noreferrer" class="lm-btn lm-nav">Nawiguj</a>
-            ${inTour
-              ? `<span class="lm-in-tour">✓ W objeździe</span>`
-              : `<button data-add-tour="${k.id}" class="lm-btn lm-tour">+ Objazd</button>`
-            }
-          </div>
-        </div>`
+      withC.forEach(k => {
+        const num    = tourOrder?.get(k.id)
+        const color  = num !== undefined ? TOUR_PIN_COLOR : markerColor(k)
+        const inTour = tourOrder?.has(k.id) ?? false
 
-      L.marker([k.lat!, k.lng!], { icon })
-        .bindPopup(L.popup({ maxWidth: 300, className: '' }).setContent(popupHtml))
-        .addTo(map)
+        const icon = L.divIcon({
+          html:        pinSvg(color, num),
+          className:   '',
+          iconSize:    [26, 36],
+          iconAnchor:  [13, 34],
+          popupAnchor: [0, -36],
+        })
+
+        const addr = [k.ulica, k.miasto].filter(Boolean).join(', ')
+
+        const popupHtml = `
+          <div class="lm-p">
+            <div class="lm-name">${k.nazwa}</div>
+            ${k.typ ? `<div class="lm-sub">${KONTAKT_TYP_LABELS[k.typ as KontaktTyp] || k.typ}</div>` : ''}
+            ${addr ? `<div class="lm-sub">${addr}</div>` : ''}
+            <div class="lm-actions">
+              <a href="/kontakty/${k.id}" class="lm-btn lm-open">Otwórz →</a>
+              <a href="${gmapsNav(k)}" target="_blank" rel="noopener noreferrer" class="lm-btn lm-nav">Nawiguj</a>
+              ${inTour
+                ? `<span class="lm-in-tour">✓ W objeździe</span>`
+                : `<button data-add-tour="${k.id}" class="lm-btn lm-tour">+ Objazd</button>`
+              }
+            </div>
+          </div>`
+
+        L.marker([k.lat!, k.lng!], { icon })
+          .bindPopup(L.popup({ maxWidth: 300, className: '' }).setContent(popupHtml))
+          .addTo(map)
+      })
+
+      // fitBounds only on the first load with actual markers.
+      // Never on subsequent updates (polling refresh, tour toggle, etc.)
+      // — otherwise the map would fight the user's manual zoom every 30s.
+      if (withC.length > 1 && !fittedRef.current) {
+        const bounds = L.latLngBounds(withC.map(k => [k.lat!, k.lng!]))
+        map.fitBounds(bounds, { padding: [48, 48] })
+        fittedRef.current = true
+      }
     })
-
-    if (withC.length > 1) {
-      const bounds = L.latLngBounds(withC.map(k => [k.lat!, k.lng!]))
-      map.fitBounds(bounds, { padding: [48, 48] })
-    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [kontakty, tourOrder])
+  }, [mapReady, kontakty, tourOrder])
 
   const isFullHeight = height === '100%'
   const withCoords   = kontakty.filter(k => k.lat && k.lng)

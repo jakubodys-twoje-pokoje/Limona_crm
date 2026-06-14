@@ -11,15 +11,15 @@ import { Avatar } from '@/components/ui/Avatar'
 import { cn } from '@/lib/utils'
 
 const navItems = [
-  { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-  { href: '/nieruchomosci', icon: Building2, label: 'Nieruchomości' },
-  { href: '/kalkulator', icon: Calculator, label: 'Kalkulator' },
-  { href: '/zadania', icon: ListTodo, label: 'Zadania' },
-  { href: '/komunikacja', icon: MessageSquare, label: 'Komunikacja', showCounter: true },
-  { href: '/zespol', icon: Users, label: 'Zespół' },
-  { href: '/leady',    icon: Inbox,    label: 'Leady' },
-  { href: '/kontakty', icon: BookUser, label: 'Baza kontaktów' },
-  { href: '/mapa',     icon: MapPin,   label: 'Mapa' },
+  { href: '/dashboard',    icon: LayoutDashboard, label: 'Dashboard' },
+  { href: '/komunikacja',  icon: MessageSquare,   label: 'Komunikacja', showCounter: true },
+  { href: '/zadania',      icon: ListTodo,        label: 'Zadania' },
+  { href: '/kontakty',     icon: BookUser,        label: 'Baza kontaktów' },
+  { href: '/nieruchomosci',icon: Building2,       label: 'Nieruchomości' },
+  { href: '/kalkulator',   icon: Calculator,      label: 'Kalkulator' },
+  { href: '/leady',        icon: Inbox,           label: 'Leady' },
+  { href: '/mapa',         icon: MapPin,          label: 'Mapa' },
+  { href: '/zespol',       icon: Users,           label: 'Zespół' },
 ]
 
 const adminItems = [

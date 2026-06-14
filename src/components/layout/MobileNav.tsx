@@ -3,19 +3,19 @@
 import { memo } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Building2, Calculator, ListTodo, MessageSquare, User, BookUser, MapPin } from 'lucide-react'
+import { Building2, Calculator, LayoutDashboard, ListTodo, MessageSquare, User, BookUser } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { useWallContext } from '@/hooks/useWallProvider'
 import { cn } from '@/lib/utils'
 
 const tabs = [
-  { href: '/nieruchomosci', icon: Building2, label: 'CRM' },
-  { href: '/kalkulator', icon: Calculator, label: 'Kalk' },
-  { href: '/zadania', icon: ListTodo, label: 'Zadania' },
-  { href: '/komunikacja', icon: MessageSquare, label: 'Kom.', showCounter: true },
-  { href: '/kontakty', icon: BookUser, label: 'Kontakty' },
-  { href: '/mapa',     icon: MapPin,   label: 'Mapa' },
-  { href: '/profil',   icon: User,     label: 'Profil' },
+  { href: '/dashboard',     icon: LayoutDashboard, label: 'Home' },
+  { href: '/komunikacja',   icon: MessageSquare,   label: 'Kom.', showCounter: true },
+  { href: '/zadania',       icon: ListTodo,        label: 'Zadania' },
+  { href: '/kontakty',      icon: BookUser,        label: 'Kontakty' },
+  { href: '/nieruchomosci', icon: Building2,       label: 'Nieru.' },
+  { href: '/kalkulator',    icon: Calculator,      label: 'Kalk.' },
+  { href: '/profil',        icon: User,            label: 'Profil' },
 ]
 
 export const MobileNav = memo(function MobileNav() {

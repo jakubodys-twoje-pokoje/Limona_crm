@@ -46,7 +46,7 @@ export function useNotifications(userId: string | undefined) {
 
   useEffect(() => {
     fetchNotifications()
-    intervalRef.current = setInterval(fetchNotifications, 8000) // poll every 8s
+    intervalRef.current = setInterval(fetchNotifications, 30000) // poll every 30s
     return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
   }, [fetchNotifications])
 

@@ -31,7 +31,7 @@ export function useWall(currentUserId?: string) {
 
   useEffect(() => {
     fetchAll()
-    intervalRef.current = setInterval(debouncedFetch, 5000) // poll every 5s for wall
+    intervalRef.current = setInterval(debouncedFetch, 20000) // poll every 20s for wall
     return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
   }, [fetchAll, debouncedFetch])
 

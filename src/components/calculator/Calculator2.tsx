@@ -82,13 +82,22 @@ export function Calculator2({ input, onChange, showInputs = true }: Calculator2P
                 <p className="text-[11px] text-limona-text-dim mt-1">Trzeci wierzyciel (np. komornik). Zostaw 0 jeśli nie ma.</p>
               </div>
               <div>
-                <label className="limona-label block mb-2">Wsp. właściciela (R)</label>
-                <input type="number" className="limona-input"
-                  value={input.ownerCoefficient || ''}
-                  onChange={e => handleNum('ownerCoefficient', e.target.value)}
-                  placeholder="0.025" min="0" max="1" step="0.001"
+                <label className="limona-label block mb-2">Wsp. właściciela (R) [%]</label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  className="limona-input"
+                  value={input.ownerCoefficient ? (input.ownerCoefficient * 100).toFixed(3).replace(/\.?0+$/, '') : ''}
+                  onChange={e => {
+                    const raw = e.target.value.replace(',', '.')
+                    if (raw === '' || /^\d*\.?\d*$/.test(raw)) {
+                      const v = parseFloat(raw)
+                      onChange('ownerCoefficient', isNaN(v) ? 0 : v / 100)
+                    }
+                  }}
+                  placeholder="2.5"
                 />
-                <p className="text-[11px] text-limona-text-dim mt-1">Jaki % ceny skupu idzie do właściciela (reszta = wierzyciele). Domyślnie 0.025 = 2.5%.</p>
+                <p className="text-[11px] text-limona-text-dim mt-1">Jaki % ceny skupu idzie do właściciela. Wpisz np. 2.5 (= 2.5% = 0.025). Domyślnie 2.5%.</p>
               </div>
               <div className="sm:col-span-2">
                 <label className="limona-label block mb-2">Ręczna oferta max (AF) [zł] — opcjonalnie</label>
