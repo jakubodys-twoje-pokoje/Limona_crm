@@ -2,132 +2,411 @@
 
 import { useEffect, useState, useMemo } from 'react'
 import dynamic from 'next/dynamic'
-import { Search, Filter, X } from 'lucide-react'
-import { useAuth } from '@/hooks/useAuth'
+import { Search, X, Route, Navigation, Trash2, CheckSquare, Square, MapPin, ChevronUp, ChevronDown } from 'lucide-react'
 import { useKontakty } from '@/hooks/useKontakty'
 import { cn } from '@/lib/utils'
-import type { KontaktTyp, Profile } from '@/types/database'
+import type { Kontakt, KontaktTyp } from '@/types/database'
 import { KONTAKT_TYP_LABELS, KONTAKT_TYPY } from '@/types/database'
 
 const KontaktyMap = dynamic(() => import('@/components/kontakty/KontaktyMap'), { ssr: false })
 
+// ─── Tour state helpers ─────────────────────────────────────────────────────
+
+function loadTourIds(): string[] {
+  if (typeof window === 'undefined') return []
+  try { return JSON.parse(localStorage.getItem('limona-tour') || '[]') } catch { return [] }
+}
+
+function gmapsNav(k: Kontakt): string {
+  if (k.lat && k.lng) return `https://www.google.com/maps/dir/?api=1&destination=${k.lat},${k.lng}`
+  const addr = [k.nazwa, k.ulica, k.miasto].filter(Boolean).join(', ')
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}`
+}
+
+// ─── Page ──────────────────────────────────────────────────────────────────
+
 export default function MapaPage() {
   const { kontakty, loading } = useKontakty()
-  const [profiles, setProfiles]         = useState<Profile[]>([])
-  const [search, setSearch]             = useState('')
-  const [typFilter, setTypFilter]       = useState('')
-  const [showFilters, setShowFilters]   = useState(false)
-  const [fCoop, setFCoop]               = useState(false)
-  const [fNie, setFNie]                 = useState(false)
-  const [fBezCoords, setFBezCoords]     = useState(false)
 
+  // Filters
+  const [search,      setSearch]      = useState('')
+  const [typFilter,   setTypFilter]   = useState('')
+  const [fCoop,       setFCoop]       = useState(false)
+  const [fNie,        setFNie]        = useState(false)
+  const [fBezCoords,  setFBezCoords]  = useState(false)
+
+  // Tour
+  const [tourIds,      setTourIds]      = useState<string[]>(loadTourIds)
+  const [tourUnchecked, setTourUnchecked] = useState<Set<string>>(new Set())
+  const [tourMode,     setTourMode]     = useState(false)
+  const [showPanel,    setShowPanel]    = useState(false)
+  const [tourSearch,   setTourSearch]   = useState('')
+
+  // Persist tour to localStorage
   useEffect(() => {
-    fetch('/api/profiles').then(r => r.ok ? r.json() : []).then(setProfiles)
-  }, [])
+    localStorage.setItem('limona-tour', JSON.stringify(tourIds))
+  }, [tourIds])
 
+  // Derive full Kontakt objects for tour list (keeps data fresh)
+  const tourList = useMemo(
+    () => tourIds.map(id => kontakty.find(k => k.id === id)).filter((k): k is Kontakt => k !== undefined),
+    [tourIds, kontakty],
+  )
+
+  // Standard filter
   const filtered = useMemo(() => {
     return kontakty.filter(k => {
       if (typFilter && k.typ !== typFilter) return false
-      if (fCoop && !k.chec_wspolpracy)    return false
-      if (fNie  && !k.niezainteresowani)  return false
-      if (fBezCoords && (k.lat !== null && k.lng !== null)) return false
+      if (fCoop && !k.chec_wspolpracy)      return false
+      if (fNie  && !k.niezainteresowani)    return false
+      if (fBezCoords && k.lat !== null && k.lng !== null) return false
       if (search) {
-        const q   = search.toLowerCase()
-        const hay = [k.nazwa, k.miasto, k.ulica, k.wojewodztwo].join(' ').toLowerCase()
-        if (!hay.includes(q)) return false
+        const q = search.toLowerCase()
+        if (![k.nazwa, k.miasto, k.ulica, k.wojewodztwo].join(' ').toLowerCase().includes(q)) return false
       }
       return true
     })
   }, [kontakty, typFilter, fCoop, fNie, fBezCoords, search])
 
-  const withCoords    = filtered.filter(k => k.lat !== null && k.lng !== null).length
-  const withoutCoords = filtered.filter(k => k.lat === null || k.lng === null).length
+  // What the map actually displays
+  const mapKontakty = useMemo(() => {
+    if (!tourMode) return filtered
+    return tourList.filter(k => !tourUnchecked.has(k.id))
+  }, [tourMode, tourList, tourUnchecked, filtered])
+
+  // Numbered pins for tour items
+  const tourOrderMap = useMemo(() => {
+    const m = new Map<string, number>()
+    tourList.forEach((k, i) => m.set(k.id, i + 1))
+    return m
+  }, [tourList])
+
+  // Tour search suggestions
+  const tourSuggestions = useMemo(() => {
+    if (!tourSearch.trim()) return []
+    const q = tourSearch.toLowerCase()
+    return kontakty
+      .filter(k => !tourIds.includes(k.id))
+      .filter(k => [k.nazwa, k.miasto, k.ulica].join(' ').toLowerCase().includes(q))
+      .slice(0, 7)
+  }, [kontakty, tourIds, tourSearch])
+
+  // Multi-stop Google Maps URL
+  const tourRouteUrl = useMemo(() => {
+    const stops = tourList.filter(k => !tourUnchecked.has(k.id) && k.lat && k.lng)
+    if (stops.length < 1) return null
+    return `https://www.google.com/maps/dir/${stops.map(k => `${k.lat},${k.lng}`).join('/')}`
+  }, [tourList, tourUnchecked])
+
+  // ── Tour actions ──────────────────────────────────────────────────────────
+
+  function addToTour(k: Kontakt) {
+    if (tourIds.includes(k.id)) return
+    if (tourIds.length === 0) setShowPanel(true)
+    setTourIds(prev => [...prev, k.id])
+  }
+
+  function removeFromTour(id: string) {
+    setTourIds(prev => prev.filter(i => i !== id))
+    setTourUnchecked(prev => { const n = new Set(prev); n.delete(id); return n })
+  }
+
+  function toggleChecked(id: string) {
+    setTourUnchecked(prev => {
+      const n = new Set(prev)
+      n.has(id) ? n.delete(id) : n.add(id)
+      return n
+    })
+  }
+
+  function moveUp(id: string) {
+    setTourIds(prev => {
+      const i = prev.indexOf(id)
+      if (i <= 0) return prev
+      const n = [...prev]; [n[i - 1], n[i]] = [n[i], n[i - 1]]; return n
+    })
+  }
+
+  function moveDown(id: string) {
+    setTourIds(prev => {
+      const i = prev.indexOf(id)
+      if (i === -1 || i >= prev.length - 1) return prev
+      const n = [...prev]; [n[i], n[i + 1]] = [n[i + 1], n[i]]; return n
+    })
+  }
+
+  function clearTour() {
+    setTourIds([])
+    setTourUnchecked(new Set())
+    setTourMode(false)
+  }
+
+  // ── Stats ─────────────────────────────────────────────────────────────────
+
+  const withCoords    = filtered.filter(k => k.lat && k.lng).length
+  const withoutCoords = filtered.filter(k => !k.lat || !k.lng).length
+  const hasFilters    = search || typFilter || fCoop || fNie || fBezCoords
+
+  // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    // Negative margins escape the dashboard p-4 lg:p-8 container → full bleed
     <div className="-mx-4 lg:-mx-8 -mt-4 lg:-mt-8 flex flex-col" style={{ height: 'calc(100vh - 56px)' }}>
-      {/* Slim top bar */}
-      <div className="flex items-center gap-3 px-4 lg:px-6 py-3 bg-limona-surface border-b border-limona-border flex-shrink-0">
-        <div>
-          <span className="text-xs uppercase tracking-widest text-limona-lime font-bold">Baza kontaktów</span>
-          <h1 className="text-lg font-heading font-bold text-limona-white leading-none">Mapa</h1>
+
+      {/* ── Top bar ── */}
+      <div className="flex items-center gap-2 px-4 lg:px-6 py-2.5 bg-limona-surface border-b border-limona-border flex-shrink-0 flex-wrap">
+        <div className="mr-2 flex-shrink-0">
+          <span className="text-[10px] uppercase tracking-widest text-limona-lime font-bold">Baza kontaktów</span>
+          <h1 className="text-base font-heading font-bold text-limona-white leading-none">Mapa</h1>
         </div>
 
-        <div className="flex-1 flex items-center gap-2 ml-4">
-          {/* Search */}
-          <div className="relative max-w-xs w-full">
-            <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-limona-text-muted" />
-            <input
-              className="limona-input pl-8 text-sm py-1.5 w-full"
-              placeholder="Szukaj…"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-            />
-          </div>
-
-          {/* Typ filter */}
-          <select
-            className="limona-input text-sm py-1.5 max-w-[200px]"
-            value={typFilter}
-            onChange={e => setTypFilter(e.target.value)}
-          >
-            <option value="">Wszystkie typy</option>
-            {KONTAKT_TYPY.map(t => (
-              <option key={t} value={t}>{KONTAKT_TYP_LABELS[t]}</option>
-            ))}
-          </select>
-
-          {/* Quick toggles */}
-          <label className={cn(
-            'flex items-center gap-1.5 px-3 py-1.5 rounded border text-xs cursor-pointer transition-colors whitespace-nowrap select-none',
-            fCoop ? 'border-limona-lime bg-limona-lime/10 text-limona-lime' : 'border-limona-border text-limona-text-muted hover:border-limona-text-muted'
-          )}>
-            <input type="checkbox" className="sr-only" checked={fCoop} onChange={e => setFCoop(e.target.checked)} />
-            Chęć współpracy
-          </label>
-
-          <label className={cn(
-            'flex items-center gap-1.5 px-3 py-1.5 rounded border text-xs cursor-pointer transition-colors whitespace-nowrap select-none',
-            fNie ? 'border-limona-red bg-limona-red/10 text-limona-red' : 'border-limona-border text-limona-text-muted hover:border-limona-text-muted'
-          )}>
-            <input type="checkbox" className="sr-only" checked={fNie} onChange={e => setFNie(e.target.checked)} />
-            Niezainteresowani
-          </label>
-
-          <label className={cn(
-            'flex items-center gap-1.5 px-3 py-1.5 rounded border text-xs cursor-pointer transition-colors whitespace-nowrap select-none',
-            fBezCoords ? 'border-limona-yellow bg-limona-yellow/10 text-limona-yellow' : 'border-limona-border text-limona-text-muted hover:border-limona-text-muted'
-          )}>
-            <input type="checkbox" className="sr-only" checked={fBezCoords} onChange={e => setFBezCoords(e.target.checked)} />
-            Brak lokalizacji
-          </label>
-
-          {(search || typFilter || fCoop || fNie || fBezCoords) && (
-            <button
-              onClick={() => { setSearch(''); setTypFilter(''); setFCoop(false); setFNie(false); setFBezCoords(false) }}
-              className="p-1.5 text-limona-text-dim hover:text-limona-red transition-colors"
-              title="Wyczyść filtry"
-            >
-              <X size={14} />
+        {/* Search */}
+        <div className="relative w-48 flex-shrink-0">
+          <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-limona-text-muted pointer-events-none" />
+          <input
+            className="limona-input pl-8 text-sm py-1.5 w-full"
+            placeholder="Szukaj…"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+          {search && (
+            <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-limona-text-dim hover:text-limona-white">
+              <X size={12} />
             </button>
           )}
         </div>
 
-        {/* Stats */}
-        <div className="ml-auto text-xs text-limona-text-dim whitespace-nowrap hidden lg:block">
-          <span className="text-limona-lime font-medium">{withCoords}</span> na mapie
-          {withoutCoords > 0 && <span className="ml-2 text-limona-yellow">{withoutCoords} bez lokalizacji</span>}
+        {/* Type */}
+        <select className="limona-input text-sm py-1.5 flex-shrink-0" value={typFilter} onChange={e => setTypFilter(e.target.value)}>
+          <option value="">Wszystkie typy</option>
+          {KONTAKT_TYPY.map(t => <option key={t} value={t}>{KONTAKT_TYP_LABELS[t as KontaktTyp]}</option>)}
+        </select>
+
+        {/* Quick toggles */}
+        {([
+          { label: 'Współpraca', val: fCoop, set: setFCoop, cls: 'lime' },
+          { label: 'Niezaint.',  val: fNie,  set: setFNie,  cls: 'red'  },
+          { label: 'Brak lok.',  val: fBezCoords, set: setFBezCoords, cls: 'yellow' },
+        ] as const).map(({ label, val, set, cls }) => (
+          <label key={label} className={cn(
+            'flex items-center gap-1.5 px-2.5 py-1.5 rounded border text-xs cursor-pointer transition-colors whitespace-nowrap select-none flex-shrink-0',
+            val
+              ? cls === 'lime'   ? 'border-limona-lime bg-limona-lime/10 text-limona-lime'
+              : cls === 'red'    ? 'border-limona-red bg-limona-red/10 text-limona-red'
+                                 : 'border-limona-yellow bg-limona-yellow/10 text-limona-yellow'
+              : 'border-limona-border text-limona-text-muted hover:border-limona-text-muted'
+          )}>
+            <input type="checkbox" className="sr-only" checked={val} onChange={e => set(e.target.checked)} />
+            {label}
+          </label>
+        ))}
+
+        {hasFilters && (
+          <button onClick={() => { setSearch(''); setTypFilter(''); setFCoop(false); setFNie(false); setFBezCoords(false) }}
+            className="p-1.5 text-limona-text-dim hover:text-limona-red transition-colors flex-shrink-0" title="Wyczyść filtry">
+            <X size={14} />
+          </button>
+        )}
+
+        {/* Right side */}
+        <div className="ml-auto flex items-center gap-2 flex-shrink-0">
+          <span className="text-xs text-limona-text-dim hidden lg:block">
+            <span className="text-limona-lime font-medium">{withCoords}</span> na mapie
+            {withoutCoords > 0 && <span className="ml-2 text-limona-yellow">{withoutCoords} bez lok.</span>}
+          </span>
+
+          {/* Tour mode active indicator */}
+          {tourMode && (
+            <button onClick={() => setTourMode(false)}
+              className="flex items-center gap-1 px-3 py-1.5 rounded border border-limona-yellow bg-limona-yellow/15 text-limona-yellow text-xs font-bold uppercase tracking-wider">
+              <X size={11} /> Tylko objazd
+            </button>
+          )}
+
+          {/* Tour panel toggle */}
+          <button
+            onClick={() => setShowPanel(p => !p)}
+            className={cn(
+              'flex items-center gap-1.5 px-3 py-1.5 rounded border text-xs font-bold uppercase tracking-wider transition-all',
+              showPanel
+                ? 'bg-limona-yellow/15 border-limona-yellow text-limona-yellow'
+                : 'border-limona-border text-limona-text-muted hover:border-limona-yellow hover:text-limona-yellow',
+            )}
+          >
+            <Route size={13} />
+            Objazd
+            {tourList.length > 0 && (
+              <span className="bg-limona-yellow text-black text-[10px] font-bold rounded-full px-1.5 py-0.5 leading-none">
+                {tourList.length}
+              </span>
+            )}
+          </button>
         </div>
       </div>
 
-      {/* Map — fills remaining height */}
-      <div className="flex-1 min-h-0">
-        {!loading && (
-          <KontaktyMap kontakty={filtered} height="100%" />
-        )}
-        {loading && (
+      {/* ── Map + panel ── */}
+      <div className="flex-1 min-h-0 relative">
+        {loading ? (
           <div className="w-full h-full flex items-center justify-center bg-limona-bg">
             <div className="w-8 h-8 border-2 border-limona-lime border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : (
+          <KontaktyMap
+            kontakty={mapKontakty}
+            height="100%"
+            tourOrder={tourOrderMap}
+            onAddToTour={addToTour}
+          />
+        )}
+
+        {/* ── Tour panel overlay ── */}
+        {showPanel && (
+          <div className="absolute top-0 right-0 bottom-0 w-80 bg-limona-surface/97 backdrop-blur-sm border-l border-limona-border z-[1000] flex flex-col shadow-2xl">
+
+            {/* Header */}
+            <div className="flex items-center gap-2 px-4 py-3 border-b border-limona-border flex-shrink-0">
+              <Route size={15} className="text-limona-yellow flex-shrink-0" />
+              <span className="text-sm font-bold text-limona-white">Lista objazdów</span>
+              {tourList.length > 0 && (
+                <span className="bg-limona-yellow text-black text-[10px] font-bold rounded-full px-1.5 py-0.5 leading-none">
+                  {tourList.length}
+                </span>
+              )}
+              <div className="ml-auto flex items-center gap-1">
+                {tourList.length > 0 && (
+                  <button onClick={clearTour} className="text-[10px] text-limona-text-dim hover:text-limona-red transition-colors px-1.5 py-1 uppercase tracking-wider">
+                    Wyczyść
+                  </button>
+                )}
+                <button onClick={() => setShowPanel(false)} className="p-1.5 text-limona-text-dim hover:text-limona-white">
+                  <X size={14} />
+                </button>
+              </div>
+            </div>
+
+            {/* Actions */}
+            {tourList.length > 0 && (
+              <div className="px-3 py-2.5 border-b border-limona-border flex-shrink-0 flex gap-2">
+                <button
+                  onClick={() => setTourMode(v => !v)}
+                  className={cn(
+                    'flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded border text-xs font-bold uppercase tracking-wider transition-all',
+                    tourMode
+                      ? 'bg-limona-yellow/15 border-limona-yellow text-limona-yellow'
+                      : 'border-limona-border text-limona-text-muted hover:border-limona-yellow hover:text-limona-yellow',
+                  )}
+                >
+                  <MapPin size={12} />
+                  {tourMode ? 'Pokaż wszystkie' : 'Tylko objazd'}
+                </button>
+                {tourRouteUrl && (
+                  <a
+                    href={tourRouteUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title="Otwórz trasę w Google Maps"
+                    className="flex items-center gap-1.5 px-3 py-2 rounded border border-limona-border text-xs font-bold uppercase tracking-wider text-limona-text-muted hover:border-blue-400 hover:text-blue-400 transition-all"
+                  >
+                    <Navigation size={12} />
+                    Trasa
+                  </a>
+                )}
+              </div>
+            )}
+
+            {/* Tour list */}
+            <div className="flex-1 overflow-y-auto">
+              {tourList.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-40 text-limona-text-dim gap-2 px-6 text-center">
+                  <Route size={28} className="opacity-30" />
+                  <p className="text-sm font-medium">Lista pusta</p>
+                  <p className="text-[11px] opacity-60 leading-relaxed">
+                    Kliknij marker na mapie i wybierz „+ Objazd", albo wyszukaj kontakt poniżej.
+                  </p>
+                </div>
+              ) : (
+                <div className="divide-y divide-limona-border">
+                  {tourList.map((k, i) => {
+                    const checked = !tourUnchecked.has(k.id)
+                    return (
+                      <div key={k.id} className={cn('flex items-start gap-2 px-3 py-2.5 group transition-opacity', !checked && 'opacity-45')}>
+
+                        {/* Checkbox */}
+                        <button onClick={() => toggleChecked(k.id)} className="mt-0.5 flex-shrink-0">
+                          {checked
+                            ? <CheckSquare size={15} className="text-limona-lime" />
+                            : <Square      size={15} className="text-limona-text-dim" />}
+                        </button>
+
+                        {/* Number + info */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1">
+                            <span className="text-[10px] font-bold text-limona-yellow w-5 flex-shrink-0">{i + 1}.</span>
+                            <p className="text-xs font-semibold text-limona-white truncate">{k.nazwa}</p>
+                          </div>
+                          {(k.ulica || k.miasto) && (
+                            <p className="text-[10px] text-limona-text-dim truncate pl-5 mt-0.5">
+                              {[k.ulica, k.miasto].filter(Boolean).join(', ')}
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Hover actions */}
+                        <div className="flex-shrink-0 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button onClick={() => moveUp(k.id)} disabled={i === 0}
+                            className="p-1 text-limona-text-dim hover:text-limona-white disabled:opacity-20 transition-colors">
+                            <ChevronUp size={12} />
+                          </button>
+                          <button onClick={() => moveDown(k.id)} disabled={i === tourList.length - 1}
+                            className="p-1 text-limona-text-dim hover:text-limona-white disabled:opacity-20 transition-colors">
+                            <ChevronDown size={12} />
+                          </button>
+                          <a href={gmapsNav(k)} target="_blank" rel="noopener noreferrer"
+                            className="p-1 text-limona-text-dim hover:text-blue-400 transition-colors" title="Nawiguj">
+                            <Navigation size={12} />
+                          </a>
+                          <button onClick={() => removeFromTour(k.id)}
+                            className="p-1 text-limona-text-dim hover:text-limona-red transition-colors" title="Usuń z listy">
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Add contact search */}
+            <div className="border-t border-limona-border flex-shrink-0 p-3">
+              <div className="relative">
+                <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-limona-text-muted pointer-events-none" />
+                <input
+                  className="limona-input pl-8 text-xs py-2 w-full"
+                  placeholder="Dodaj kontakt do objazdu…"
+                  value={tourSearch}
+                  onChange={e => setTourSearch(e.target.value)}
+                />
+                {tourSearch && (
+                  <button onClick={() => setTourSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-limona-text-dim hover:text-limona-white">
+                    <X size={12} />
+                  </button>
+                )}
+              </div>
+              {tourSuggestions.length > 0 && (
+                <div className="mt-1.5 border border-limona-border rounded bg-limona-bg max-h-44 overflow-y-auto">
+                  {tourSuggestions.map(k => (
+                    <button
+                      key={k.id}
+                      onClick={() => { addToTour(k); setTourSearch('') }}
+                      className="w-full text-left px-3 py-2 hover:bg-limona-surface transition-colors border-b border-limona-border last:border-0"
+                    >
+                      <p className="text-xs font-medium text-limona-white truncate">{k.nazwa}</p>
+                      {k.miasto && <p className="text-[10px] text-limona-text-dim truncate">{k.miasto}</p>}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>
