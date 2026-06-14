@@ -1,9 +1,10 @@
 'use client'
 
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useRef } from 'react'
 import dynamic from 'next/dynamic'
 import { Search, X, Route, Navigation, Trash2, CheckSquare, Square, MapPin, ChevronUp, ChevronDown } from 'lucide-react'
 import { useKontakty } from '@/hooks/useKontakty'
+import { useAuth } from '@/hooks/useAuth'
 import { cn } from '@/lib/utils'
 import type { Kontakt, KontaktTyp } from '@/types/database'
 import { KONTAKT_TYP_LABELS, KONTAKT_TYPY } from '@/types/database'
@@ -12,10 +13,7 @@ const KontaktyMap = dynamic(() => import('@/components/kontakty/KontaktyMap'), {
 
 // ─── Tour state helpers ─────────────────────────────────────────────────────
 
-function loadTourIds(): string[] {
-  if (typeof window === 'undefined') return []
-  try { return JSON.parse(localStorage.getItem('limona-tour') || '[]') } catch { return [] }
-}
+function tourKey(userId: string) { return `limona-tour-${userId}` }
 
 function gmapsNav(k: Kontakt): string {
   if (k.lat && k.lng) return `https://www.google.com/maps/dir/?api=1&destination=${k.lat},${k.lng}`
@@ -26,6 +24,7 @@ function gmapsNav(k: Kontakt): string {
 // ─── Page ──────────────────────────────────────────────────────────────────
 
 export default function MapaPage() {
+  const { user } = useAuth()
   const { kontakty, loading } = useKontakty()
 
   // Filters
@@ -35,17 +34,29 @@ export default function MapaPage() {
   const [fNie,        setFNie]        = useState(false)
   const [fBezCoords,  setFBezCoords]  = useState(false)
 
-  // Tour
-  const [tourIds,      setTourIds]      = useState<string[]>(loadTourIds)
+  // Tour — starts empty; loaded from localStorage once user ID is known
+  const [tourIds,       setTourIds]       = useState<string[]>([])
   const [tourUnchecked, setTourUnchecked] = useState<Set<string>>(new Set())
-  const [tourMode,     setTourMode]     = useState(false)
-  const [showPanel,    setShowPanel]    = useState(false)
-  const [tourSearch,   setTourSearch]   = useState('')
+  const [tourMode,      setTourMode]      = useState(false)
+  const [showPanel,     setShowPanel]     = useState(false)
+  const [tourSearch,    setTourSearch]    = useState('')
+  const tourLoadedRef = useRef(false)
 
-  // Persist tour to localStorage
+  // Load per-user tour from localStorage
   useEffect(() => {
-    localStorage.setItem('limona-tour', JSON.stringify(tourIds))
-  }, [tourIds])
+    if (!user?.id || tourLoadedRef.current) return
+    tourLoadedRef.current = true
+    try {
+      const saved = JSON.parse(localStorage.getItem(tourKey(user.id)) || '[]') as string[]
+      setTourIds(saved)
+    } catch { /* ignore */ }
+  }, [user?.id])
+
+  // Persist to per-user key (only after initial load)
+  useEffect(() => {
+    if (!user?.id || !tourLoadedRef.current) return
+    localStorage.setItem(tourKey(user.id), JSON.stringify(tourIds))
+  }, [tourIds, user?.id])
 
   // Derive full Kontakt objects for tour list (keeps data fresh)
   const tourList = useMemo(
