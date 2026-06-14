@@ -4,12 +4,14 @@ export const dynamic = 'force-dynamic'
 
 import { useMemo } from 'react'
 import Link from 'next/link'
-import { Building2, Calculator, ListTodo, Clock, CheckCircle, AlertCircle, Plus, Inbox, ArrowRight } from 'lucide-react'
+import { Building2, Calculator, ListTodo, Clock, CheckCircle, AlertCircle, Plus, Inbox, ArrowRight, MessageSquare, Bell } from 'lucide-react'
 import { useProperties } from '@/hooks/useProperties'
 import { useTasks } from '@/hooks/useTasks'
 import { useLeads } from '@/hooks/useLeads'
 import { useAuth } from '@/hooks/useAuth'
 import { useVisibleUserIds } from '@/hooks/useTeamVisibility'
+import { useWallContext } from '@/hooks/useWallProvider'
+import { useNotifications } from '@/hooks/useNotifications'
 import { Badge } from '@/components/ui/Badge'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { calculateBelow, calculateAbove } from '@/lib/calculator'
@@ -43,11 +45,13 @@ const statusLabels: Record<string, string> = {
 }
 
 export default function DashboardPage() {
-  const { profile } = useAuth()
+  const { user, profile } = useAuth()
   const { visibleIds } = useVisibleUserIds(profile?.id, profile?.role)
   const { properties, loading: propsLoading } = useProperties(visibleIds)
   const { tasks, loading: tasksLoading } = useTasks(undefined, visibleIds)
   const { leads, loading: leadsLoading } = useLeads()
+  const { unreadCount: wallUnread } = useWallContext()
+  const { unreadCount: notifUnread } = useNotifications(user?.id)
 
   const stats = useMemo(() => {
     const active = properties.filter(p => p.status !== 'rejected')
@@ -173,6 +177,37 @@ export default function DashboardPage() {
             </p>
             <p className="text-xs text-limona-text-muted mt-1">{leadStats.new} nowych</p>
           </div>
+        </div>
+      )}
+
+      {/* Communication bar */}
+      {(wallUnread > 0 || notifUnread > 0) && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {wallUnread > 0 && (
+            <Link href="/komunikacja" className="limona-card-hover p-4 flex items-center gap-4 border-l-[3px] border-l-limona-lime">
+              <div className="w-10 h-10 rounded bg-limona-lime/10 flex items-center justify-center flex-shrink-0">
+                <MessageSquare size={20} className="text-limona-lime" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs uppercase tracking-wider text-limona-text-muted font-bold">Wall — Komunikacja</p>
+                <p className="font-heading font-bold text-2xl text-limona-lime leading-tight">{wallUnread}</p>
+                <p className="text-xs text-limona-text-dim">nieprzeczytanych wiadomości</p>
+              </div>
+              <ArrowRight size={16} className="text-limona-text-dim flex-shrink-0" />
+            </Link>
+          )}
+          {notifUnread > 0 && (
+            <div className="limona-card p-4 flex items-center gap-4 border-l-[3px] border-l-limona-red">
+              <div className="w-10 h-10 rounded bg-limona-red/10 flex items-center justify-center flex-shrink-0">
+                <Bell size={20} className="text-limona-red" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs uppercase tracking-wider text-limona-text-muted font-bold">Powiadomienia</p>
+                <p className="font-heading font-bold text-2xl text-limona-red leading-tight">{notifUnread}</p>
+                <p className="text-xs text-limona-text-dim">nieodczytanych powiadomień</p>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

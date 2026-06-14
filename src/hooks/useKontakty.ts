@@ -46,20 +46,24 @@ export function useKontakty(filters?: KontaktyFilters) {
     return p
   }, [filters])
 
+  const initializedRef = useRef(false)
+
   const fetchKontakty = useCallback(async () => {
-    setLoading(true)
+    if (!initializedRef.current) setLoading(true)
     const res = await fetch(`/api/kontakty?${buildParams()}`)
     if (!res.ok) { setError('Błąd pobierania danych'); setLoading(false); return }
     setKontakty(await res.json())
     setLoading(false)
+    initializedRef.current = true
   }, [buildParams])
 
   const debouncedFetch = useDebouncedCallback(fetchKontakty, 500)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
+    initializedRef.current = false
     fetchKontakty()
-    intervalRef.current = setInterval(debouncedFetch, 10000)
+    intervalRef.current = setInterval(debouncedFetch, 20000)
     return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
   }, [fetchKontakty, debouncedFetch])
 

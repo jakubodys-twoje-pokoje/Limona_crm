@@ -8,8 +8,10 @@ export function useTasks(propertyId?: string, visibleUserIds?: string[] | null, 
   const [tasks, setTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
 
+  const initializedRef = useRef(false)
+
   const fetchTasks = useCallback(async () => {
-    setLoading(true)
+    if (!initializedRef.current) setLoading(true)
     const params = new URLSearchParams()
     if (propertyId) params.set('propertyId', propertyId)
     if (visibleUserIds?.length) params.set('visibleIds', visibleUserIds.join(','))
@@ -18,14 +20,16 @@ export function useTasks(propertyId?: string, visibleUserIds?: string[] | null, 
     const res = await fetch(`/api/tasks?${params}`)
     if (res.ok) setTasks(await res.json())
     setLoading(false)
+    initializedRef.current = true
   }, [propertyId, visibleUserIds, boardId])
 
   const debouncedFetch = useDebouncedCallback(fetchTasks, 500)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
+    initializedRef.current = false
     fetchTasks()
-    intervalRef.current = setInterval(debouncedFetch, 10000)
+    intervalRef.current = setInterval(debouncedFetch, 15000)
     return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
   }, [fetchTasks, debouncedFetch])
 
