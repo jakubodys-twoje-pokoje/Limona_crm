@@ -34,6 +34,9 @@ model Profile {
   kontakt_komentarze     KontaktKomentarz[]
   leads_created          Lead[]             @relation("LeadCreator")
   leads_assigned         Lead[]             @relation("LeadAssignee")
+  direct_messages_sent   DirectMessage[]    @relation("DMSender")
+  direct_messages_recv   DirectMessage[]    @relation("DMRecipient")
+  group_messages         GroupMessage[]     @relation("GroupMessageAuthor")
 
   @@map("profiles")
 }
@@ -329,4 +332,33 @@ model Lead {
   @@index([assigned_to])
   @@index([created_at(sort: Desc)])
   @@map("leads")
+}
+
+model DirectMessage {
+  id         String   @id @default(uuid()) @db.Uuid
+  from_id    String   @db.Uuid
+  to_id      String   @db.Uuid
+  content    String
+  read       Boolean  @default(false)
+  created_at DateTime @default(now()) @db.Timestamptz()
+
+  sender    Profile @relation("DMSender",    fields: [from_id], references: [id], onDelete: Cascade)
+  recipient Profile @relation("DMRecipient", fields: [to_id],   references: [id], onDelete: Cascade)
+
+  @@index([from_id, to_id, created_at(sort: Desc)])
+  @@index([to_id, read])
+  @@map("direct_messages")
+}
+
+model GroupMessage {
+  id         String   @id @default(uuid()) @db.Uuid
+  group_id   String   @db.Uuid
+  user_id    String   @db.Uuid
+  content    String
+  created_at DateTime @default(now()) @db.Timestamptz()
+
+  author Profile @relation("GroupMessageAuthor", fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([group_id, created_at(sort: Desc)])
+  @@map("group_messages")
 }

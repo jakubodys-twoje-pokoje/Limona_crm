@@ -4,13 +4,13 @@ export const dynamic = 'force-dynamic'
 
 import { useMemo } from 'react'
 import Link from 'next/link'
-import { Building2, Calculator, ListTodo, TrendingUp, Clock, CheckCircle, AlertCircle, Plus } from 'lucide-react'
+import { Building2, Calculator, ListTodo, Clock, CheckCircle, AlertCircle, Plus, Inbox, ArrowRight } from 'lucide-react'
 import { useProperties } from '@/hooks/useProperties'
 import { useTasks } from '@/hooks/useTasks'
+import { useLeads } from '@/hooks/useLeads'
 import { useAuth } from '@/hooks/useAuth'
 import { useVisibleUserIds } from '@/hooks/useTeamVisibility'
 import { Badge } from '@/components/ui/Badge'
-import { Avatar } from '@/components/ui/Avatar'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { calculateBelow, calculateAbove } from '@/lib/calculator'
 import { formatMoney, formatPercent, cn } from '@/lib/utils'
@@ -47,6 +47,7 @@ export default function DashboardPage() {
   const { visibleIds } = useVisibleUserIds(profile?.id, profile?.role)
   const { properties, loading: propsLoading } = useProperties(visibleIds)
   const { tasks, loading: tasksLoading } = useTasks(undefined, visibleIds)
+  const { leads, loading: leadsLoading } = useLeads()
 
   const stats = useMemo(() => {
     const active = properties.filter(p => p.status !== 'rejected')
@@ -105,7 +106,16 @@ export default function DashboardPage() {
     [tasks, todayStr]
   )
 
+  const leadStats = {
+    total: leads.length,
+    new: leads.filter(l => l.status === 'new').length,
+    contacted: leads.filter(l => l.status === 'contacted').length,
+    qualified: leads.filter(l => l.status === 'qualified').length,
+    converted: leads.filter(l => l.status === 'converted').length,
+  }
+
   const recentProps = properties.slice(0, 5)
+  const recentLeads = leads.slice(0, 5)
 
   const pipelineStats = statusPipeline.map(s => ({
     status: s,
@@ -127,11 +137,11 @@ export default function DashboardPage() {
 
       {/* KPI Cards */}
       {propsLoading ? (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-28" />)}
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+          {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-28" />)}
         </div>
       ) : (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
           <div className="limona-card-accent p-4">
             <p className="limona-eyebrow text-xs mb-2">Nieruchomości</p>
             <p className="font-heading font-bold text-4xl text-limona-white">{stats.total}</p>
@@ -156,6 +166,13 @@ export default function DashboardPage() {
             </p>
             <p className="text-xs text-limona-text-muted mt-1">wszystkie nieruchomości</p>
           </div>
+          <div className="limona-card p-4 border-l-[3px] border-l-limona-lime">
+            <p className="limona-eyebrow text-xs mb-2">Leady</p>
+            <p className="font-heading font-bold text-4xl text-limona-lime">
+              {leadsLoading ? '…' : leadStats.total}
+            </p>
+            <p className="text-xs text-limona-text-muted mt-1">{leadStats.new} nowych</p>
+          </div>
         </div>
       )}
 
@@ -178,8 +195,8 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Two columns: recent + tasks */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* Three columns: recent props + tasks + leads */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Recent properties */}
         <div className="limona-card p-4 lg:p-6">
           <div className="flex items-center justify-between mb-4">
@@ -226,7 +243,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Tasks — today + overdue */}
-        <div className="limona-card p-4 lg:p-6">
+        <div className="limona-card p-4 lg:p-6 flex flex-col">
           <div className="flex items-center justify-between mb-4">
             <h2 className="limona-heading text-lg">Zadania</h2>
             <Link href="/zadania" className="text-xs text-limona-lime hover:text-limona-lime-hover transition-colors uppercase tracking-wider">
@@ -283,6 +300,63 @@ export default function DashboardPage() {
                   </div>
                 </div>
               )}
+            </div>
+          )}
+        </div>
+
+        {/* Leads panel */}
+        <div className="limona-card p-4 lg:p-6 flex flex-col">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="limona-heading text-lg">Leady</h2>
+            <Link href="/leady" className="text-xs text-limona-lime hover:text-limona-lime-hover transition-colors uppercase tracking-wider">
+              Wszystkie
+            </Link>
+          </div>
+          {/* Funnel stats */}
+          <div className="grid grid-cols-2 gap-2 mb-4">
+            {[
+              { label: 'Nowe', value: leadStats.new, color: 'bg-limona-text-dim' },
+              { label: 'Kontakt', value: leadStats.contacted, color: 'bg-limona-blue' },
+              { label: 'Kwalif.', value: leadStats.qualified, color: 'bg-limona-yellow' },
+              { label: 'Konwert.', value: leadStats.converted, color: 'bg-limona-green' },
+            ].map(s => (
+              <div key={s.label} className="limona-card p-2 text-center">
+                <div className={cn('w-2 h-2 rounded-full mx-auto mb-1', s.color)} />
+                <p className="font-mono font-bold text-lg text-limona-white">{s.value}</p>
+                <p className="text-[10px] uppercase tracking-wider text-limona-text-dim">{s.label}</p>
+              </div>
+            ))}
+          </div>
+          {leadsLoading ? (
+            <div className="space-y-2">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-10" />)}</div>
+          ) : recentLeads.length === 0 ? (
+            <div className="flex-1 flex flex-col items-center justify-center py-6">
+              <Inbox size={28} className="text-limona-text-dim mb-2" />
+              <p className="text-limona-text-muted text-sm">Brak leadów</p>
+              <Link href="/leady" className="mt-3 limona-btn-sm inline-flex items-center gap-2">
+                <Plus size={12} /> Dodaj
+              </Link>
+            </div>
+          ) : (
+            <div className="space-y-2 flex-1">
+              {recentLeads.map(l => (
+                <Link key={l.id} href="/leady"
+                  className="flex items-center gap-2 p-2 rounded hover:bg-limona-surface-2 transition-colors group">
+                  <div className={cn('w-1.5 h-6 rounded-full flex-shrink-0',
+                    l.status === 'new' ? 'bg-limona-text-dim' :
+                    l.status === 'contacted' ? 'bg-limona-blue' :
+                    l.status === 'qualified' ? 'bg-limona-yellow' :
+                    l.status === 'converted' ? 'bg-limona-green' : 'bg-limona-red'
+                  )} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-limona-white truncate group-hover:text-limona-lime transition-colors">
+                      {l.name}
+                    </p>
+                    <p className="text-xs text-limona-text-dim truncate">{l.source || l.location || '—'}</p>
+                  </div>
+                  <ArrowRight size={12} className="text-limona-text-dim group-hover:text-limona-lime flex-shrink-0" />
+                </Link>
+              ))}
             </div>
           )}
         </div>

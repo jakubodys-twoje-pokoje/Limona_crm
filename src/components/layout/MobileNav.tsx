@@ -12,7 +12,7 @@ const tabs = [
   { href: '/nieruchomosci', icon: Building2, label: 'CRM' },
   { href: '/kalkulator', icon: Calculator, label: 'Kalk' },
   { href: '/zadania', icon: ListTodo, label: 'Zadania' },
-  { href: '/wall', icon: MessageSquare, label: 'Wall', showCounter: true },
+  { href: '/komunikacja', icon: MessageSquare, label: 'Kom.', showCounter: true },
   { href: '/kontakty', icon: BookUser, label: 'Kontakty' },
   { href: '/mapa',     icon: MapPin,   label: 'Mapa' },
   { href: '/profil',   icon: User,     label: 'Profil' },

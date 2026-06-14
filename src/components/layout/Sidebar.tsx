@@ -15,7 +15,7 @@ const navItems = [
   { href: '/nieruchomosci', icon: Building2, label: 'Nieruchomości' },
   { href: '/kalkulator', icon: Calculator, label: 'Kalkulator' },
   { href: '/zadania', icon: ListTodo, label: 'Zadania' },
-  { href: '/wall', icon: MessageSquare, label: 'Wall', showCounter: true },
+  { href: '/komunikacja', icon: MessageSquare, label: 'Komunikacja', showCounter: true },
   { href: '/zespol', icon: Users, label: 'Zespół' },
   { href: '/leady',       icon: Inbox,   label: 'Leady' },
   { href: '/wyszukiwarka', icon: Search, label: 'Wyszukiwarka' },
