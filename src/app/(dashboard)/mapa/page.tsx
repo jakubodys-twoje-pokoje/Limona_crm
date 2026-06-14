@@ -303,7 +303,7 @@ export default function MapaPage() {
 
         {/* ── Tour panel overlay ── */}
         {showPanel && (
-          <div className="absolute top-0 right-0 bottom-0 w-80 bg-limona-surface/97 backdrop-blur-sm border-l border-limona-border z-[1000] flex flex-col shadow-2xl">
+          <div className="absolute top-0 right-0 bottom-0 left-0 sm:left-auto sm:w-80 bg-limona-surface border-l border-limona-border z-[1000] flex flex-col shadow-2xl">
 
             {/* Header */}
             <div className="flex items-center gap-2 px-4 py-3 border-b border-limona-border flex-shrink-0">

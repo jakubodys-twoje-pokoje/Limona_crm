@@ -2,8 +2,7 @@
 
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import { Send, Pin, PinOff, Trash2, MessageSquare, Check } from 'lucide-react'
-import { useWallContext } from '@/hooks/useWallProvider'
-import type { WallMessage } from '@/hooks/useWall'
+import { useWall, type WallMessage } from '@/hooks/useWall'
 import { useTasks } from '@/hooks/useTasks'
 import { useAuth } from '@/hooks/useAuth'
 import { useToast } from '@/components/ui/Toast'
@@ -18,7 +17,7 @@ import type { Profile } from '@/types/database'
 
 export function WallContent() {
   const { user, profile } = useAuth()
-  const { messages, loading, postMessage, deleteMessage, togglePin, markAsRead, isRead } = useWallContext()
+  const { messages, loading, postMessage, deleteMessage, togglePin, markAsRead, isRead } = useWall(user?.id)
   const { tasks } = useTasks()
   const { visibleIds } = useVisibleUserIds(user?.id, profile?.role)
   const { showToast } = useToast()
