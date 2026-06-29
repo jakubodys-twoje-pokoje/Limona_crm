@@ -11,6 +11,46 @@ import { KONTAKT_TYP_LABELS, KONTAKT_TYPY, KONTAKT_TYP_COLORS, TOUR_PIN_COLOR } 
 
 const KontaktyMap = dynamic(() => import('@/components/kontakty/KontaktyMap'), { ssr: false })
 
+// ─── Geo helpers ────────────────────────────────────────────────────────────
+
+function haversine(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371
+  const dLat = (lat2 - lat1) * Math.PI / 180
+  const dLng = (lng2 - lng1) * Math.PI / 180
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+}
+
+// Nearest-neighbor greedy sort from a start point
+function nearestNeighborSort(
+  items: { id: string; lat: number | null; lng: number | null }[],
+  startLat: number,
+  startLng: number,
+): string[] {
+  const withCoords = items.filter(k => k.lat != null && k.lng != null)
+  const noCoords   = items.filter(k => k.lat == null || k.lng == null)
+
+  const unvisited = [...withCoords]
+  const result: string[] = []
+  let curLat = startLat
+  let curLng = startLng
+
+  while (unvisited.length > 0) {
+    let nearest = 0
+    let minDist = Infinity
+    for (let i = 0; i < unvisited.length; i++) {
+      const d = haversine(curLat, curLng, unvisited[i].lat!, unvisited[i].lng!)
+      if (d < minDist) { minDist = d; nearest = i }
+    }
+    const [picked] = unvisited.splice(nearest, 1)
+    result.push(picked.id)
+    curLat = picked.lat!
+    curLng = picked.lng!
+  }
+
+  return [...result, ...noCoords.map(k => k.id)]
+}
+
 // ─── Tour state helpers ─────────────────────────────────────────────────────
 
 function tourKey(userId: string) { return `limona-tour-${userId}` }
@@ -151,6 +191,31 @@ export default function MapaPage() {
     setTourIds([])
     setTourUnchecked(new Set())
     setTourMode(false)
+  }
+
+  const [optimizing, setOptimizing] = useState(false)
+
+  async function optimizeRoute() {
+    if (tourList.length < 2) return
+    setOptimizing(true)
+    try {
+      const startFromGPS = await new Promise<{ lat: number; lng: number } | null>(resolve => {
+        if (!navigator.geolocation) { resolve(null); return }
+        navigator.geolocation.getCurrentPosition(
+          pos => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+          () => resolve(null),
+          { timeout: 4000, maximumAge: 60000 },
+        )
+      })
+      const withCoords = tourList.filter(k => k.lat && k.lng)
+      if (withCoords.length < 2) { setOptimizing(false); return }
+      const startLat = startFromGPS?.lat ?? withCoords[0].lat!
+      const startLng = startFromGPS?.lng ?? withCoords[0].lng!
+      const sorted = nearestNeighborSort(tourList, startLat, startLng)
+      setTourIds(sorted)
+    } finally {
+      setOptimizing(false)
+    }
   }
 
   // ── Stats ─────────────────────────────────────────────────────────────────
@@ -328,30 +393,42 @@ export default function MapaPage() {
 
             {/* Actions */}
             {tourList.length > 0 && (
-              <div className="px-3 py-2.5 border-b border-limona-border flex-shrink-0 flex gap-2">
-                <button
-                  onClick={() => setTourMode(v => !v)}
-                  className={cn(
-                    'flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded border text-xs font-bold uppercase tracking-wider transition-all',
-                    tourMode
-                      ? 'bg-limona-yellow/15 border-limona-yellow text-limona-yellow'
-                      : 'border-limona-border text-limona-text-muted hover:border-limona-yellow hover:text-limona-yellow',
-                  )}
-                >
-                  <MapPin size={12} />
-                  {tourMode ? 'Pokaż wszystkie' : 'Tylko objazd'}
-                </button>
-                {tourRouteUrl && (
-                  <a
-                    href={tourRouteUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    title="Otwórz trasę w Google Maps"
-                    className="flex items-center gap-1.5 px-3 py-2 rounded border border-limona-border text-xs font-bold uppercase tracking-wider text-limona-text-muted hover:border-blue-400 hover:text-blue-400 transition-all"
+              <div className="px-3 py-2.5 border-b border-limona-border flex-shrink-0 space-y-2">
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setTourMode(v => !v)}
+                    className={cn(
+                      'flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded border text-xs font-bold uppercase tracking-wider transition-all',
+                      tourMode
+                        ? 'bg-limona-yellow/15 border-limona-yellow text-limona-yellow'
+                        : 'border-limona-border text-limona-text-muted hover:border-limona-yellow hover:text-limona-yellow',
+                    )}
                   >
-                    <Navigation size={12} />
-                    Trasa
-                  </a>
+                    <MapPin size={12} />
+                    {tourMode ? 'Pokaż wszystkie' : 'Tylko objazd'}
+                  </button>
+                  {tourRouteUrl && (
+                    <a
+                      href={tourRouteUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="Otwórz trasę w Google Maps"
+                      className="flex items-center gap-1.5 px-3 py-2 rounded border border-limona-border text-xs font-bold uppercase tracking-wider text-limona-text-muted hover:border-blue-400 hover:text-blue-400 transition-all"
+                    >
+                      <Navigation size={12} />
+                      Trasa
+                    </a>
+                  )}
+                </div>
+                {tourList.filter(k => k.lat && k.lng).length >= 2 && (
+                  <button
+                    onClick={optimizeRoute}
+                    disabled={optimizing}
+                    className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded border border-limona-lime/40 text-xs font-bold uppercase tracking-wider text-limona-lime hover:border-limona-lime hover:bg-limona-lime/5 transition-all disabled:opacity-40"
+                  >
+                    <Route size={12} />
+                    {optimizing ? 'Optymalizuję…' : 'Zoptymalizuj trasę'}
+                  </button>
                 )}
               </div>
             )}

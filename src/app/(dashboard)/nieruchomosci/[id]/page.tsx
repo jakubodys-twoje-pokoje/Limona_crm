@@ -545,6 +545,14 @@ export default function PropertyDetailPage() {
 
       {activeTab === 'docs' && (
         <div className="space-y-4">
+          {/* PDF / Cloud storage guide */}
+          <div className="limona-card p-4 border-l-[3px] border-l-limona-blue text-sm">
+            <p className="text-xs font-bold text-limona-blue uppercase tracking-wider mb-2">Pliki PDF — Google Drive</p>
+            <p className="text-limona-text-muted text-xs leading-relaxed">
+              Wgraj PDF księgi wieczystej lub inne dokumenty na <strong className="text-limona-white">Dysk Google</strong> i wklej udostępniony link poniżej.
+              Udostępnianie: kliknij prawym na plik → Udostępnij → Kopiuj link (dostęp: każdy z linkiem).
+            </p>
+          </div>
           <form onSubmit={handleAddDoc} className="limona-card-accent p-4 space-y-3">
             <p className="text-xs text-limona-lime uppercase tracking-wider font-bold">Dodaj dokument (link Google Drive)</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -570,8 +578,8 @@ export default function PropertyDetailPage() {
                 onChange={e => setNewDocType(e.target.value)}
               >
                 <option value="">Typ dokumentu (opcjonalnie)</option>
+                <option value="kw">📄 Odpis z KW (PDF)</option>
                 <option value="akt_wlasnosci">Akt własności</option>
-                <option value="kw">Odpis z KW</option>
                 <option value="zaswiadczenie">Zaświadczenie</option>
                 <option value="umowa">Umowa</option>
                 <option value="operat">Operat szacunkowy</option>
