@@ -122,7 +122,8 @@ export default function DashboardPage() {
     converted: leads.filter(l => l.status === 'converted').length,
   }
 
-  const recentProps = properties.slice(0, 5)
+  const ownProps = properties.filter(p => p.deal_type !== 'savedeal').slice(0, 4)
+  const saveDeals = properties.filter(p => p.deal_type === 'savedeal').slice(0, 4)
   const recentLeads = leads.slice(0, 5)
 
   const pipelineStats = statusPipeline.map(s => ({
@@ -234,20 +235,23 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* 2×2 grid: props + tasks (top), wall + leads (bottom) */}
+      {/* Property split + tasks/communication grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
-        {/* Recent properties */}
+        {/* Własne nabycie properties */}
         <div className="limona-card p-4 lg:p-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="limona-heading text-lg">Ostatnie nieruchomości</h2>
+            <div>
+              <h2 className="limona-heading text-lg">Własne nabycie</h2>
+              <p className="text-[10px] text-limona-text-dim uppercase tracking-wider">zadłużone poniżej / powyżej wartości</p>
+            </div>
             <Link href="/nieruchomosci" className="text-xs text-limona-lime hover:text-limona-lime-hover transition-colors uppercase tracking-wider">
-              Zobacz wszystkie
+              Wszystkie
             </Link>
           </div>
           {propsLoading ? (
             <div className="space-y-3">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-14" />)}</div>
-          ) : recentProps.length === 0 ? (
+          ) : ownProps.length === 0 ? (
             <div className="text-center py-8">
               <p className="text-limona-text-muted mb-4">Brak nieruchomości</p>
               <Link href="/nieruchomosci" className="limona-btn-sm inline-flex items-center gap-2">
@@ -256,7 +260,7 @@ export default function DashboardPage() {
             </div>
           ) : (
             <div className="space-y-2">
-              {recentProps.map(p => {
+              {ownProps.map(p => {
                 const profit = calcProfit(p)
                 const isOK = profit != null && profit >= 120000
                 return (
@@ -267,9 +271,51 @@ export default function DashboardPage() {
                       <p className="text-sm font-medium text-limona-white truncate group-hover:text-limona-lime transition-colors">
                         {p.location}
                       </p>
-                      <p className="text-xs text-limona-text-dim">{statusLabels[p.status]}</p>
+                      <p className="text-xs text-limona-text-dim">{statusLabels[p.status] || p.status}</p>
                     </div>
                     <p className={cn('text-xs font-mono font-bold flex-shrink-0', isOK ? 'text-limona-green' : 'text-limona-text-muted')}>
+                      {formatMoney(profit)}
+                    </p>
+                  </Link>
+                )
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* SaveDeal properties */}
+        <div className="limona-card p-4 lg:p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="limona-heading text-lg">SaveDeal</h2>
+              <p className="text-[10px] text-limona-text-dim uppercase tracking-wider">pośrednictwo sprzedaży</p>
+            </div>
+            <Link href="/nieruchomosci?deal_type=savedeal" className="text-xs text-limona-lime hover:text-limona-lime-hover transition-colors uppercase tracking-wider">
+              Wszystkie
+            </Link>
+          </div>
+          {propsLoading ? (
+            <div className="space-y-3">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-14" />)}</div>
+          ) : saveDeals.length === 0 ? (
+            <div className="text-center py-8">
+              <p className="text-limona-text-muted">Brak SaveDeal</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {saveDeals.map(p => {
+                const profit = calcProfit(p)
+                const isOK = profit != null && profit >= 0
+                return (
+                  <Link key={p.id} href={`/nieruchomosci/${p.id}`}
+                    className="flex items-center gap-3 p-2 rounded hover:bg-limona-surface-2 transition-colors group">
+                    <div className="w-1.5 h-8 rounded-full bg-limona-lime/40 flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-limona-white truncate group-hover:text-limona-lime transition-colors">
+                        {p.location}
+                      </p>
+                      <p className="text-xs text-limona-text-dim">{statusLabels[p.status] || p.status}</p>
+                    </div>
+                    <p className={cn('text-xs font-mono font-bold flex-shrink-0', isOK ? 'text-limona-lime' : 'text-limona-text-muted')}>
                       {formatMoney(profit)}
                     </p>
                   </Link>

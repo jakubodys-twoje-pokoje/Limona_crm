@@ -70,6 +70,13 @@ model Property {
   pokazywania_count Int      @default(0)
   decision          String?
   notes             String?
+  uklad             String?
+  pietro            Int?
+  rok_budowy        Int?
+  balkon_metraz     Decimal? @db.Decimal(6, 2)
+  strony_swiata     String?
+  operat_szacunkowy Decimal? @db.Decimal(14, 2)
+  co_assignees      String[] @default([])
   created_by        String?  @db.Uuid
   assigned_to       String?  @db.Uuid
   kontakt_id        String?  @db.Uuid
@@ -91,22 +98,23 @@ model Property {
 }
 
 model Task {
-  id           String    @id @default(uuid()) @db.Uuid
-  property_id  String?   @db.Uuid
-  title        String
-  description  String?
-  status       String    @default("todo")
-  priority     String    @default("medium")
-  due_date     DateTime? @db.Date
-  assigned_to  String?   @db.Uuid
-  co_assignees String[]  @default([])
-  board_id     String?   @db.Uuid
-  list_id      String?   @db.Uuid
-  position     Int       @default(0)
-  created_by   String?   @db.Uuid
-  completed_at DateTime? @db.Timestamptz()
-  created_at   DateTime  @default(now()) @db.Timestamptz()
-  updated_at   DateTime  @default(now()) @updatedAt @db.Timestamptz()
+  id             String    @id @default(uuid()) @db.Uuid
+  property_id    String?   @db.Uuid
+  title          String
+  description    String?
+  status         String    @default("todo")
+  priority       String    @default("medium")
+  due_date       DateTime? @db.Date
+  assigned_to    String?   @db.Uuid
+  co_assignees   String[]  @default([])
+  board_id       String?   @db.Uuid
+  list_id        String?   @db.Uuid
+  position       Int       @default(0)
+  created_by     String?   @db.Uuid
+  completed_at   DateTime? @db.Timestamptz()
+  property_stage String?
+  created_at     DateTime  @default(now()) @db.Timestamptz()
+  updated_at     DateTime  @default(now()) @updatedAt @db.Timestamptz()
 
   property      Property?     @relation(fields: [property_id], references: [id], onDelete: Cascade)
   assignee      Profile?      @relation("TaskAssignee", fields: [assigned_to], references: [id])
@@ -146,11 +154,13 @@ model Document {
   name        String
   file_url    String
   file_type   String?
+  stage       String?
   uploaded_by String?  @db.Uuid
   created_at  DateTime @default(now()) @db.Timestamptz()
 
   property Property @relation(fields: [property_id], references: [id], onDelete: Cascade)
 
+  @@index([property_id])
   @@map("documents")
 }
 
@@ -236,7 +246,7 @@ model Notification {
 model Kontakt {
   id                             String   @id @default(uuid()) @db.Uuid
   // typ: spoldzielnia | wspolnota_zarzadca | posrednik_nieruchomosci | posrednik_finansowy
-  //       kancelaria_spadkowa | kancelaria_rozwodowa | notariusz | rzeczoznawca
+  //       kancelaria_spadkowa | kancelaria_rozwodowa | notariusz | rzeczoznawca | komornik | fundusz
   typ                            String
   nazwa                          String
   wojewodztwo                    String?

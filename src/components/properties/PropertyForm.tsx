@@ -68,6 +68,12 @@ export function PropertyForm({ initial = {}, onSubmit, onCancel, submitLabel = '
     trello_link: initial.trello_link || '',
     notes: initial.notes || '',
     kontakt_id: initial.kontakt_id || '',
+    uklad: initial.uklad || '',
+    pietro: initial.pietro?.toString() || '',
+    rok_budowy: initial.rok_budowy?.toString() || '',
+    balkon_metraz: initial.balkon_metraz?.toString() || '',
+    strony_swiata: initial.strony_swiata || '',
+    operat_szacunkowy: initial.operat_szacunkowy?.toString() || '',
   })
   const [loading, setLoading] = useState(false)
   const [kontakty, setKontakty] = useState<KontaktOption[]>([])
@@ -126,6 +132,12 @@ export function PropertyForm({ initial = {}, onSubmit, onCancel, submitLabel = '
         trello_link: form.trello_link || null,
         notes: form.notes || null,
         kontakt_id: form.kontakt_id || null,
+        uklad: form.uklad || null,
+        pietro: form.pietro ? parseInt(form.pietro) : null,
+        rok_budowy: form.rok_budowy ? parseInt(form.rok_budowy) : null,
+        balkon_metraz: form.balkon_metraz ? parseFloat(form.balkon_metraz) : null,
+        strony_swiata: form.strony_swiata || null,
+        operat_szacunkowy: form.operat_szacunkowy ? parseFloat(form.operat_szacunkowy) : null,
       }
       await onSubmit(data)
     } finally {
@@ -276,6 +288,79 @@ export function PropertyForm({ initial = {}, onSubmit, onCancel, submitLabel = '
                 <button type="button" className="text-limona-text-dim hover:text-limona-red ml-1" onClick={() => { set('kontakt_id', ''); setKontaktSearch('') }}>✕</button>
               </p>
             )}
+          </div>
+        </div>
+      </div>
+
+      {/* Dane fizyczne */}
+      <div>
+        <h3 className="limona-eyebrow mb-4">Dane fizyczne</h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label className="limona-label block mb-2">Układ</label>
+            <input
+              className="limona-input"
+              value={form.uklad}
+              onChange={e => set('uklad', e.target.value)}
+              placeholder="np. 3 pokoje + kuchnia"
+            />
+          </div>
+          <div>
+            <label className="limona-label block mb-2">Piętro</label>
+            <input
+              type="number"
+              className="limona-input"
+              value={form.pietro}
+              onChange={e => set('pietro', e.target.value)}
+              placeholder="np. 3"
+              min="0"
+              max="99"
+            />
+          </div>
+          <div>
+            <label className="limona-label block mb-2">Rok budowy</label>
+            <input
+              type="number"
+              className="limona-input"
+              value={form.rok_budowy}
+              onChange={e => set('rok_budowy', e.target.value)}
+              placeholder="np. 1985"
+              min="1800"
+              max="2030"
+            />
+          </div>
+          <div>
+            <label className="limona-label block mb-2">Balkon/Taras (m²)</label>
+            <input
+              type="number"
+              className="limona-input"
+              value={form.balkon_metraz}
+              onChange={e => set('balkon_metraz', e.target.value)}
+              placeholder="np. 8.5"
+              min="0"
+              step="0.5"
+            />
+          </div>
+          <div>
+            <label className="limona-label block mb-2">Strony świata</label>
+            <input
+              className="limona-input"
+              value={form.strony_swiata}
+              onChange={e => set('strony_swiata', e.target.value)}
+              placeholder="np. N, E, S"
+            />
+          </div>
+          <div>
+            <label className="limona-label block mb-2">Operat szacunkowy [zł]</label>
+            <input
+              type="number"
+              className="limona-input"
+              value={form.operat_szacunkowy}
+              onChange={e => set('operat_szacunkowy', e.target.value)}
+              placeholder="np. 520000"
+              min="0"
+              step="1000"
+            />
           </div>
         </div>
       </div>

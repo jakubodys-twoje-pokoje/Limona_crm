@@ -67,11 +67,19 @@ export interface Property {
   created_by: string | null
   assigned_to: string | null
   kontakt_id: string | null
+  uklad: string | null
+  pietro: number | null
+  rok_budowy: number | null
+  balkon_metraz: number | null
+  strony_swiata: string | null
+  operat_szacunkowy: number | null
+  co_assignees: string[]
   created_at: string
   updated_at: string
   // Joined fields
   creator?: Profile
   assignee?: Profile
+  co_assignee_profiles?: Profile[]
 }
 
 export interface Task {
@@ -89,6 +97,7 @@ export interface Task {
   position: number
   created_by: string | null
   completed_at: string | null
+  property_stage: string | null
   created_at: string
   updated_at: string
   // Joined fields
@@ -159,8 +168,10 @@ export interface Document {
   name: string
   file_url: string
   file_type: string | null
+  stage: string | null
   uploaded_by: string | null
   created_at: string
+  uploader?: { id: string; full_name: string; avatar_url: string | null }
 }
 
 export type KontaktTyp =
@@ -172,6 +183,8 @@ export type KontaktTyp =
   | 'kancelaria_rozwodowa'
   | 'notariusz'
   | 'rzeczoznawca'
+  | 'komornik'
+  | 'fundusz'
 
 export const KONTAKT_TYP_LABELS: Record<KontaktTyp, string> = {
   spoldzielnia: 'Spółdzielnia',
@@ -182,6 +195,8 @@ export const KONTAKT_TYP_LABELS: Record<KontaktTyp, string> = {
   kancelaria_rozwodowa: 'Kancelaria rozwodowa',
   notariusz: 'Notariusz',
   rzeczoznawca: 'Rzeczoznawca',
+  komornik: 'Komornik',
+  fundusz: 'Fundusz',
 }
 
 export const KONTAKT_TYPY: KontaktTyp[] = [
@@ -193,6 +208,8 @@ export const KONTAKT_TYPY: KontaktTyp[] = [
   'kancelaria_rozwodowa',
   'notariusz',
   'rzeczoznawca',
+  'komornik',
+  'fundusz',
 ]
 
 // Map pin colors — one distinct color per contact type
@@ -205,6 +222,8 @@ export const KONTAKT_TYP_COLORS: Record<KontaktTyp, string> = {
   kancelaria_rozwodowa:     '#be185d', // rose
   notariusz:                '#047857', // emerald
   rzeczoznawca:             '#65a30d', // lime-green
+  komornik:                 '#dc2626', // red
+  fundusz:                  '#7c3aed', // purple
 }
 
 // Color used for numbered tour pins (overrides type color)
@@ -221,6 +240,8 @@ export const TYPY_Z_PROWIZJA = new Set<KontaktTyp>([
   'kancelaria_rozwodowa',
   'notariusz',
   'rzeczoznawca',
+  'komornik',
+  'fundusz',
 ])
 
 export interface Kontakt {

@@ -62,5 +62,27 @@ export async function POST(req: NextRequest) {
     include: includeRelations,
   })
 
+  // Notify all managers and admins about the new lead
+  try {
+    const managers = await prisma.profile.findMany({
+      where: { role: { in: ['admin', 'manager'] } },
+      select: { id: true },
+    })
+    const recipients = managers.filter(m => m.id !== user.id)
+    if (recipients.length > 0) {
+      await prisma.notification.createMany({
+        data: recipients.map(m => ({
+          user_id:      m.id,
+          from_user_id: user.id,
+          type:         'new_lead',
+          title:        'Nowy lead',
+          body:         `${body.name.trim()}${body.location ? ` — ${body.location}` : ''}`,
+          link:         '/leady',
+          reference_id: lead.id,
+        })),
+      })
+    }
+  } catch { /* non-critical */ }
+
   return NextResponse.json(serialize(lead), { status: 201 })
 }
