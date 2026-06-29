@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic'
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Edit, Clock, User, Phone, Plus, CheckCircle, Circle, Trash2, Tag, Home, BookOpen, Layers, FileText, ExternalLink, Square, CheckSquare, Building2, Compass } from 'lucide-react'
+import { ArrowLeft, Edit, Clock, User, Phone, Plus, CheckCircle, Circle, Trash2, Tag, Home, BookOpen, Layers, FileText, ExternalLink, Square, CheckSquare, Building2, Compass, BarChart2 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { useProperties } from '@/hooks/useProperties'
 import { useTasks } from '@/hooks/useTasks'
@@ -23,6 +23,7 @@ import type { Property, Task, Document } from '@/types/database'
 import type { Calc1Input, Calc2Input } from '@/lib/calculator'
 import { STAGE_TASK_TEMPLATES, getStageLabel, DEAL_TYPE_LABELS } from '@/lib/stages'
 import type { DealType } from '@/types/database'
+import { AgentReport } from '@/components/properties/AgentReport'
 
 const CHECKLIST_INFO = [
   'Zweryfikowana KW', 'Kontakt z właścicielem', 'Rzut planu / metraż',
@@ -61,7 +62,7 @@ export default function PropertyDetailPage() {
 
   const [property, setProperty] = useState<Property | null>(null)
   const [loadingProp, setLoadingProp] = useState(true)
-  const [activeTab, setActiveTab] = useState<'calc' | 'tasks' | 'docs' | 'checklist' | 'log'>('tasks')
+  const [activeTab, setActiveTab] = useState<'calc' | 'tasks' | 'docs' | 'checklist' | 'log' | 'report'>('tasks')
   const [showEditModal, setShowEditModal] = useState(false)
   const [newTaskTitle, setNewTaskTitle] = useState('')
   const [showTemplates, setShowTemplates] = useState(false)
@@ -412,6 +413,7 @@ export default function PropertyDetailPage() {
           { key: 'tasks', label: `Zadania (${tasks.length})` },
           { key: 'docs', label: `Dokumenty (${documents.length})` },
           { key: 'checklist', label: `Checklista (${checkedItems.size}/${CHECKLIST_INFO.length + CHECKLIST_DOCS.length})` },
+          { key: 'report', label: 'Raport agenta' },
           { key: 'log', label: 'Historia' },
         ] as const).map(tab => (
           <button
@@ -709,6 +711,10 @@ export default function PropertyDetailPage() {
             Resetuj checklistę
           </button>
         </div>
+      )}
+
+      {activeTab === 'report' && (
+        <AgentReport property={property} />
       )}
 
       {activeTab === 'log' && (
