@@ -299,6 +299,9 @@ export default function PropertyDetailPage() {
             <User size={14} className="text-limona-text-muted" />
             <Avatar name={property.assignee.full_name} size="sm" />
             <span className="text-limona-text">{property.assignee.full_name}</span>
+            {property.co_assignees && property.co_assignees.length > 0 && (
+              <span className="text-xs text-limona-text-dim">+{property.co_assignees.length}</span>
+            )}
           </div>
         )}
         <div className="flex items-center gap-2">

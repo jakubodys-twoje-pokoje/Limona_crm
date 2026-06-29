@@ -10,6 +10,11 @@ interface KontaktOption {
   typ: string
 }
 
+interface UserOption {
+  id: string
+  full_name: string
+}
+
 interface PropertyFormProps {
   initial?: Partial<Property>
   onSubmit: (data: Partial<Property>) => Promise<void>
@@ -78,6 +83,8 @@ export function PropertyForm({ initial = {}, onSubmit, onCancel, submitLabel = '
   const [loading, setLoading] = useState(false)
   const [kontakty, setKontakty] = useState<KontaktOption[]>([])
   const [kontaktSearch, setKontaktSearch] = useState('')
+  const [users, setUsers] = useState<UserOption[]>([])
+  const [coAssignees, setCoAssignees] = useState<string[]>(initial.co_assignees || [])
 
   useEffect(() => {
     fetch('/api/kontakty?limit=500')
@@ -85,6 +92,10 @@ export function PropertyForm({ initial = {}, onSubmit, onCancel, submitLabel = '
       .then((data: Array<{ id: string; nazwa: string; typ?: string }>) => {
         setKontakty(data.map(k => ({ id: k.id, nazwa: k.nazwa, typ: k.typ || '' })))
       })
+      .catch(() => {})
+    fetch('/api/profiles')
+      .then(r => r.json())
+      .then((data: UserOption[]) => setUsers(data))
       .catch(() => {})
   }, [])
 
@@ -138,6 +149,7 @@ export function PropertyForm({ initial = {}, onSubmit, onCancel, submitLabel = '
         balkon_metraz: form.balkon_metraz ? parseFloat(form.balkon_metraz) : null,
         strony_swiata: form.strony_swiata || null,
         operat_szacunkowy: form.operat_szacunkowy ? parseFloat(form.operat_szacunkowy) : null,
+        co_assignees: coAssignees,
       }
       await onSubmit(data)
     } finally {
@@ -263,6 +275,37 @@ export function PropertyForm({ initial = {}, onSubmit, onCancel, submitLabel = '
               placeholder="https://trello.com/..."
             />
           </div>
+          {users.length > 0 && (
+            <div className="md:col-span-2">
+              <label className="limona-label block mb-2">Dodatkowi opiekunowie</label>
+              <div className="flex flex-wrap gap-2">
+                {users.map(u => {
+                  const checked = coAssignees.includes(u.id)
+                  return (
+                    <button
+                      key={u.id}
+                      type="button"
+                      onClick={() => setCoAssignees(prev =>
+                        checked ? prev.filter(id => id !== u.id) : [...prev, u.id]
+                      )}
+                      className={`px-3 py-1.5 rounded text-xs border transition-colors ${
+                        checked
+                          ? 'border-limona-lime bg-limona-lime/15 text-limona-lime'
+                          : 'border-limona-border text-limona-text-muted hover:border-limona-text-muted'
+                      }`}
+                    >
+                      {u.full_name}
+                    </button>
+                  )
+                })}
+              </div>
+              {coAssignees.length > 0 && (
+                <p className="text-xs text-limona-text-dim mt-1">
+                  {coAssignees.length} wybranych
+                </p>
+              )}
+            </div>
+          )}
           <div className="md:col-span-2">
             <label className="limona-label block mb-2">Powiązany kontakt</label>
             <input
