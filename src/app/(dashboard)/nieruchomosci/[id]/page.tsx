@@ -61,7 +61,7 @@ export default function PropertyDetailPage() {
 
   const [property, setProperty] = useState<Property | null>(null)
   const [loadingProp, setLoadingProp] = useState(true)
-  const [activeTab, setActiveTab] = useState<'calc' | 'tasks' | 'docs' | 'checklist' | 'log'>('calc')
+  const [activeTab, setActiveTab] = useState<'calc' | 'tasks' | 'docs' | 'checklist' | 'log'>('tasks')
   const [showEditModal, setShowEditModal] = useState(false)
   const [newTaskTitle, setNewTaskTitle] = useState('')
   const [showTemplates, setShowTemplates] = useState(false)
@@ -409,7 +409,6 @@ export default function PropertyDetailPage() {
 
       <div className="flex gap-1 border-b border-limona-border overflow-x-auto">
         {([
-          { key: 'calc', label: 'Kalkulator' },
           { key: 'tasks', label: `Zadania (${tasks.length})` },
           { key: 'docs', label: `Dokumenty (${documents.length})` },
           { key: 'checklist', label: `Checklista (${checkedItems.size}/${CHECKLIST_INFO.length + CHECKLIST_DOCS.length})` },

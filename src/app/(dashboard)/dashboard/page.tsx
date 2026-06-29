@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic'
 
 import { useMemo } from 'react'
 import Link from 'next/link'
-import { Building2, Calculator, ListTodo, Clock, CheckCircle, AlertCircle, Plus, Inbox, ArrowRight, MessageSquare, Bell } from 'lucide-react'
+import { Building2, ListTodo, Clock, CheckCircle, AlertCircle, Plus, Inbox, ArrowRight, MessageSquare, Bell } from 'lucide-react'
 import { useProperties } from '@/hooks/useProperties'
 import { useTasks } from '@/hooks/useTasks'
 import { useLeads } from '@/hooks/useLeads'

@@ -3,7 +3,6 @@
 export const dynamic = 'force-dynamic'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { useProperties } from '@/hooks/useProperties'
 import { useAuth } from '@/hooks/useAuth'
 import { useVisibleUserIds } from '@/hooks/useTeamVisibility'
@@ -14,7 +13,6 @@ import { useToast } from '@/components/ui/Toast'
 import type { Property } from '@/types/database'
 
 export default function NieruchomosciPage() {
-  const router = useRouter()
   const { user, profile } = useAuth()
   const { visibleIds } = useVisibleUserIds(user?.id, profile?.role)
   const { properties, loading, createProperty, updateProperty, deleteProperty } = useProperties(visibleIds)
@@ -73,8 +71,7 @@ export default function NieruchomosciPage() {
         <PropertiesTable
           properties={properties}
           loading={loading}
-          onAddWithCalc={() => router.push('/kalkulator')}
-          onAddWithoutCalc={() => setShowAddModal(true)}
+          onAdd={() => setShowAddModal(true)}
           onEdit={setEditProperty}
           onDelete={setDeleteConfirm}
         />
