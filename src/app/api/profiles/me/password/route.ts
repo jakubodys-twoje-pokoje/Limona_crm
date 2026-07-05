@@ -1,8 +1,7 @@
 export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { createClient } from '@/lib/supabase/server'
 import { getSessionUser, unauthorized } from '@/lib/api-auth'
-import bcrypt from 'bcryptjs'
 
 export async function POST(req: NextRequest) {
   const user = await getSessionUser()
@@ -13,11 +12,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Hasło musi mieć minimum 6 znaków' }, { status: 400 })
   }
 
-  const hashed = await bcrypt.hash(newPassword, 12)
-  await prisma.profile.update({
-    where: { id: user.id },
-    data: { password: hashed },
-  })
+  const supabase = createClient()
+  const { error } = await supabase.auth.updateUser({ password: newPassword })
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   return NextResponse.json({ ok: true })
 }

@@ -1,7 +1,7 @@
 'use client'
 
-import { createContext, useContext, useMemo, useCallback } from 'react'
-import { useSession, signIn as nextAuthSignIn, signOut as nextAuthSignOut } from 'next-auth/react'
+import { createContext, useContext, useEffect, useMemo, useState, useCallback } from 'react'
+import { createClient } from '@/lib/supabase/client'
 
 interface Profile {
   id: string
@@ -32,38 +32,59 @@ export function useAuth() {
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const { data: session, status } = useSession()
-  const loading = status === 'loading'
+  const supabase = useMemo(() => createClient(), [])
+  const [user, setUser] = useState<{ id: string; email: string } | null>(null)
+  const [profile, setProfile] = useState<Profile | null>(null)
+  const [loading, setLoading] = useState(true)
 
-  const user = useMemo(() => {
-    if (!session?.user) return null
-    return { id: session.user.id, email: session.user.email || '' }
-  }, [session])
+  useEffect(() => {
+    let cancelled = false
 
-  const profile = useMemo((): Profile | null => {
-    if (!session?.user) return null
-    return {
-      id: session.user.id,
-      full_name: session.user.name || '',
-      avatar_url: session.user.avatar_url,
-      role: session.user.role,
-      email: session.user.email || '',
+    async function loadUser(sessionUser: { id: string; email?: string } | null) {
+      if (!sessionUser) {
+        if (!cancelled) {
+          setUser(null)
+          setProfile(null)
+          setLoading(false)
+        }
+        return
+      }
+      if (!cancelled) {
+        setUser({ id: sessionUser.id, email: sessionUser.email || '' })
+      }
+      try {
+        const res = await fetch('/api/profiles/me')
+        if (res.ok && !cancelled) setProfile(await res.json())
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
     }
-  }, [session])
+
+    supabase.auth.getSession().then(({ data }) => {
+      loadUser(data.session?.user ?? null)
+    })
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      // TOKEN_REFRESHED nie zmienia usera — bez ponownego fetchu profilu
+      if (event === 'TOKEN_REFRESHED') return
+      loadUser(session?.user ?? null)
+    })
+
+    return () => {
+      cancelled = true
+      subscription.unsubscribe()
+    }
+  }, [supabase])
 
   const signIn = useCallback(async (email: string, password: string) => {
-    const result = await nextAuthSignIn('credentials', {
-      email,
-      password,
-      redirect: false,
-    })
-    if (result?.error) return { error: 'Nieprawidłowy email lub hasło' }
+    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    if (error) return { error: 'Nieprawidłowy email lub hasło' }
     return { error: null }
-  }, [])
+  }, [supabase])
 
   const signOut = useCallback(async () => {
-    await nextAuthSignOut({ redirect: false })
-  }, [])
+    await supabase.auth.signOut()
+  }, [supabase])
 
   const value = useMemo(() => ({
     user, profile, loading, signIn, signOut,

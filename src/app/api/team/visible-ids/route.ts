@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic'
 import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { createClient } from '@/lib/supabase/server'
 import { getSessionUser, unauthorized } from '@/lib/api-auth'
 
 export async function GET() {
@@ -13,11 +13,13 @@ export async function GET() {
   }
 
   // Fetch who this user manages
-  const rules = await prisma.teamVisibility.findMany({
-    where: { manager_id: user.id },
-    select: { member_id: true },
-  })
+  const supabase = createClient()
+  const { data: rules, error } = await supabase
+    .from('team_visibility')
+    .select('member_id')
+    .eq('manager_id', user.id)
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  const visibleIds = [user.id, ...rules.map(r => r.member_id)]
+  const visibleIds = [user.id, ...(rules ?? []).map(r => r.member_id)]
   return NextResponse.json({ visibleIds })
 }

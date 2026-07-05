@@ -1,28 +1,33 @@
 export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { createClient } from '@/lib/supabase/server'
 import { getSessionUser, unauthorized } from '@/lib/api-auth'
-import { serialize } from '@/lib/serialize'
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const user = await getSessionUser()
   if (!user) return unauthorized()
+  const supabase = createClient()
 
   const body = await req.json()
-  if (body.status === 'done') body.completed_at = new Date()
+  if (body.status === 'done') body.completed_at = new Date().toISOString()
 
-  const task = await prisma.task.update({
-    where: { id: params.id },
-    data: body,
-  })
+  const { data: task, error } = await supabase
+    .from('tasks')
+    .update(body)
+    .eq('id', params.id)
+    .select('*')
+    .single()
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  return NextResponse.json(serialize(task))
+  return NextResponse.json(task)
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
   const user = await getSessionUser()
   if (!user) return unauthorized()
+  const supabase = createClient()
 
-  await prisma.task.delete({ where: { id: params.id } })
+  const { error } = await supabase.from('tasks').delete().eq('id', params.id)
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true })
 }

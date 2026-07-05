@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { getSessionUser, unauthorized } from '@/lib/api-auth'
 
 export async function POST(req: NextRequest) {
@@ -11,15 +12,24 @@ export async function POST(req: NextRequest) {
   if (!email) return NextResponse.json({ error: 'Email required' }, { status: 400 })
 
   // Check if email taken
-  const existing = await prisma.profile.findUnique({ where: { email } })
+  const supabase = createClient()
+  const { data: existing } = await supabase
+    .from('profiles')
+    .select('id')
+    .eq('email', email)
+    .maybeSingle()
   if (existing && existing.id !== user.id) {
     return NextResponse.json({ error: 'Ten email jest już zajęty' }, { status: 409 })
   }
 
-  await prisma.profile.update({
-    where: { id: user.id },
-    data: { email },
+  // Email zmieniany w auth.users przez admin API (bez maila potwierdzającego,
+  // jak przed migracją); trigger w bazie synchronizuje profiles.email.
+  const admin = createAdminClient()
+  const { error } = await admin.auth.admin.updateUserById(user.id, {
+    email,
+    email_confirm: true,
   })
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   return NextResponse.json({ ok: true })
 }

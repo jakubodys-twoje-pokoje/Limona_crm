@@ -1,17 +1,16 @@
 export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { createClient } from '@/lib/supabase/server'
 import { getSessionUser, unauthorized } from '@/lib/api-auth'
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const user = await getSessionUser()
   if (!user) return unauthorized()
+  const supabase = createClient()
 
   const body = await req.json()
-  await prisma.wallMessage.update({
-    where: { id: params.id },
-    data: body,
-  })
+  const { error } = await supabase.from('wall_messages').update(body).eq('id', params.id)
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   return NextResponse.json({ ok: true })
 }
@@ -19,7 +18,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
   const user = await getSessionUser()
   if (!user) return unauthorized()
+  const supabase = createClient()
 
-  await prisma.wallMessage.delete({ where: { id: params.id } })
+  const { error } = await supabase.from('wall_messages').delete().eq('id', params.id)
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true })
 }

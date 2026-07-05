@@ -1,54 +1,57 @@
 export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { createClient } from '@/lib/supabase/server'
 import { getSessionUser, unauthorized } from '@/lib/api-auth'
-import { serialize } from '@/lib/serialize'
 
-const includeRelations = {
-  creator: { select: { id: true, full_name: true, avatar_url: true } },
-  assignee: { select: { id: true, full_name: true, avatar_url: true } },
-}
+const SELECT_WITH_RELATIONS = `*,
+  creator:profiles!properties_created_by_fkey(id,full_name,avatar_url),
+  assignee:profiles!properties_assigned_to_fkey(id,full_name,avatar_url)`
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   const user = await getSessionUser()
   if (!user) return unauthorized()
+  const supabase = createClient()
 
-  const property = await prisma.property.findUnique({
-    where: { id: params.id },
-    include: includeRelations,
-  })
+  const { data: property } = await supabase
+    .from('properties')
+    .select(SELECT_WITH_RELATIONS)
+    .eq('id', params.id)
+    .maybeSingle()
 
   if (!property) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-  return NextResponse.json(serialize(property))
+  return NextResponse.json(property)
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const user = await getSessionUser()
   if (!user) return unauthorized()
+  const supabase = createClient()
 
   const body = await req.json()
-  const property = await prisma.property.update({
-    where: { id: params.id },
-    data: body,
-    include: includeRelations,
+  const { data: property, error } = await supabase
+    .from('properties')
+    .update(body)
+    .eq('id', params.id)
+    .select(SELECT_WITH_RELATIONS)
+    .single()
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  await supabase.from('activity_log').insert({
+    property_id: params.id,
+    user_id: user.id,
+    action: 'updated',
+    details: body,
   })
 
-  await prisma.activityLog.create({
-    data: {
-      property_id: params.id,
-      user_id: user.id,
-      action: 'updated',
-      details: body,
-    },
-  })
-
-  return NextResponse.json(serialize(property))
+  return NextResponse.json(property)
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
   const user = await getSessionUser()
   if (!user) return unauthorized()
+  const supabase = createClient()
 
-  await prisma.property.delete({ where: { id: params.id } })
+  const { error } = await supabase.from('properties').delete().eq('id', params.id)
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true })
 }

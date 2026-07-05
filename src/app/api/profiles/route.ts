@@ -1,17 +1,18 @@
 export const dynamic = 'force-dynamic'
 import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { createClient } from '@/lib/supabase/server'
 import { getSessionUser, unauthorized } from '@/lib/api-auth'
-import { serialize } from '@/lib/serialize'
 
 export async function GET() {
   const user = await getSessionUser()
   if (!user) return unauthorized()
+  const supabase = createClient()
 
-  const profiles = await prisma.profile.findMany({
-    select: { id: true, full_name: true, avatar_url: true, role: true, email: true, created_at: true, updated_at: true },
-    orderBy: { full_name: 'asc' },
-  })
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, full_name, avatar_url, role, email, created_at, updated_at')
+    .order('full_name', { ascending: true })
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  return NextResponse.json(serialize(profiles))
+  return NextResponse.json(data)
 }
