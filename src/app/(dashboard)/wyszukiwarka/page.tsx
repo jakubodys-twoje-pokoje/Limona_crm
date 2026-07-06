@@ -2,7 +2,8 @@
 
 export const dynamic = 'force-dynamic'
 
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import {
   Search, ExternalLink, Phone, Mail, Building, User, MapPin,
   Save, Trash2, Clock, ChevronDown, ChevronUp, Loader2,
@@ -11,6 +12,13 @@ import { useAuth } from '@/hooks/useAuth'
 import { useToast } from '@/components/ui/Toast'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { cn } from '@/lib/utils'
+
+// Moduł wyłączony z użytku — niedostępny nawet po bezpośrednim wejściu w URL.
+function ModuleDisabledRedirect() {
+  const router = useRouter()
+  useEffect(() => { router.replace('/dashboard') }, [router])
+  return null
+}
 
 interface KrsEntity {
   name: string
@@ -62,6 +70,10 @@ interface SavedQuery {
 }
 
 export default function WyszukiwarkaPage() {
+  return <ModuleDisabledRedirect />
+}
+
+function WyszukiwarkaPageContent() {
   const { user } = useAuth()
   const { showToast } = useToast()
 
