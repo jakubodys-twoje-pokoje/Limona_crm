@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getSessionUser, unauthorized, forbidden } from '@/lib/api-auth'
+import { canManageTeams } from '@/lib/roles'
 
 export async function GET() {
   const user = await getSessionUser()
@@ -22,7 +23,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const user = await getSessionUser()
   if (!user) return unauthorized()
-  if (user.role !== 'admin') return forbidden()
+  if (!canManageTeams(user.role)) return forbidden()
   const supabase = await createClient()
 
   const { managerId, memberId } = await req.json()

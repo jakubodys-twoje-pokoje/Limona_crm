@@ -3,19 +3,34 @@
 export const dynamic = 'force-dynamic'
 
 import { useState } from 'react'
-import { Users, Plus, Trash2, ArrowRight, Shield, Eye } from 'lucide-react'
+import { Users, Plus, Trash2, ArrowRight, Shield, Eye, UserX } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { useTeamVisibility } from '@/hooks/useTeamVisibility'
 import { useToast } from '@/components/ui/Toast'
 import { Avatar } from '@/components/ui/Avatar'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { cn } from '@/lib/utils'
+import { canManageTeams, ROLE_LABELS } from '@/lib/roles'
+import type { UserRole } from '@/types/database'
+
+const ROLE_BADGE_STYLE: Record<UserRole, string> = {
+  admin: 'bg-limona-lime/20 text-limona-lime',
+  kierownik_centrali: 'bg-limona-blue/20 text-limona-blue',
+  manager: 'bg-limona-yellow/20 text-limona-yellow',
+  user: 'bg-limona-border text-limona-text-muted',
+  viewer: 'bg-limona-border text-limona-text-dim',
+}
+
+function roleBadge(role: string) {
+  const key = (role as UserRole) in ROLE_LABELS ? (role as UserRole) : 'user'
+  return { label: ROLE_LABELS[key], style: ROLE_BADGE_STYLE[key] }
+}
 
 export default function ZespolPage() {
   const { user, profile } = useAuth()
   const { rules, profiles, loading, addRule, removeRule } = useTeamVisibility()
   const { showToast } = useToast()
-  const isAdmin = profile?.role === 'admin'
+  const canManage = canManageTeams(profile?.role)
 
   const [managerId, setManagerId] = useState('')
   const [memberId, setMemberId] = useState('')
@@ -53,6 +68,10 @@ export default function ZespolPage() {
     return acc
   }, {})
 
+  const managerIds = new Set(Object.keys(byManager))
+  const memberIds = new Set(rules.map(r => r.member_id))
+  const unassigned = profiles.filter(p => p.role !== 'admin' && !managerIds.has(p.id) && !memberIds.has(p.id))
+
   return (
     <div className="space-y-6 max-w-3xl">
       {/* Header */}
@@ -60,27 +79,43 @@ export default function ZespolPage() {
         <span className="limona-eyebrow">Administracja</span>
         <h1 className="limona-heading text-3xl mt-1">Zespół</h1>
         <p className="text-limona-text-muted text-sm mt-1">
-          Zarządzaj widocznością zadań — kto widzi czyje zadania
+          Kto jest kierownikiem czego — zarządzaj grupami i widocznością zadań
         </p>
       </div>
 
-      {!isAdmin && (
+      {!canManage && (
         <div className="limona-card p-6 text-center border-l-[3px] border-l-limona-red">
           <Shield size={32} className="text-limona-red mx-auto mb-3" />
-          <p className="text-limona-text">Tylko administrator może zarządzać zespołem.</p>
+          <p className="text-limona-text">Tylko administrator lub kierownik centrali może zarządzać zespołem.</p>
           <p className="text-limona-text-muted text-sm mt-1">
-            Twoja rola: <span className="text-limona-white">{profile?.role || 'user'}</span>
+            Twoja rola: <span className="text-limona-white">{roleBadge(profile?.role || 'user').label}</span>
           </p>
         </div>
       )}
 
-      {isAdmin && (
+      {canManage && (
         <>
+          {/* Summary stats */}
+          <div className="grid grid-cols-3 gap-3">
+            <div className="limona-card p-4 text-center">
+              <p className="text-2xl font-bold text-limona-white">{profiles.length}</p>
+              <p className="text-[10px] uppercase tracking-wider text-limona-text-muted mt-1">Użytkowników</p>
+            </div>
+            <div className="limona-card p-4 text-center">
+              <p className="text-2xl font-bold text-limona-yellow">{managerIds.size}</p>
+              <p className="text-[10px] uppercase tracking-wider text-limona-text-muted mt-1">Zespołów / kierowników</p>
+            </div>
+            <div className="limona-card p-4 text-center">
+              <p className="text-2xl font-bold text-limona-red">{unassigned.length}</p>
+              <p className="text-[10px] uppercase tracking-wider text-limona-text-muted mt-1">Nieprzypisanych</p>
+            </div>
+          </div>
+
           {/* Info */}
           <div className="limona-card-accent p-4">
             <h3 className="text-sm font-medium text-limona-white mb-2">Jak działa widoczność zadań?</h3>
             <ul className="text-xs text-limona-text-muted space-y-1">
-              <li><span className="text-limona-lime">Admin</span> — widzi zadania wszystkich</li>
+              <li><span className="text-limona-lime">Admin</span> i <span className="text-limona-blue">Kierownik centrali</span> — widzą zadania wszystkich (ewaluacja org-wide)</li>
               <li><span className="text-limona-yellow">Manager</span> — widzi swoje + zadania przypisanych członków</li>
               <li><span className="text-limona-text">Pracownik</span> — widzi tylko swoje zadania</li>
             </ul>
@@ -150,31 +185,36 @@ export default function ZespolPage() {
               <p className="text-limona-text-muted text-center py-6">Brak użytkowników</p>
             ) : (
               <div className="space-y-2">
-                {profiles.map(p => (
-                  <div key={p.id} className="flex items-center gap-3 p-2 rounded bg-limona-surface-2/30">
-                    <Avatar name={p.full_name} url={p.avatar_url} size="sm" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm text-limona-white truncate">{p.full_name}</p>
-                      <p className="text-xs text-limona-text-dim">{p.id.slice(0, 8)}...</p>
+                {profiles.map(p => {
+                  const badge = roleBadge(p.role)
+                  return (
+                    <div key={p.id} className="flex items-center gap-3 p-2 rounded bg-limona-surface-2/30">
+                      <Avatar name={p.full_name} url={p.avatar_url} size="sm" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-limona-white truncate">{p.full_name}</p>
+                        <p className="text-xs text-limona-text-dim">{p.id.slice(0, 8)}...</p>
+                      </div>
+                      {managerIds.has(p.id) && (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wider font-bold bg-limona-surface-2 text-limona-text-dim">
+                          Kierownik zespołu
+                        </span>
+                      )}
+                      <span className={cn('text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wider font-bold', badge.style)}>
+                        {badge.label}
+                      </span>
                     </div>
-                    <span className={cn(
-                      'text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wider font-bold',
-                      p.role === 'admin' ? 'bg-limona-lime/20 text-limona-lime' : 'bg-limona-border text-limona-text-muted'
-                    )}>
-                      {p.role}
-                    </span>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             )}
           </div>
 
-          {/* Current visibility rules */}
+          {/* Current visibility rules — kto jest kierownikiem czego */}
           <div className="limona-card p-4">
             <h3 className="limona-eyebrow mb-4">
               <span className="flex items-center gap-2">
                 <Eye size={14} />
-                Reguły widoczności ({rules.length})
+                Kto jest kierownikiem czego ({managerIds.size} {managerIds.size === 1 ? 'zespół' : 'zespoły'})
               </span>
             </h3>
             {loading ? (
@@ -188,6 +228,7 @@ export default function ZespolPage() {
               <div className="space-y-3">
                 {Object.entries(byManager).map(([mgrId, mgrRules]) => {
                   const mgr = mgrRules[0]?.manager
+                  const badge = roleBadge(mgr?.role || 'manager')
                   return (
                     <div key={mgrId} className="limona-card p-3 border-l-[3px] border-l-limona-yellow">
                       <div className="flex items-center gap-2 mb-2">
@@ -195,7 +236,12 @@ export default function ZespolPage() {
                         <span className="text-sm font-medium text-limona-white">
                           {mgr?.full_name || mgrId.slice(0, 8)}
                         </span>
-                        <span className="text-[10px] text-limona-yellow uppercase tracking-wider font-bold">Manager</span>
+                        <span className={cn('text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wider font-bold', badge.style)}>
+                          {badge.label}
+                        </span>
+                        <span className="text-[10px] text-limona-text-dim uppercase tracking-wider">
+                          {mgrRules.length} {mgrRules.length === 1 ? 'osoba' : 'osób'}
+                        </span>
                       </div>
                       <div className="pl-9 space-y-1">
                         <p className="text-[10px] text-limona-text-dim uppercase tracking-wider mb-1">Widzi zadania:</p>
@@ -224,6 +270,32 @@ export default function ZespolPage() {
               </div>
             )}
           </div>
+
+          {/* Unassigned — nie są ani kierownikiem, ani członkiem żadnej grupy */}
+          {!loading && unassigned.length > 0 && (
+            <div className="limona-card p-4 border-l-[3px] border-l-limona-red">
+              <h3 className="limona-eyebrow mb-4">
+                <span className="flex items-center gap-2">
+                  <UserX size={14} />
+                  Bez przypisania do zespołu ({unassigned.length})
+                </span>
+              </h3>
+              <div className="space-y-2">
+                {unassigned.map(p => {
+                  const badge = roleBadge(p.role)
+                  return (
+                    <div key={p.id} className="flex items-center gap-3 p-2 rounded bg-limona-surface-2/30">
+                      <Avatar name={p.full_name} url={p.avatar_url} size="sm" />
+                      <span className="text-sm text-limona-white flex-1 truncate">{p.full_name}</span>
+                      <span className={cn('text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wider font-bold', badge.style)}>
+                        {badge.label}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>

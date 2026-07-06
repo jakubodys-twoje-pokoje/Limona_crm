@@ -3,7 +3,8 @@
 export const dynamic = 'force-dynamic'
 
 import { useState, useEffect, useRef, useMemo } from 'react'
-import { Plus, Calendar, Link as LinkIcon, Trash2, CheckCircle, Clock, AlertCircle, XCircle, X } from 'lucide-react'
+import Link from 'next/link'
+import { Plus, Calendar, CalendarDays, Link as LinkIcon, Trash2, CheckCircle, Clock, AlertCircle, XCircle, X } from 'lucide-react'
 import { useTasks } from '@/hooks/useTasks'
 import { useBoards } from '@/hooks/useBoards'
 import { useAuth } from '@/hooks/useAuth'
@@ -15,7 +16,6 @@ import { Modal } from '@/components/ui/Modal'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { TaskDetailModal } from '@/components/tasks/TaskDetailModal'
 import { BoardView, BOARD_COLORS } from '@/components/tasks/BoardView'
-import { CalendarView } from '@/components/tasks/CalendarView'
 import { TASK_TYPE_LABELS, CONTACT_CATEGORY_LABELS } from '@/lib/reports'
 import { cn } from '@/lib/utils'
 import type { Task, TaskStatus, TaskPriority, TaskType, ContactCategory, Profile } from '@/types/database'
@@ -76,12 +76,9 @@ export default function ZadaniaPage() {
   // For Ogólne mode, pass 'none' so tasks API filters board_id IS NULL
   const boardIdFilter = selectedBoardId === null ? 'none' : selectedBoardId
   const { tasks, loading, createTask, updateTask, deleteTask } = useTasks(undefined, visibleIds, boardIdFilter)
-  // Kalendarz agreguje WSZYSTKIE tablice naraz — niezależnie od aktywnej
-  // zakładki kanbanu (boardId pominięty = brak filtra po stronie API)
-  const { tasks: allBoardsTasks, loading: allBoardsLoading } = useTasks(undefined, visibleIds)
   const { showToast } = useToast()
 
-  const [view, setView] = useState<'kanban' | 'list' | 'calendar'>('kanban')
+  const [view, setView] = useState<'kanban' | 'list'>('kanban')
   const [showAddModal, setShowAddModal] = useState(false)
   const [addStatus, setAddStatus] = useState<TaskStatus>('todo')
   const [form, setForm] = useState<TaskFormData>({ ...EMPTY_FORM })
@@ -281,9 +278,8 @@ export default function ZadaniaPage() {
         <div className="flex items-center gap-3">
           <div className="flex gap-1 p-1 bg-limona-surface rounded">
             {([
-              { key: 'kanban',   label: 'Kanban'     },
-              { key: 'list',     label: 'Lista'      },
-              { key: 'calendar', label: 'Kalendarz'  },
+              { key: 'kanban', label: 'Kanban' },
+              { key: 'list',   label: 'Lista'   },
             ] as const).map(v => (
               <button key={v.key} onClick={() => setView(v.key)}
                 className={`px-3 py-1.5 rounded text-xs font-bold uppercase tracking-wider transition-all ${view === v.key ? 'bg-limona-lime text-black' : 'text-limona-text-muted hover:text-limona-white'}`}>
@@ -291,6 +287,10 @@ export default function ZadaniaPage() {
               </button>
             ))}
           </div>
+          <Link href="/zadania/kalendarz" className="limona-btn-outline px-4 py-2 text-xs flex items-center gap-2">
+            <CalendarDays size={14} />
+            Kalendarz
+          </Link>
           <button onClick={() => openAdd('todo')} className="limona-btn-sm flex items-center gap-2">
             <Plus size={14} />
             Dodaj
@@ -397,16 +397,6 @@ export default function ZadaniaPage() {
             </tbody>
           </table>
         </div>
-      )}
-
-      {/* Calendar View — agreguje zadania ze wszystkich tablic, nie tylko aktywnej zakładki */}
-      {view === 'calendar' && (
-        <CalendarView
-          tasks={allBoardsTasks}
-          loading={allBoardsLoading}
-          profiles={profiles}
-          onOpenTask={setSelectedTask}
-        />
       )}
 
       {/* Add Modal */}

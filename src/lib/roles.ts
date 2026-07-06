@@ -11,6 +11,15 @@ export function canSeeAllTeams(role: UserRole | string | undefined): boolean {
   return role === 'admin' || role === 'manager' || role === 'kierownik_centrali'
 }
 
+/**
+ * Kto może zarządzać regułami team_visibility (tworzyć/usuwać przypisania
+ * manager↔członek). Celowo węższe niż canSeeAllTeams — zwykły manager jest
+ * podmiotem tych reguł, a nie osobą je układającą.
+ */
+export function canManageTeams(role: UserRole | string | undefined): boolean {
+  return role === 'admin' || role === 'kierownik_centrali'
+}
+
 export const ROLE_LABELS: Record<UserRole, string> = {
   admin: 'Admin',
   kierownik_centrali: 'Kierownik centrali',

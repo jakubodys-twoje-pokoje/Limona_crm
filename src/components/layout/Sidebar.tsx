@@ -1,19 +1,25 @@
 'use client'
 
-import { memo } from 'react'
+import { memo, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Building2, ListTodo, MessageSquare, Users, UserCog, User, LogOut, BookUser, MapPin, Inbox } from 'lucide-react'
+import { LayoutDashboard, Building2, ListTodo, MessageSquare, Users, UserCog, User, LogOut, BookUser, MapPin, Inbox, CalendarDays, ChevronDown } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { useWallContext } from '@/hooks/useWallProvider'
 import { NotificationBell } from '@/components/ui/NotificationBell'
 import { Avatar } from '@/components/ui/Avatar'
 import { cn } from '@/lib/utils'
 
-const navItems = [
+interface NavChild { href: string; icon: typeof ListTodo; label: string }
+interface NavItem { href: string; icon: typeof ListTodo; label: string; showCounter?: boolean; children?: NavChild[] }
+
+const navItems: NavItem[] = [
   { href: '/dashboard',    icon: LayoutDashboard, label: 'Dashboard' },
   { href: '/komunikacja',  icon: MessageSquare,   label: 'Komunikacja', showCounter: true },
-  { href: '/zadania',      icon: ListTodo,        label: 'Zadania' },
+  { href: '/zadania',      icon: ListTodo,        label: 'Zadania', children: [
+    { href: '/zadania',           icon: ListTodo,     label: 'Kanban' },
+    { href: '/zadania/kalendarz', icon: CalendarDays, label: 'Kalendarz' },
+  ] },
   { href: '/kontakty',     icon: BookUser,        label: 'Baza kontaktów' },
   { href: '/nieruchomosci',icon: Building2,       label: 'Nieruchomości' },
   { href: '/leady',        icon: Inbox,           label: 'Leady' },
@@ -21,7 +27,7 @@ const navItems = [
   { href: '/zespol',       icon: Users,           label: 'Zespół' },
 ]
 
-const adminItems = [
+const adminItems: NavItem[] = [
   { href: '/admin', icon: UserCog, label: 'Użytkownicy' },
 ]
 
@@ -30,6 +36,7 @@ export const Sidebar = memo(function Sidebar() {
   const { user, profile, signOut } = useAuth()
   const { unreadCount } = useWallContext()
   const isAdmin = profile?.role === 'admin'
+  const [manuallyToggled, setManuallyToggled] = useState<Record<string, boolean>>({})
 
   const allItems = [...navItems, ...(isAdmin ? adminItems : [])]
 
@@ -51,8 +58,47 @@ export const Sidebar = memo(function Sidebar() {
       {/* Navigation */}
       <nav className="flex-1 p-4 space-y-1">
         {allItems.map(item => {
+          const hasChildActive = item.children?.some(c => pathname.startsWith(c.href)) ?? false
           const isActive = pathname.startsWith(item.href)
           const counter = 'showCounter' in item && item.showCounter ? unreadCount : 0
+
+          if (item.children) {
+            const expanded = manuallyToggled[item.href] ?? hasChildActive
+            return (
+              <div key={item.href}>
+                <button
+                  type="button"
+                  onClick={() => setManuallyToggled(m => ({ ...m, [item.href]: !expanded }))}
+                  className={cn(
+                    'w-full flex items-center gap-3 px-4 py-3 rounded text-sm uppercase tracking-wider font-medium transition-all duration-200',
+                    hasChildActive ? 'text-limona-lime' : 'text-limona-text-muted hover:text-limona-white hover:bg-limona-surface-2'
+                  )}>
+                  <item.icon size={18} />
+                  <span className="flex-1 text-left">{item.label}</span>
+                  <ChevronDown size={14} className={cn('transition-transform', expanded && 'rotate-180')} />
+                </button>
+                {expanded && (
+                  <div className="ml-4 pl-3 border-l border-limona-border space-y-1 mb-1">
+                    {item.children.map(child => {
+                      const childActive = pathname === child.href || (child.href !== '/zadania' && pathname.startsWith(child.href))
+                      return (
+                        <Link key={child.href} href={child.href}
+                          className={cn(
+                            'flex items-center gap-2 px-3 py-2 rounded text-xs uppercase tracking-wider font-medium transition-all duration-200',
+                            childActive ? 'bg-limona-lime/10 text-limona-lime border-l-2 border-limona-lime'
+                              : 'text-limona-text-muted hover:text-limona-white hover:bg-limona-surface-2'
+                          )}>
+                          <child.icon size={14} />
+                          <span>{child.label}</span>
+                        </Link>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            )
+          }
+
           return (
             <Link key={item.href} href={item.href}
               className={cn(
