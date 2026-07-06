@@ -47,7 +47,7 @@ export function useTeamVisibility() {
     return { error: null }
   }
 
-  return { rules, profiles, loading, addRule, removeRule }
+  return { rules, profiles, loading, addRule, removeRule, refetch: fetchData }
 }
 
 export function useVisibleUserIds(userId: string | undefined, role: string | undefined) {

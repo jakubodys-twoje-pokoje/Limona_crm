@@ -2,14 +2,16 @@
 
 export const dynamic = 'force-dynamic'
 
-import { useState, useEffect, useCallback } from 'react'
-import { Shield, Trash2, Edit, Save, X, UserPlus, Database } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Shield, Trash2, Edit, X, UserPlus, Database, Users, UsersRound } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
+import { useTeamVisibility } from '@/hooks/useTeamVisibility'
 import { useToast } from '@/components/ui/Toast'
 import { Avatar } from '@/components/ui/Avatar'
 import { Modal } from '@/components/ui/Modal'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { cn } from '@/lib/utils'
+import { canManageTeams, ROLE_LABELS } from '@/lib/roles'
 import type { Profile, UserRole } from '@/types/database'
 
 export default function AdminPage() {
@@ -17,12 +19,17 @@ export default function AdminPage() {
   const { showToast } = useToast()
   const isAdmin = myProfile?.role === 'admin'
 
-  const [profiles, setProfiles] = useState<Profile[]>([])
-  const [loading, setLoading] = useState(true)
+  const { rules, profiles, loading, addRule, removeRule, refetch } = useTeamVisibility()
+  const canManageGroups = canManageTeams(myProfile?.role)
   const [editingUser, setEditingUser] = useState<Profile | null>(null)
   const [editForm, setEditForm] = useState({ full_name: '', role: 'user' as UserRole, avatar_url: '' })
   const [deleteConfirm, setDeleteConfirm] = useState<Profile | null>(null)
   const [saving, setSaving] = useState(false)
+
+  // Group assignment
+  const [assigningUser, setAssigningUser] = useState<Profile | null>(null)
+  const [assignManagerId, setAssignManagerId] = useState('')
+  const [assigning, setAssigning] = useState(false)
 
   // Create user form
   const [showCreateModal, setShowCreateModal] = useState(false)
@@ -57,14 +64,6 @@ export default function AdminPage() {
 
   const [missedCounts, setMissedCounts] = useState<Record<string, number>>({})
 
-  const fetchProfiles = useCallback(async () => {
-    const res = await fetch('/api/profiles')
-    if (res.ok) setProfiles(await res.json())
-    setLoading(false)
-  }, [])
-
-  useEffect(() => { fetchProfiles() }, [fetchProfiles])
-
   // Ewaluacja: potwierdzone braki raportu dziennego w bieżącym miesiącu
   useEffect(() => {
     if (!isAdmin) return
@@ -88,7 +87,7 @@ export default function AdminPage() {
     })
 
     if (!res.ok) showToast((await res.json()).error || 'Błąd', 'error')
-    else { showToast('Profil zaktualizowany', 'success'); setEditingUser(null); fetchProfiles() }
+    else { showToast('Profil zaktualizowany', 'success'); setEditingUser(null); refetch() }
     setSaving(false)
   }
 
@@ -96,8 +95,29 @@ export default function AdminPage() {
     if (!deleteConfirm) return
     const res = await fetch(`/api/profiles/${deleteConfirm.id}`, { method: 'DELETE' })
     if (!res.ok) showToast((await res.json()).error || 'Błąd', 'error')
-    else { showToast('Użytkownik usunięty', 'success'); fetchProfiles() }
+    else { showToast('Użytkownik usunięty', 'success'); refetch() }
     setDeleteConfirm(null)
+  }
+
+  function openAssign(p: Profile) {
+    setAssigningUser(p)
+    setAssignManagerId('')
+  }
+
+  async function handleAssign(e: React.FormEvent) {
+    e.preventDefault()
+    if (!assigningUser || !assignManagerId) return
+    setAssigning(true)
+    const { error } = await addRule(assignManagerId, assigningUser.id, myProfile?.id || '')
+    if (error) showToast(error, 'error')
+    else { showToast('Użytkownik przypisany do zespołu', 'success'); setAssigningUser(null) }
+    setAssigning(false)
+  }
+
+  async function handleRemoveFromGroup(ruleId: string) {
+    const { error } = await removeRule(ruleId)
+    if (error) showToast(error, 'error')
+    else showToast('Usunięto z zespołu', 'success')
   }
 
   async function handleCreateUser(e: React.FormEvent) {
@@ -113,7 +133,7 @@ export default function AdminPage() {
       showToast('Użytkownik utworzony', 'success')
       setShowCreateModal(false)
       setCreateForm({ email: '', password: '', fullName: '', role: 'user' })
-      fetchProfiles()
+      refetch()
     }
     setCreating(false)
   }
@@ -146,39 +166,74 @@ export default function AdminPage() {
         <div className="space-y-3">{[...Array(4)].map((_, i) => <Skeleton key={i} className="h-20" />)}</div>
       ) : (
         <div className="space-y-3">
-          {profiles.map(p => (
-            <div key={p.id} className="limona-card p-4 flex items-center gap-4 group">
-              <Avatar name={p.full_name} url={p.avatar_url} size="lg" />
-              <div className="flex-1 min-w-0">
-                <p className="text-base font-medium text-limona-white">{p.full_name}</p>
-                <p className="text-xs text-limona-text-dim mt-0.5 truncate">{p.id}</p>
-              </div>
-              {(missedCounts[p.id] ?? 0) > 0 && (
-                <span
-                  className="limona-badge text-[10px] bg-limona-red/15 text-limona-red whitespace-nowrap"
-                  title="Potwierdzone braki raportu dziennego w tym miesiącu"
-                >
-                  {missedCounts[p.id]} {missedCounts[p.id] === 1 ? 'brak raportu' : 'braki raportów'}
-                </span>
-              )}
-              <span className={cn(
-                'limona-badge text-[10px]',
-                p.role === 'admin' ? 'bg-limona-lime/20 text-limona-lime' : 'bg-limona-border text-limona-text-muted'
-              )}>
-                {p.role}
-              </span>
-              <div className="flex gap-1">
-                <button onClick={() => startEdit(p)} className="p-2 text-limona-text-muted hover:text-limona-lime transition-colors" title="Edytuj">
-                  <Edit size={16} />
-                </button>
-                {p.id !== myProfile?.id && (
-                  <button onClick={() => setDeleteConfirm(p)} className="p-2 text-limona-text-muted hover:text-limona-red transition-colors" title="Usuń">
-                    <Trash2 size={16} />
-                  </button>
+          {profiles.map(p => {
+            const managedRules = rules.filter(r => r.manager_id === p.id)
+            const memberRules = rules.filter(r => r.member_id === p.id)
+            return (
+              <div key={p.id} className="limona-card p-4 group">
+                <div className="flex items-center gap-4">
+                  <Avatar name={p.full_name} url={p.avatar_url} size="lg" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-base font-medium text-limona-white">{p.full_name}</p>
+                    <p className="text-xs text-limona-text-dim mt-0.5 truncate">{p.id}</p>
+                  </div>
+                  {(missedCounts[p.id] ?? 0) > 0 && (
+                    <span
+                      className="limona-badge text-[10px] bg-limona-red/15 text-limona-red whitespace-nowrap"
+                      title="Potwierdzone braki raportu dziennego w tym miesiącu"
+                    >
+                      {missedCounts[p.id]} {missedCounts[p.id] === 1 ? 'brak raportu' : 'braki raportów'}
+                    </span>
+                  )}
+                  <span className={cn(
+                    'limona-badge text-[10px]',
+                    p.role === 'admin' ? 'bg-limona-lime/20 text-limona-lime' : 'bg-limona-border text-limona-text-muted'
+                  )}>
+                    {ROLE_LABELS[p.role] ?? p.role}
+                  </span>
+                  <div className="flex gap-1">
+                    <button onClick={() => startEdit(p)} className="p-2 text-limona-text-muted hover:text-limona-lime transition-colors" title="Edytuj">
+                      <Edit size={16} />
+                    </button>
+                    {p.id !== myProfile?.id && (
+                      <button onClick={() => setDeleteConfirm(p)} className="p-2 text-limona-text-muted hover:text-limona-red transition-colors" title="Usuń">
+                        <Trash2 size={16} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {canManageGroups && (
+                  <div className="flex flex-wrap items-center gap-2 mt-3 pl-[calc(3rem+1rem)]">
+                    {managedRules.length > 0 && (
+                      <span className="limona-badge text-[10px] bg-limona-yellow/15 text-limona-yellow flex items-center gap-1">
+                        <UsersRound size={11} />
+                        Kierownik zespołu ({managedRules.length})
+                      </span>
+                    )}
+                    {memberRules.map(rule => (
+                      <span key={rule.id} className="limona-badge text-[10px] bg-limona-surface-2 text-limona-text-muted flex items-center gap-1.5">
+                        Zespół: {rule.manager?.full_name || rule.manager_id.slice(0, 8)}
+                        <button
+                          onClick={() => handleRemoveFromGroup(rule.id)}
+                          className="hover:text-limona-red transition-colors"
+                          title="Usuń z zespołu"
+                        >
+                          <X size={10} />
+                        </button>
+                      </span>
+                    ))}
+                    <button
+                      onClick={() => openAssign(p)}
+                      className="text-[10px] text-limona-text-dim hover:text-limona-lime uppercase tracking-wider flex items-center gap-1 transition-colors"
+                    >
+                      <Users size={11} /> Przypisz do zespołu
+                    </button>
+                  </div>
                 )}
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
 
@@ -292,6 +347,27 @@ export default function AdminPage() {
             </button>
           </div>
         </div>
+      </Modal>
+
+      {/* Assign to group */}
+      <Modal isOpen={!!assigningUser} onClose={() => setAssigningUser(null)} title={`Przypisz do zespołu: ${assigningUser?.full_name}`} size="sm">
+        <form onSubmit={handleAssign} className="space-y-4">
+          <div>
+            <label className="limona-label block mb-2">Kierownik zespołu</label>
+            <select className="limona-select" value={assignManagerId} onChange={e => setAssignManagerId(e.target.value)} required autoFocus>
+              <option value="">Wybierz kierownika...</option>
+              {profiles.filter(p => p.id !== assigningUser?.id).map(p => (
+                <option key={p.id} value={p.id}>{p.full_name} ({ROLE_LABELS[p.role] ?? p.role})</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex gap-3 justify-end pt-2">
+            <button type="button" onClick={() => setAssigningUser(null)} className="limona-btn-outline">Anuluj</button>
+            <button type="submit" disabled={assigning || !assignManagerId} className="limona-btn disabled:opacity-50">
+              {assigning ? 'Przypisywanie...' : 'Przypisz'}
+            </button>
+          </div>
+        </form>
       </Modal>
 
       {/* Delete Confirm */}
