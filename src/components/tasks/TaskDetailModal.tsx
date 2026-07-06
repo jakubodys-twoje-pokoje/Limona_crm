@@ -11,8 +11,14 @@ import { MentionInput } from '@/components/ui/MentionInput'
 import { useTaskComments } from '@/hooks/useTaskComments'
 import { createNotification } from '@/hooks/useNotifications'
 import { extractMentionedUserIds } from '@/lib/mentions'
+import {
+  TASK_TYPE_LABELS, CONTACT_CATEGORY_LABELS, OUTCOME_LABELS, REJECTION_REASON_LABELS,
+} from '@/lib/reports'
 import { cn } from '@/lib/utils'
-import type { Task, TaskStatus, TaskPriority, Profile } from '@/types/database'
+import type {
+  Task, TaskStatus, TaskPriority, Profile,
+  TaskType, ContactCategory, TaskOutcome, RejectionReason,
+} from '@/types/database'
 
 interface TaskDetailModalProps {
   task: Task
@@ -64,6 +70,15 @@ export function TaskDetailModal({
   const [editingTitle, setEditingTitle] = useState(false)
   const [editingDesc, setEditingDesc] = useState(false)
 
+  // Etap 0: dane strukturalne z pracy kontaktowej
+  const [taskType, setTaskType] = useState<TaskType | ''>(task.task_type || '')
+  const [contactCategory, setContactCategory] = useState<ContactCategory | ''>(task.contact_category || '')
+  const [outcome, setOutcome] = useState<TaskOutcome | ''>(task.outcome || '')
+  const [rejectionReason, setRejectionReason] = useState<RejectionReason | ''>(task.rejection_reason || '')
+  const [rejectionNote, setRejectionNote] = useState(task.rejection_note || '')
+  // Próba domknięcia bez wyniku — czekamy z „done" aż agent uzupełni
+  const [pendingDone, setPendingDone] = useState(false)
+
   const { comments, loading: commentsLoading, addComment, deleteComment } = useTaskComments(task.id)
   const [newComment, setNewComment] = useState('')
   const [sendingComment, setSendingComment] = useState(false)
@@ -77,6 +92,11 @@ export function TaskDetailModal({
     setPriority(task.priority as TaskPriority)
     setDueDate(task.due_date ? task.due_date.split('T')[0] : '')
     setAssignedTo(task.assigned_to || '')
+    setTaskType(task.task_type || '')
+    setContactCategory(task.contact_category || '')
+    setOutcome(task.outcome || '')
+    setRejectionReason(task.rejection_reason || '')
+    setRejectionNote(task.rejection_note || '')
   }, [task])
 
   useEffect(() => {
@@ -112,10 +132,52 @@ export function TaskDetailModal({
     }
   }
 
+  const isContactTask = taskType === 'wizyta' || taskType === 'telefon'
+
+  function outcomeComplete(o: TaskOutcome | '', reason: RejectionReason | '', note: string): boolean {
+    if (!o) return false
+    if (o !== 'niezainteresowany') return true
+    if (!reason) return false
+    if (reason === 'inny' && !note.trim()) return false
+    return true
+  }
+
   async function handleStatusChange(newStatus: TaskStatus) {
-    setStatus(newStatus)
     setShowStatusMenu(false)
+    // Wizyta/telefon nie przechodzi w done bez kompletnego wyniku
+    if (newStatus === 'done' && isContactTask && !outcomeComplete(outcome, rejectionReason, rejectionNote)) {
+      setPendingDone(true)
+      return
+    }
+    setPendingDone(false)
+    setStatus(newStatus)
     await saveField('status', newStatus)
+  }
+
+  async function applyOutcome(
+    newOutcome: TaskOutcome | '',
+    reason: RejectionReason | '',
+    note: string,
+  ) {
+    setOutcome(newOutcome)
+    setRejectionReason(reason)
+    setRejectionNote(note)
+
+    // Czyszczenie wyniku domkniętego zadania kontaktowego złamałoby regułę
+    if (!newOutcome && status === 'done' && isContactTask) return
+    if (newOutcome && !outcomeComplete(newOutcome, reason, note)) return
+
+    const updates: Partial<Task> = {
+      outcome: newOutcome || null,
+      rejection_reason: newOutcome === 'niezainteresowany' && reason ? reason : null,
+      rejection_note: newOutcome === 'niezainteresowany' && reason === 'inny' ? note.trim() : null,
+    }
+    if (pendingDone && newOutcome) {
+      updates.status = 'done'
+      setStatus('done')
+      setPendingDone(false)
+    }
+    await onUpdate(task.id, updates)
   }
 
   async function handlePriorityChange(newPriority: TaskPriority) {
@@ -393,6 +455,102 @@ export function TaskDetailModal({
                   </div>
                 )}
               </div>
+
+              {/* Typ zadania */}
+              <div>
+                <label className="text-[10px] uppercase tracking-wider text-limona-text-dim font-bold block mb-1">Typ zadania</label>
+                <select
+                  className="limona-select text-sm w-full"
+                  value={taskType}
+                  onChange={e => {
+                    const v = e.target.value as TaskType | ''
+                    setTaskType(v)
+                    saveField('task_type', v || null)
+                  }}
+                >
+                  <option value="">—</option>
+                  {(Object.keys(TASK_TYPE_LABELS) as TaskType[]).map(t => (
+                    <option key={t} value={t}>{TASK_TYPE_LABELS[t]}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Kategoria kontaktu */}
+              <div>
+                <label className="text-[10px] uppercase tracking-wider text-limona-text-dim font-bold block mb-1">Kategoria kontaktu</label>
+                <select
+                  className="limona-select text-sm w-full"
+                  value={contactCategory}
+                  onChange={e => {
+                    const v = e.target.value as ContactCategory | ''
+                    setContactCategory(v)
+                    saveField('contact_category', v || null)
+                  }}
+                >
+                  <option value="">—</option>
+                  {(Object.keys(CONTACT_CATEGORY_LABELS) as ContactCategory[]).map(c => (
+                    <option key={c} value={c}>{CONTACT_CATEGORY_LABELS[c]}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Wynik kontaktu — wymagany do domknięcia wizyty/telefonu */}
+              {(isContactTask || outcome) && (
+                <div className={cn(
+                  'space-y-2 rounded-lg transition-all',
+                  pendingDone && 'p-2 -m-2 border border-limona-red/60 bg-limona-red/5'
+                )}>
+                  <div>
+                    <label className="text-[10px] uppercase tracking-wider text-limona-text-dim font-bold block mb-1">Wynik</label>
+                    <select
+                      className="limona-select text-sm w-full"
+                      value={outcome}
+                      onChange={e => applyOutcome(e.target.value as TaskOutcome | '', rejectionReason, rejectionNote)}
+                    >
+                      <option value="">—</option>
+                      {(Object.keys(OUTCOME_LABELS) as TaskOutcome[]).map(o => (
+                        <option key={o} value={o}>{OUTCOME_LABELS[o]}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {outcome === 'niezainteresowany' && (
+                    <div>
+                      <label className="text-[10px] uppercase tracking-wider text-limona-text-dim font-bold block mb-1">Powód odmowy</label>
+                      <select
+                        className="limona-select text-sm w-full"
+                        value={rejectionReason}
+                        onChange={e => applyOutcome(outcome, e.target.value as RejectionReason | '', rejectionNote)}
+                      >
+                        <option value="">—</option>
+                        {(Object.keys(REJECTION_REASON_LABELS) as RejectionReason[]).map(r => (
+                          <option key={r} value={r}>{REJECTION_REASON_LABELS[r]}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {outcome === 'niezainteresowany' && rejectionReason === 'inny' && (
+                    <div>
+                      <label className="text-[10px] uppercase tracking-wider text-limona-text-dim font-bold block mb-1">Notatka do powodu</label>
+                      <textarea
+                        className="limona-input text-xs w-full min-h-[52px] resize-y"
+                        value={rejectionNote}
+                        onChange={e => setRejectionNote(e.target.value)}
+                        onBlur={() => applyOutcome(outcome, rejectionReason, rejectionNote)}
+                        placeholder="Dlaczego odmówił?"
+                      />
+                    </div>
+                  )}
+
+                  {pendingDone && (
+                    <p className="flex items-center gap-1 text-[10px] text-limona-red">
+                      <AlertTriangle size={10} />
+                      Uzupełnij wynik, aby domknąć zadanie
+                    </p>
+                  )}
+                </div>
+              )}
 
               {/* Assignee */}
               <div className="relative">

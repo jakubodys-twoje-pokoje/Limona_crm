@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getSessionUser, unauthorized } from '@/lib/api-auth'
+import { validateTaskRules } from '@/lib/task-rules'
 
 const SELECT_WITH_RELATIONS = `*,
   property:properties!tasks_property_id_fkey(id,location),
@@ -39,6 +40,10 @@ export async function POST(req: NextRequest) {
   const supabase = await createClient()
 
   const body = await req.json()
+
+  const ruleError = validateTaskRules(body)
+  if (ruleError) return NextResponse.json({ error: ruleError }, { status: 400 })
+
   const { data: task, error } = await supabase
     .from('tasks')
     .insert({ ...body, created_by: user.id })

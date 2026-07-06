@@ -120,7 +120,8 @@ export default function PropertyDetailPage() {
 
   async function handleToggleTask(task: Task) {
     if (!user) return
-    await updateTask(task.id, { status: task.status === 'done' ? 'todo' : 'done' }, user.id)
+    const { error } = await updateTask(task.id, { status: task.status === 'done' ? 'todo' : 'done' }, user.id)
+    if (error) showToast(error, 'error')
   }
 
   if (loadingProp) {

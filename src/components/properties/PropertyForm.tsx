@@ -53,6 +53,7 @@ export function PropertyForm({ initial = {}, onSubmit, onCancel, submitLabel = '
     notary_fee: initial.notary_fee?.toString() || '1000',
     manual_offer: initial.manual_offer?.toString() || '',
     status: initial.status || 'new',
+    lead_temperature: initial.lead_temperature || '',
     trello_link: initial.trello_link || '',
     notes: initial.notes || '',
   })
@@ -80,6 +81,7 @@ export function PropertyForm({ initial = {}, onSubmit, onCancel, submitLabel = '
       notary_fee: parseFloat(form.notary_fee) || 1000,
       manual_offer: form.manual_offer ? parseFloat(form.manual_offer) : null,
       status: form.status as PropertyStatus,
+      lead_temperature: (form.lead_temperature as Property['lead_temperature']) || null,
       trello_link: form.trello_link || null,
       notes: form.notes || null,
     }
@@ -144,6 +146,15 @@ export function PropertyForm({ initial = {}, onSubmit, onCancel, submitLabel = '
             <label className="limona-label block mb-2">Status</label>
             <select className="limona-select" value={form.status} onChange={e => set('status', e.target.value)}>
               {statuses.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="limona-label block mb-2">Temperatura leada</label>
+            <select className="limona-select" value={form.lead_temperature} onChange={e => set('lead_temperature', e.target.value)}>
+              <option value="">—</option>
+              <option value="goracy">Gorący</option>
+              <option value="sredni">Średni</option>
+              <option value="zimny">Zimny</option>
             </select>
           </div>
           <div>

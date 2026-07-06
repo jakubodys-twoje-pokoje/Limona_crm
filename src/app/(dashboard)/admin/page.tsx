@@ -18,6 +18,7 @@ export default function AdminPage() {
   const isAdmin = myProfile?.role === 'admin'
 
   const [profiles, setProfiles] = useState<Profile[]>([])
+  const [missedCounts, setMissedCounts] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
   const [editingUser, setEditingUser] = useState<Profile | null>(null)
   const [editForm, setEditForm] = useState({ full_name: '', role: 'user' as UserRole, avatar_url: '' })
@@ -36,6 +37,14 @@ export default function AdminPage() {
   }, [])
 
   useEffect(() => { fetchProfiles() }, [fetchProfiles])
+
+  // Ewaluacja: potwierdzone braki raportu dziennego w bieżącym miesiącu
+  useEffect(() => {
+    if (!isAdmin) return
+    fetch('/api/reports/missed/count')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d) setMissedCounts(d.counts || {}) })
+  }, [isAdmin])
 
   function startEdit(p: Profile) {
     setEditingUser(p)
@@ -117,6 +126,14 @@ export default function AdminPage() {
                 <p className="text-base font-medium text-limona-white">{p.full_name}</p>
                 <p className="text-xs text-limona-text-dim mt-0.5 truncate">{p.id}</p>
               </div>
+              {(missedCounts[p.id] ?? 0) > 0 && (
+                <span
+                  className="limona-badge text-[10px] bg-limona-red/15 text-limona-red whitespace-nowrap"
+                  title="Potwierdzone braki raportu dziennego w tym miesiącu"
+                >
+                  {missedCounts[p.id]} {missedCounts[p.id] === 1 ? 'brak raportu' : 'braki raportów'}
+                </span>
+              )}
               <span className={cn(
                 'limona-badge text-[10px]',
                 p.role === 'admin' ? 'bg-limona-lime/20 text-limona-lime' : 'bg-limona-border text-limona-text-muted'

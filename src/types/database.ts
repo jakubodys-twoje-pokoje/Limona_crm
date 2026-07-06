@@ -19,6 +19,25 @@ export type TaskPriority = 'low' | 'medium' | 'high' | 'urgent'
 
 export type UserRole = 'admin' | 'user' | 'viewer'
 
+export type TaskType = 'wizyta' | 'telefon' | 'inne'
+
+export type ContactCategory =
+  | 'spoldzielnia'
+  | 'wspolnota'
+  | 'posrednik_finansowy'
+  | 'posrednik_kredytowy'
+  | 'inny'
+
+export type TaskOutcome =
+  | 'zainteresowany'
+  | 'oczekuje_na_materialy'
+  | 'niezainteresowany'
+  | 'brak_kontaktu'
+
+export type RejectionReason = 'cena' | 'timing' | 'konkurencja' | 'brak_decyzyjnosci' | 'inny'
+
+export type LeadTemperature = 'goracy' | 'sredni' | 'zimny'
+
 export interface Profile {
   id: string
   full_name: string
@@ -47,6 +66,8 @@ export interface Property {
   notary_fee: number
   manual_offer: number | null
   status: PropertyStatus
+  lead_temperature: LeadTemperature | null
+  status_changed_at: string
   decision: string | null
   notes: string | null
   created_by: string | null
@@ -65,6 +86,11 @@ export interface Task {
   description: string | null
   status: TaskStatus
   priority: TaskPriority
+  task_type: TaskType | null
+  contact_category: ContactCategory | null
+  outcome: TaskOutcome | null
+  rejection_reason: RejectionReason | null
+  rejection_note: string | null
   due_date: string | null
   assigned_to: string | null
   created_by: string | null
@@ -98,6 +124,16 @@ export interface Document {
   file_type: string | null
   uploaded_by: string | null
   created_at: string
+}
+
+export interface DailyReport {
+  id: string
+  user_id: string
+  date: string
+  content: string
+  submitted_at: string | null
+  created_at: string
+  updated_at: string
 }
 
 export interface Database {

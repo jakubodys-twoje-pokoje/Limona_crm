@@ -14,8 +14,9 @@ import { Avatar } from '@/components/ui/Avatar'
 import { Modal } from '@/components/ui/Modal'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { TaskDetailModal } from '@/components/tasks/TaskDetailModal'
+import { TASK_TYPE_LABELS, CONTACT_CATEGORY_LABELS } from '@/lib/reports'
 import { cn } from '@/lib/utils'
-import type { Task, TaskStatus, TaskPriority, Profile } from '@/types/database'
+import type { Task, TaskStatus, TaskPriority, TaskType, ContactCategory, Profile } from '@/types/database'
 
 const columns: { status: TaskStatus; label: string; icon: React.ReactNode; color: string }[] = [
   { status: 'todo', label: 'Do zrobienia', icon: <Circle16 />, color: 'border-t-gray-500' },
@@ -39,6 +40,8 @@ interface TaskFormData {
   due_date: string
   status: TaskStatus
   assigned_to: string
+  task_type: TaskType | ''
+  contact_category: ContactCategory | ''
 }
 
 const EMPTY_FORM: TaskFormData = {
@@ -48,6 +51,8 @@ const EMPTY_FORM: TaskFormData = {
   due_date: '',
   status: 'todo',
   assigned_to: '',
+  task_type: '',
+  contact_category: '',
 }
 
 export default function ZadaniaPage() {
@@ -90,6 +95,8 @@ export default function ZadaniaPage() {
       due_date: form.due_date || null,
       status: addStatus,
       assigned_to: form.assigned_to || null,
+      task_type: form.task_type || null,
+      contact_category: form.contact_category || null,
     }, user.id)
 
     if (error) { showToast(error, 'error'); return }
@@ -106,7 +113,11 @@ export default function ZadaniaPage() {
 
   async function moveTask(task: Task, status: TaskStatus) {
     if (!user) return
-    await updateTask(task.id, { status }, user.id)
+    const { error } = await updateTask(task.id, { status }, user.id)
+    if (error) {
+      showToast(error, 'error')
+      if (status === 'done') setSelectedTask(task) // otwórz modal, żeby uzupełnić wynik
+    }
   }
 
   async function handleUpdateTask(id: string, updates: Partial<Task>) {
@@ -272,6 +283,26 @@ export default function ZadaniaPage() {
           <div>
             <label className="limona-label block mb-2">Opis</label>
             <textarea className="limona-input" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="Szczegóły..." rows={3} />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="limona-label block mb-2">Typ zadania</label>
+              <select className="limona-select" value={form.task_type} onChange={e => setForm(f => ({ ...f, task_type: e.target.value as TaskType | '' }))}>
+                <option value="">—</option>
+                {(Object.keys(TASK_TYPE_LABELS) as TaskType[]).map(t => (
+                  <option key={t} value={t}>{TASK_TYPE_LABELS[t]}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="limona-label block mb-2">Kategoria kontaktu</label>
+              <select className="limona-select" value={form.contact_category} onChange={e => setForm(f => ({ ...f, contact_category: e.target.value as ContactCategory | '' }))}>
+                <option value="">—</option>
+                {(Object.keys(CONTACT_CATEGORY_LABELS) as ContactCategory[]).map(c => (
+                  <option key={c} value={c}>{CONTACT_CATEGORY_LABELS[c]}</option>
+                ))}
+              </select>
+            </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
