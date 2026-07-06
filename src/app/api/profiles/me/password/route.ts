@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Hasło musi mieć minimum 6 znaków' }, { status: 400 })
   }
 
-  const supabase = createClient()
+  const supabase = await createClient()
   const { error } = await supabase.auth.updateUser({ password: newPassword })
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 

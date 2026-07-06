@@ -6,7 +6,7 @@ import { getSessionUser, unauthorized } from '@/lib/api-auth'
 export async function GET(req: NextRequest) {
   const user = await getSessionUser()
   if (!user) return unauthorized()
-  const supabase = createClient()
+  const supabase = await createClient()
 
   const propertyId = req.nextUrl.searchParams.get('propertyId')
   if (!propertyId) return NextResponse.json({ error: 'propertyId required' }, { status: 400 })

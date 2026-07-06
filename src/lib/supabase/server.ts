@@ -5,8 +5,8 @@ import { createServerClient } from '@supabase/ssr'
  * Klient serwerowy z sesją zalogowanego użytkownika (cookies).
  * Używany w API routes — wszystkie zapytania przechodzą przez RLS.
  */
-export function createClient() {
-  const cookieStore = cookies()
+export async function createClient() {
+  const cookieStore = await cookies()
 
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

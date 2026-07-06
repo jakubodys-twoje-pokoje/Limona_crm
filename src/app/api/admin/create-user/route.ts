@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Wymagane: email, hasło, imię' }, { status: 400 })
   }
 
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: existing } = await supabase
     .from('profiles')
     .select('id')

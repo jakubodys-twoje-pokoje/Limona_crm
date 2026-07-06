@@ -59,6 +59,7 @@ export default function PropertyDetailPage() {
 
   useEffect(() => {
     async function load() {
+      if (!propertyId) { router.push('/nieruchomosci'); return }
       const res = await fetch(`/api/properties/${propertyId}`)
       if (!res.ok) { router.push('/nieruchomosci'); return }
       const p: Property = await res.json()
@@ -90,18 +91,21 @@ export default function PropertyDetailPage() {
     load()
   }, [propertyId, router])
 
+  if (!propertyId) return null
+  const currentPropertyId = propertyId
+
   async function handleEdit(data: Partial<Property>) {
     if (!user) return
-    const { error } = await updateProperty(propertyId, data, user.id)
+    const { error } = await updateProperty(currentPropertyId, data, user.id)
     if (error) { showToast(error, 'error'); return }
     showToast('Zaktualizowano', 'success')
     setShowEditModal(false)
-    const res = await fetch(`/api/properties/${propertyId}`)
+    const res = await fetch(`/api/properties/${currentPropertyId}`)
     if (res.ok) setProperty(await res.json())
   }
 
   async function handleDelete() {
-    const { error } = await deleteProperty(propertyId)
+    const { error } = await deleteProperty(currentPropertyId)
     if (error) { showToast(error, 'error'); return }
     showToast('Usunięto', 'success')
     router.push('/nieruchomosci')
@@ -110,7 +114,7 @@ export default function PropertyDetailPage() {
   async function handleAddTask(e: React.FormEvent) {
     e.preventDefault()
     if (!newTaskTitle.trim() || !user) return
-    await createTask({ title: newTaskTitle.trim(), property_id: propertyId, status: 'todo', priority: 'medium' }, user.id)
+    await createTask({ title: newTaskTitle.trim(), property_id: currentPropertyId, status: 'todo', priority: 'medium' }, user.id)
     setNewTaskTitle('')
   }
 

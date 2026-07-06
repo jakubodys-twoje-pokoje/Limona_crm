@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
   if (!email) return NextResponse.json({ error: 'Email required' }, { status: 400 })
 
   // Check if email taken
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: existing } = await supabase
     .from('profiles')
     .select('id')

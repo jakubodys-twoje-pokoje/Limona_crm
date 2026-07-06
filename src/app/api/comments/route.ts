@@ -8,7 +8,7 @@ const SELECT_WITH_USER = '*, user:profiles!task_comments_user_id_fkey(id,full_na
 export async function GET(req: NextRequest) {
   const user = await getSessionUser()
   if (!user) return unauthorized()
-  const supabase = createClient()
+  const supabase = await createClient()
 
   const taskId = req.nextUrl.searchParams.get('taskId')
   if (!taskId) return NextResponse.json({ error: 'taskId required' }, { status: 400 })
@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const user = await getSessionUser()
   if (!user) return unauthorized()
-  const supabase = createClient()
+  const supabase = await createClient()
 
   const { taskId, content } = await req.json()
 

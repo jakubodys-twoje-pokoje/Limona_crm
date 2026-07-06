@@ -3,11 +3,12 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import type { ActivityLog } from '@/types/database'
 
-export function useActivityLog(propertyId: string) {
+export function useActivityLog(propertyId?: string) {
   const [logs, setLogs] = useState<ActivityLog[]>([])
   const [loading, setLoading] = useState(true)
 
   const fetchLogs = useCallback(async () => {
+    if (!propertyId) { setLoading(false); return }
     const res = await fetch(`/api/activity?propertyId=${propertyId}`)
     if (res.ok) setLogs(await res.json())
     setLoading(false)

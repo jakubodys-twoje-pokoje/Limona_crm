@@ -13,7 +13,7 @@ export async function GET() {
   }
 
   // Fetch who this user manages
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: rules, error } = await supabase
     .from('team_visibility')
     .select('member_id')

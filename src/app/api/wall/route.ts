@@ -6,7 +6,7 @@ import { getSessionUser, unauthorized } from '@/lib/api-auth'
 export async function GET(_req: NextRequest) {
   const user = await getSessionUser()
   if (!user) return unauthorized()
-  const supabase = createClient()
+  const supabase = await createClient()
 
   const { data: messages, error } = await supabase
     .from('wall_messages')
@@ -31,7 +31,7 @@ export async function GET(_req: NextRequest) {
 export async function POST(req: NextRequest) {
   const user = await getSessionUser()
   if (!user) return unauthorized()
-  const supabase = createClient()
+  const supabase = await createClient()
 
   const { content } = await req.json()
 

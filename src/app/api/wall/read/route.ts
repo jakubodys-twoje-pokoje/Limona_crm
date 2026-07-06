@@ -6,7 +6,7 @@ import { getSessionUser, unauthorized } from '@/lib/api-auth'
 export async function POST(req: NextRequest) {
   const user = await getSessionUser()
   if (!user) return unauthorized()
-  const supabase = createClient()
+  const supabase = await createClient()
 
   const { messageId } = await req.json()
 

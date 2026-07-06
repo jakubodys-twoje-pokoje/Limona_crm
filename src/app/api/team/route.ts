@@ -6,7 +6,7 @@ import { getSessionUser, unauthorized, forbidden } from '@/lib/api-auth'
 export async function GET() {
   const user = await getSessionUser()
   if (!user) return unauthorized()
-  const supabase = createClient()
+  const supabase = await createClient()
 
   const { data, error } = await supabase
     .from('team_visibility')
@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
   const user = await getSessionUser()
   if (!user) return unauthorized()
   if (user.role !== 'admin') return forbidden()
-  const supabase = createClient()
+  const supabase = await createClient()
 
   const { managerId, memberId } = await req.json()
 

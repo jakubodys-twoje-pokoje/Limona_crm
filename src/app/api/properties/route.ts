@@ -10,7 +10,7 @@ const SELECT_WITH_RELATIONS = `*,
 export async function GET(req: NextRequest) {
   const user = await getSessionUser()
   if (!user) return unauthorized()
-  const supabase = createClient()
+  const supabase = await createClient()
 
   const { searchParams } = req.nextUrl
   const visibleIds = searchParams.get('visibleIds')?.split(',').filter(Boolean)
@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const user = await getSessionUser()
   if (!user) return unauthorized()
-  const supabase = createClient()
+  const supabase = await createClient()
 
   const body = await req.json()
 

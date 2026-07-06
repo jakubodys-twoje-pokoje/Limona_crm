@@ -6,7 +6,7 @@ import { getSessionUser, unauthorized } from '@/lib/api-auth'
 export async function GET() {
   const user = await getSessionUser()
   if (!user) return unauthorized()
-  const supabase = createClient()
+  const supabase = await createClient()
 
   const { data, error } = await supabase
     .from('notifications')
@@ -22,7 +22,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const user = await getSessionUser()
   if (!user) return unauthorized()
-  const supabase = createClient()
+  const supabase = await createClient()
 
   const body = await req.json()
   const { data: notification, error } = await supabase
