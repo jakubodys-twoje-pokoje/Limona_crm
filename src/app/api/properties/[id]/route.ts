@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getSessionUser, unauthorized } from '@/lib/api-auth'
+import { geocodeAddress } from '@/lib/geocode'
 
 const SELECT_WITH_RELATIONS = `*,
   creator:profiles!properties_created_by_fkey(id,full_name,avatar_url),
@@ -30,9 +31,17 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const { id } = await params
 
   const body = await req.json()
+
+  // Re-geokodowanie, gdy zmienił się adres
+  let coordPatch = {}
+  if (typeof body.location === 'string') {
+    const coords = await geocodeAddress(body.location, null, null)
+    if (coords) coordPatch = coords
+  }
+
   const { data: property, error } = await supabase
     .from('properties')
-    .update(body)
+    .update({ ...body, ...coordPatch })
     .eq('id', id)
     .select(SELECT_WITH_RELATIONS)
     .single()

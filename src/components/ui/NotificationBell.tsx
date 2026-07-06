@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Bell, Check, CheckCheck, Trash2, X } from 'lucide-react'
+import { Bell, Check, CheckCheck, Trash2, X, Eraser } from 'lucide-react'
 import { useNotifications, type Notification } from '@/hooks/useNotifications'
 import { Avatar } from '@/components/ui/Avatar'
 import { cn } from '@/lib/utils'
@@ -12,8 +12,8 @@ interface NotificationBellProps {
 }
 
 const typeLabels: Record<string, string> = {
-  mention_wall: 'Oznaczenie na Wallu',
-  mention_task: 'Oznaczenie w zadaniu',
+  mention_wall: 'Oznaczenie — Wall',
+  mention_task: 'Oznaczenie — Zadanie',
   task_assigned: 'Przypisano zadanie',
   comment_added: 'Nowy komentarz',
 }
@@ -26,16 +26,17 @@ const typeColors: Record<string, string> = {
 }
 
 export function NotificationBell({ userId }: NotificationBellProps) {
-  const { notifications, unreadCount, markAsRead, markAllRead, deleteNotification } = useNotifications(userId)
+  const { notifications, unreadCount, markAsRead, markAllRead, deleteNotification, deleteAllRead, deleteAll } = useNotifications(userId)
   const [open, setOpen] = useState(false)
+  const [showDeleteMenu, setShowDeleteMenu] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
   const router = useRouter()
 
-  // Close on outside click
   useEffect(() => {
     function handleClick(e: MouseEvent) {
       if (ref.current && !ref.current.contains(e.target as Node)) {
         setOpen(false)
+        setShowDeleteMenu(false)
       }
     }
     if (open) document.addEventListener('mousedown', handleClick)
@@ -64,6 +65,8 @@ export function NotificationBell({ userId }: NotificationBellProps) {
     return d.toLocaleDateString('pl-PL')
   }
 
+  const readCount = notifications.filter(n => n.read).length
+
   return (
     <div ref={ref} className="relative">
       <button
@@ -79,24 +82,59 @@ export function NotificationBell({ userId }: NotificationBellProps) {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-80 sm:w-96 max-h-[70vh] overflow-hidden bg-limona-surface border border-limona-border rounded shadow-lg z-50 flex flex-col">
+        <div className="absolute left-0 bottom-full mb-2 w-80 sm:w-96 max-h-[70vh] overflow-hidden bg-limona-surface border border-limona-border rounded shadow-lg z-50 flex flex-col">
           {/* Header */}
-          <div className="flex items-center justify-between p-3 border-b border-limona-border">
+          <div className="flex items-center justify-between p-3 border-b border-limona-border flex-shrink-0">
             <h3 className="text-xs uppercase tracking-wider font-bold text-limona-text-muted">
-              Powiadomienia {unreadCount > 0 && `(${unreadCount})`}
+              Powiadomienia
+              {notifications.length > 0 && (
+                <span className="ml-1 text-limona-text-dim font-normal">
+                  ({notifications.length}{unreadCount > 0 ? `, ${unreadCount} nowe` : ''})
+                </span>
+              )}
             </h3>
             <div className="flex items-center gap-1">
               {unreadCount > 0 && (
                 <button
                   onClick={markAllRead}
-                  className="text-[10px] text-limona-text-dim hover:text-limona-lime transition-colors uppercase tracking-wider px-2 py-1"
+                  className="p-1.5 text-limona-text-dim hover:text-limona-lime transition-colors"
+                  title="Oznacz wszystkie jako przeczytane"
                 >
                   <CheckCheck size={14} />
                 </button>
               )}
+              {notifications.length > 0 && (
+                <div className="relative">
+                  <button
+                    onClick={() => setShowDeleteMenu(!showDeleteMenu)}
+                    className="p-1.5 text-limona-text-dim hover:text-limona-red transition-colors"
+                    title="Usuń powiadomienia"
+                  >
+                    <Eraser size={14} />
+                  </button>
+                  {showDeleteMenu && (
+                    <div className="absolute right-0 bottom-full mb-1 bg-limona-surface-2 border border-limona-border rounded shadow-lg z-10 min-w-[160px]">
+                      {readCount > 0 && (
+                        <button
+                          onClick={() => { deleteAllRead(); setShowDeleteMenu(false) }}
+                          className="w-full text-left px-3 py-2 text-xs text-limona-text-muted hover:text-limona-white hover:bg-limona-surface transition-colors"
+                        >
+                          Usuń przeczytane ({readCount})
+                        </button>
+                      )}
+                      <button
+                        onClick={() => { deleteAll(); setShowDeleteMenu(false) }}
+                        className="w-full text-left px-3 py-2 text-xs text-limona-red hover:bg-limona-red/10 transition-colors"
+                      >
+                        Usuń wszystkie ({notifications.length})
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
               <button
                 onClick={() => setOpen(false)}
-                className="p-1 text-limona-text-dim hover:text-limona-text-muted"
+                className="p-1.5 text-limona-text-dim hover:text-limona-text-muted"
               >
                 <X size={14} />
               </button>
@@ -122,12 +160,12 @@ export function NotificationBell({ userId }: NotificationBellProps) {
                   {notif.from_user ? (
                     <Avatar name={notif.from_user.full_name} url={notif.from_user.avatar_url} size="sm" />
                   ) : (
-                    <div className="w-7 h-7 rounded-full bg-limona-border flex items-center justify-center">
+                    <div className="w-7 h-7 rounded-full bg-limona-border flex items-center justify-center flex-shrink-0">
                       <Bell size={12} className="text-limona-text-dim" />
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className={cn('text-[10px] uppercase tracking-wider font-bold', typeColors[notif.type])}>
                         {typeLabels[notif.type]}
                       </span>
@@ -141,12 +179,24 @@ export function NotificationBell({ userId }: NotificationBellProps) {
                       <p className="text-xs text-limona-text-muted mt-0.5 truncate">{notif.body}</p>
                     )}
                   </div>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); deleteNotification(notif.id) }}
-                    className="p-1 text-limona-text-dim hover:text-limona-red opacity-0 group-hover:opacity-100 transition-all flex-shrink-0"
-                  >
-                    <Trash2 size={12} />
-                  </button>
+                  <div className="flex flex-col gap-1 flex-shrink-0">
+                    {!notif.read && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); markAsRead(notif.id) }}
+                        className="p-1 text-limona-text-dim hover:text-limona-green transition-colors opacity-0 group-hover:opacity-100"
+                        title="Oznacz jako przeczytane"
+                      >
+                        <Check size={12} />
+                      </button>
+                    )}
+                    <button
+                      onClick={(e) => { e.stopPropagation(); deleteNotification(notif.id) }}
+                      className="p-1 text-limona-text-dim hover:text-limona-red transition-colors opacity-0 group-hover:opacity-100"
+                      title="Usuń"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
                 </div>
               ))
             )}

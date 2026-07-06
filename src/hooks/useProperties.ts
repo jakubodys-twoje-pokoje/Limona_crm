@@ -9,8 +9,10 @@ export function useProperties(visibleUserIds?: string[] | null) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  const initializedRef = useRef(false)
+
   const fetchProperties = useCallback(async () => {
-    setLoading(true)
+    if (!initializedRef.current) setLoading(true)
     const params = new URLSearchParams()
     if (visibleUserIds?.length) params.set('visibleIds', visibleUserIds.join(','))
 
@@ -19,14 +21,16 @@ export function useProperties(visibleUserIds?: string[] | null) {
     const data = await res.json()
     setProperties(data)
     setLoading(false)
+    initializedRef.current = true
   }, [visibleUserIds])
 
   const debouncedFetch = useDebouncedCallback(fetchProperties, 500)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
+    initializedRef.current = false
     fetchProperties()
-    intervalRef.current = setInterval(debouncedFetch, 10000)
+    intervalRef.current = setInterval(debouncedFetch, 15000)
     return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
   }, [fetchProperties, debouncedFetch])
 

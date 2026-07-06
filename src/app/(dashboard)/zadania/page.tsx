@@ -2,10 +2,10 @@
 
 export const dynamic = 'force-dynamic'
 
-import { useState, useEffect, useRef } from 'react'
-import Link from 'next/link'
-import { Plus, Calendar, Link as LinkIcon, Trash2, CheckCircle, Clock, AlertCircle, XCircle } from 'lucide-react'
+import { useState, useEffect, useRef, useMemo } from 'react'
+import { Plus, Calendar, Link as LinkIcon, Trash2, CheckCircle, Clock, AlertCircle, XCircle, X, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useTasks } from '@/hooks/useTasks'
+import { useBoards } from '@/hooks/useBoards'
 import { useAuth } from '@/hooks/useAuth'
 import { useVisibleUserIds } from '@/hooks/useTeamVisibility'
 import { useToast } from '@/components/ui/Toast'
@@ -14,6 +14,7 @@ import { Avatar } from '@/components/ui/Avatar'
 import { Modal } from '@/components/ui/Modal'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { TaskDetailModal } from '@/components/tasks/TaskDetailModal'
+import { BoardView, BOARD_COLORS } from '@/components/tasks/BoardView'
 import { TASK_TYPE_LABELS, CONTACT_CATEGORY_LABELS } from '@/lib/reports'
 import { cn } from '@/lib/utils'
 import type { Task, TaskStatus, TaskPriority, TaskType, ContactCategory, Profile } from '@/types/database'
@@ -40,6 +41,7 @@ interface TaskFormData {
   due_date: string
   status: TaskStatus
   assigned_to: string
+  co_assignees: string[]
   task_type: TaskType | ''
   contact_category: ContactCategory | ''
 }
@@ -51,22 +53,47 @@ const EMPTY_FORM: TaskFormData = {
   due_date: '',
   status: 'todo',
   assigned_to: '',
+  co_assignees: [],
   task_type: '',
   contact_category: '',
+}
+
+interface NewBoardForm {
+  name: string
+  color: string
+  lists: string[]
 }
 
 export default function ZadaniaPage() {
   const { user, profile } = useAuth()
   const { visibleIds } = useVisibleUserIds(user?.id, profile?.role)
-  const { tasks, loading, createTask, updateTask, deleteTask } = useTasks(undefined, visibleIds)
+  const { boards, loading: boardsLoading, createBoard, updateBoard, deleteBoard } = useBoards()
+
+  // selectedBoardId === null means Ogólne (tasks without board_id)
+  const [selectedBoardId, setSelectedBoardId] = useState<string | null>(null)
+
+  // For Ogólne mode, pass 'none' so tasks API filters board_id IS NULL
+  const boardIdFilter = selectedBoardId === null ? 'none' : selectedBoardId
+  const { tasks, loading, createTask, updateTask, deleteTask } = useTasks(undefined, visibleIds, boardIdFilter)
   const { showToast } = useToast()
 
-  const [view, setView] = useState<'kanban' | 'list'>('kanban')
+  const [view, setView] = useState<'kanban' | 'list' | 'calendar'>('kanban')
+  const [calMonth, setCalMonth] = useState(() => {
+    const d = new Date(); return { year: d.getFullYear(), month: d.getMonth() }
+  })
   const [showAddModal, setShowAddModal] = useState(false)
   const [addStatus, setAddStatus] = useState<TaskStatus>('todo')
   const [form, setForm] = useState<TaskFormData>({ ...EMPTY_FORM })
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   const [profiles, setProfiles] = useState<Profile[]>([])
+
+  // New board modal state
+  const [showNewBoardModal, setShowNewBoardModal] = useState(false)
+  const [newBoardForm, setNewBoardForm] = useState<NewBoardForm>({
+    name: '',
+    color: '#84cc16',
+    lists: ['Do zrobienia', 'W toku', 'Gotowe'],
+  })
 
   const profilesFetched = useRef(false)
   useEffect(() => {
@@ -95,6 +122,7 @@ export default function ZadaniaPage() {
       due_date: form.due_date || null,
       status: addStatus,
       assigned_to: form.assigned_to || null,
+      co_assignees: form.co_assignees,
       task_type: form.task_type || null,
       contact_category: form.contact_category || null,
     }, user.id)
@@ -134,6 +162,97 @@ export default function ZadaniaPage() {
     return new Date(task.due_date) < new Date()
   }
 
+  async function handleCreateBoard(e: React.FormEvent) {
+    e.preventDefault()
+    if (!newBoardForm.name.trim()) return
+    const { error, data } = await createBoard({
+      name: newBoardForm.name.trim(),
+      color: newBoardForm.color,
+      lists: newBoardForm.lists.filter(l => l.trim()),
+    })
+    if (error) { showToast(error, 'error'); return }
+    setShowNewBoardModal(false)
+    setNewBoardForm({ name: '', color: '#84cc16', lists: ['Do zrobienia', 'W toku', 'Gotowe'] })
+    if (data) setSelectedBoardId(data.id)
+  }
+
+  // Board tabs
+  const tabBar = (
+    <div className="flex items-center gap-1 border-b border-limona-border mb-4 overflow-x-auto">
+      <button
+        onClick={() => setSelectedBoardId(null)}
+        className={cn(
+          'px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 -mb-px transition-colors whitespace-nowrap',
+          selectedBoardId === null
+            ? 'border-limona-lime text-limona-lime'
+            : 'border-transparent text-limona-text-muted hover:text-limona-white'
+        )}
+      >
+        Ogólne
+      </button>
+      {boards.map(b => (
+        <button
+          key={b.id}
+          onClick={() => setSelectedBoardId(b.id)}
+          className={cn(
+            'px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 -mb-px transition-colors whitespace-nowrap',
+            selectedBoardId === b.id
+              ? 'text-limona-white'
+              : 'border-transparent text-limona-text-muted hover:text-limona-white'
+          )}
+          style={{ borderBottomColor: selectedBoardId === b.id ? b.color : 'transparent' }}
+        >
+          {b.name}
+        </button>
+      ))}
+      <button
+        onClick={() => setShowNewBoardModal(true)}
+        className="px-3 py-2.5 text-xs text-limona-text-dim hover:text-limona-lime transition-colors flex items-center gap-1 whitespace-nowrap ml-1"
+      >
+        <Plus size={12} /> Nowa tablica
+      </button>
+    </div>
+  )
+
+  // If a custom board is selected, show BoardView
+  const selectedBoard = boards.find(b => b.id === selectedBoardId)
+  if (!boardsLoading && selectedBoard) {
+    return (
+      <div className="space-y-2">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-2">
+          <div>
+            <span className="limona-eyebrow">Workflow</span>
+            <h1 className="limona-heading text-3xl mt-1">Zadania</h1>
+          </div>
+        </div>
+
+        {tabBar}
+
+        <BoardView
+          board={selectedBoard}
+          visibleIds={visibleIds}
+          userId={user?.id || ''}
+          userName={profile?.full_name || ''}
+          isAdmin={profile?.role === 'admin'}
+          profiles={profiles}
+          allTasks={tasks}
+          onBoardUpdate={async (updates) => { await updateBoard(selectedBoard.id, updates) }}
+          onBoardDelete={async () => { await deleteBoard(selectedBoard.id); setSelectedBoardId(null) }}
+        />
+
+        {/* New Board Modal */}
+        <NewBoardModal
+          show={showNewBoardModal}
+          form={newBoardForm}
+          onFormChange={setNewBoardForm}
+          onSubmit={handleCreateBoard}
+          onClose={() => setShowNewBoardModal(false)}
+        />
+      </div>
+    )
+  }
+
   if (loading) {
     return (
       <div className="space-y-4">
@@ -160,10 +279,14 @@ export default function ZadaniaPage() {
         </div>
         <div className="flex items-center gap-3">
           <div className="flex gap-1 p-1 bg-limona-surface rounded">
-            {(['kanban', 'list'] as const).map(v => (
-              <button key={v} onClick={() => setView(v)}
-                className={`px-3 py-1.5 rounded text-xs font-bold uppercase tracking-wider transition-all ${view === v ? 'bg-limona-lime text-black' : 'text-limona-text-muted hover:text-limona-white'}`}>
-                {v === 'kanban' ? 'Kanban' : 'Lista'}
+            {([
+              { key: 'kanban',   label: 'Kanban'     },
+              { key: 'list',     label: 'Lista'      },
+              { key: 'calendar', label: 'Kalendarz'  },
+            ] as const).map(v => (
+              <button key={v.key} onClick={() => setView(v.key)}
+                className={`px-3 py-1.5 rounded text-xs font-bold uppercase tracking-wider transition-all ${view === v.key ? 'bg-limona-lime text-black' : 'text-limona-text-muted hover:text-limona-white'}`}>
+                {v.label}
               </button>
             ))}
           </div>
@@ -173,6 +296,8 @@ export default function ZadaniaPage() {
           </button>
         </div>
       </div>
+
+      {tabBar}
 
       {/* Kanban View */}
       {view === 'kanban' && (
@@ -273,6 +398,16 @@ export default function ZadaniaPage() {
         </div>
       )}
 
+      {/* Calendar View */}
+      {view === 'calendar' && (
+        <CalendarView
+          tasks={tasks}
+          month={calMonth}
+          onMonthChange={setCalMonth}
+          onOpenTask={setSelectedTask}
+        />
+      )}
+
       {/* Add Modal */}
       <Modal isOpen={showAddModal} onClose={() => setShowAddModal(false)} title="Dodaj zadanie" size="md">
         <form onSubmit={handleAdd} className="space-y-4">
@@ -320,13 +455,42 @@ export default function ZadaniaPage() {
             </div>
           </div>
           <div>
-            <label className="limona-label block mb-2">Przypisz do</label>
+            <label className="limona-label block mb-2">Główny wykonawca</label>
             <select className="limona-select" value={form.assigned_to} onChange={e => setForm(f => ({ ...f, assigned_to: e.target.value }))}>
               <option value="">Nieprzypisane</option>
               {profiles.map(p => (
                 <option key={p.id} value={p.id}>{p.full_name}</option>
               ))}
             </select>
+          </div>
+          <div>
+            <label className="limona-label block mb-2">Dodatkowi wykonawcy (CC)</label>
+            <div className="space-y-1.5 max-h-32 overflow-y-auto">
+              {profiles
+                .filter(p => p.id !== form.assigned_to)
+                .map(p => (
+                  <label key={p.id} className="flex items-center gap-2 cursor-pointer hover:bg-limona-surface-2/50 px-2 py-1 rounded">
+                    <input
+                      type="checkbox"
+                      className="accent-limona-lime"
+                      checked={form.co_assignees.includes(p.id)}
+                      onChange={e => setForm(f => ({
+                        ...f,
+                        co_assignees: e.target.checked
+                          ? [...f.co_assignees, p.id]
+                          : f.co_assignees.filter(id => id !== p.id),
+                      }))}
+                    />
+                    <span className="text-sm text-limona-text">{p.full_name}</span>
+                    <span className="text-xs text-limona-text-dim">{p.role}</span>
+                  </label>
+                ))}
+            </div>
+            {form.co_assignees.length > 0 && (
+              <p className="text-xs text-limona-text-dim mt-1">
+                {form.co_assignees.length} dodatkowych wykonawców
+              </p>
+            )}
           </div>
           <div className="flex gap-3 justify-end pt-2">
             <button type="button" onClick={() => setShowAddModal(false)} className="limona-btn-outline">Anuluj</button>
@@ -350,7 +514,239 @@ export default function ZadaniaPage() {
           tasks={tasks}
         />
       )}
+
+      {/* New Board Modal */}
+      <NewBoardModal
+        show={showNewBoardModal}
+        form={newBoardForm}
+        onFormChange={setNewBoardForm}
+        onSubmit={handleCreateBoard}
+        onClose={() => setShowNewBoardModal(false)}
+      />
     </div>
+  )
+}
+
+/* ─── CalendarView ─── */
+const DAYS_PL = ['Pon', 'Wt', 'Śr', 'Czw', 'Pt', 'Sob', 'Nie']
+const MONTHS_PL = ['Styczeń','Luty','Marzec','Kwiecień','Maj','Czerwiec','Lipiec','Sierpień','Wrzesień','Październik','Listopad','Grudzień']
+
+const PRIORITY_DOT: Record<string, string> = {
+  urgent: 'bg-limona-red',
+  high:   'bg-orange-500',
+  medium: 'bg-limona-blue',
+  low:    'bg-limona-text-dim',
+}
+
+function CalendarView({ tasks, month, onMonthChange, onOpenTask }: {
+  tasks: Task[]
+  month: { year: number; month: number }
+  onMonthChange: (m: { year: number; month: number }) => void
+  onOpenTask: (t: Task) => void
+}) {
+  const { year, month: mo } = month
+
+  // Build calendar grid: Monday-first
+  const firstDay = new Date(year, mo, 1)
+  // JS: 0=Sun, 1=Mon ... 6=Sat → shift so Mon=0
+  const startOffset = (firstDay.getDay() + 6) % 7
+  const daysInMonth = new Date(year, mo + 1, 0).getDate()
+  const totalCells = Math.ceil((startOffset + daysInMonth) / 7) * 7
+
+  const cells: (number | null)[] = []
+  for (let i = 0; i < totalCells; i++) {
+    const day = i - startOffset + 1
+    cells.push(day >= 1 && day <= daysInMonth ? day : null)
+  }
+
+  // Tasks keyed by day
+  const tasksByDay = useMemo(() => {
+    const map: Record<number, Task[]> = {}
+    tasks.forEach(t => {
+      if (!t.due_date) return
+      const d = new Date(t.due_date)
+      if (d.getFullYear() === year && d.getMonth() === mo) {
+        const day = d.getDate()
+        if (!map[day]) map[day] = []
+        map[day].push(t)
+      }
+    })
+    return map
+  }, [tasks, year, mo])
+
+  const todayDate = new Date()
+  const isToday = (day: number) =>
+    todayDate.getFullYear() === year && todayDate.getMonth() === mo && todayDate.getDate() === day
+
+  function prev() {
+    if (mo === 0) onMonthChange({ year: year - 1, month: 11 })
+    else onMonthChange({ year, month: mo - 1 })
+  }
+  function next() {
+    if (mo === 11) onMonthChange({ year: year + 1, month: 0 })
+    else onMonthChange({ year, month: mo + 1 })
+  }
+
+  return (
+    <div className="space-y-3">
+      {/* Month navigation */}
+      <div className="flex items-center justify-between">
+        <button onClick={prev} className="p-1.5 text-limona-text-muted hover:text-limona-white transition-colors rounded hover:bg-limona-surface-2">
+          <ChevronLeft size={18} />
+        </button>
+        <h3 className="font-heading font-bold text-lg text-limona-white">
+          {MONTHS_PL[mo]} {year}
+        </h3>
+        <button onClick={next} className="p-1.5 text-limona-text-muted hover:text-limona-white transition-colors rounded hover:bg-limona-surface-2">
+          <ChevronRight size={18} />
+        </button>
+      </div>
+
+      {/* Day headers */}
+      <div className="grid grid-cols-7 gap-1">
+        {DAYS_PL.map(d => (
+          <div key={d} className="text-center text-[10px] uppercase tracking-wider text-limona-text-dim py-1 font-bold">
+            {d}
+          </div>
+        ))}
+      </div>
+
+      {/* Calendar grid */}
+      <div className="grid grid-cols-7 gap-1">
+        {cells.map((day, i) => {
+          if (!day) return <div key={i} className="min-h-[80px]" />
+          const dayTasks = tasksByDay[day] || []
+          const today = isToday(day)
+          return (
+            <div key={i} className={cn(
+              'min-h-[80px] rounded p-1.5 border transition-colors',
+              today ? 'border-limona-lime bg-limona-lime/5' : 'border-limona-border/50 bg-limona-surface/30',
+            )}>
+              <div className={cn(
+                'text-xs font-mono mb-1 leading-none',
+                today ? 'text-limona-lime font-bold' : 'text-limona-text-dim'
+              )}>
+                {day}
+              </div>
+              <div className="space-y-0.5">
+                {dayTasks.slice(0, 3).map(task => (
+                  <button
+                    key={task.id}
+                    onClick={() => onOpenTask(task)}
+                    className={cn(
+                      'w-full text-left text-[10px] leading-tight px-1 py-0.5 rounded truncate flex items-center gap-1 hover:opacity-80 transition-opacity',
+                      task.status === 'done' ? 'opacity-40 line-through' : '',
+                    )}
+                    title={task.title}
+                  >
+                    <span className={cn('w-1.5 h-1.5 rounded-full flex-shrink-0', PRIORITY_DOT[task.priority] || 'bg-limona-text-dim')} />
+                    <span className="text-limona-text truncate">{task.title}</span>
+                  </button>
+                ))}
+                {dayTasks.length > 3 && (
+                  <p className="text-[10px] text-limona-text-dim pl-1">+{dayTasks.length - 3} więcej</p>
+                )}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Legend */}
+      <div className="flex items-center gap-4 pt-2">
+        {Object.entries(PRIORITY_DOT).map(([key, cls]) => (
+          <div key={key} className="flex items-center gap-1">
+            <span className={cn('w-2 h-2 rounded-full', cls)} />
+            <span className="text-[10px] text-limona-text-dim capitalize">{key === 'urgent' ? 'Pilny' : key === 'high' ? 'Wysoki' : key === 'medium' ? 'Średni' : 'Niski'}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/* ─── NewBoardModal ─── */
+function NewBoardModal({
+  show, form, onFormChange, onSubmit, onClose,
+}: {
+  show: boolean
+  form: { name: string; color: string; lists: string[] }
+  onFormChange: (f: { name: string; color: string; lists: string[] }) => void
+  onSubmit: (e: React.FormEvent) => Promise<void>
+  onClose: () => void
+}) {
+  function updateList(i: number, val: string) {
+    const lists = [...form.lists]
+    lists[i] = val
+    onFormChange({ ...form, lists })
+  }
+
+  function removeList(i: number) {
+    onFormChange({ ...form, lists: form.lists.filter((_, idx) => idx !== i) })
+  }
+
+  function addList() {
+    onFormChange({ ...form, lists: [...form.lists, ''] })
+  }
+
+  return (
+    <Modal isOpen={show} onClose={onClose} title="Nowa tablica" size="md">
+      <form onSubmit={onSubmit} className="space-y-4">
+        <div>
+          <label className="limona-label block mb-2">Nazwa tablicy *</label>
+          <input
+            required
+            autoFocus
+            className="limona-input w-full"
+            value={form.name}
+            onChange={e => onFormChange({ ...form, name: e.target.value })}
+            placeholder="np. Sprint Q3, Marketing..."
+          />
+        </div>
+        <div>
+          <label className="limona-label block mb-2">Kolor</label>
+          <div className="flex gap-2 flex-wrap">
+            {BOARD_COLORS.map(c => (
+              <button
+                key={c}
+                type="button"
+                onClick={() => onFormChange({ ...form, color: c })}
+                className={cn('w-8 h-8 rounded-full border-2 transition-all', form.color === c ? 'border-white scale-110' : 'border-transparent hover:border-white/50')}
+                style={{ backgroundColor: c }}
+              />
+            ))}
+          </div>
+        </div>
+        <div>
+          <label className="limona-label block mb-2">Kolumny startowe</label>
+          <div className="space-y-2">
+            {form.lists.map((l, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <input
+                  className="limona-input flex-1 text-sm"
+                  value={l}
+                  onChange={e => updateList(i, e.target.value)}
+                  placeholder={`Kolumna ${i + 1}`}
+                />
+                <button type="button" onClick={() => removeList(i)} className="p-1 text-limona-text-dim hover:text-limona-red">
+                  <X size={14} />
+                </button>
+              </div>
+            ))}
+            <button type="button" onClick={addList}
+              className="text-xs text-limona-text-dim hover:text-limona-lime flex items-center gap-1 transition-colors">
+              <Plus size={12} /> Dodaj kolumnę
+            </button>
+          </div>
+        </div>
+        <div className="flex gap-3 justify-end pt-2">
+          <button type="button" onClick={onClose} className="limona-btn-outline">Anuluj</button>
+          <button type="submit" className="limona-btn" style={{ backgroundColor: form.color }}>
+            Utwórz tablicę
+          </button>
+        </div>
+      </form>
+    </Modal>
   )
 }
 

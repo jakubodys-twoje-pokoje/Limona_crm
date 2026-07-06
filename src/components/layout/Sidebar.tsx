@@ -3,7 +3,7 @@
 import { memo } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Building2, Calculator, ListTodo, MessageSquare, Users, UserCog, User, LogOut } from 'lucide-react'
+import { LayoutDashboard, Building2, ListTodo, MessageSquare, Users, UserCog, User, LogOut, BookUser, MapPin, Inbox } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { useWallContext } from '@/hooks/useWallProvider'
 import { NotificationBell } from '@/components/ui/NotificationBell'
@@ -11,12 +11,14 @@ import { Avatar } from '@/components/ui/Avatar'
 import { cn } from '@/lib/utils'
 
 const navItems = [
-  { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-  { href: '/nieruchomosci', icon: Building2, label: 'Nieruchomości' },
-  { href: '/kalkulator', icon: Calculator, label: 'Kalkulator' },
-  { href: '/zadania', icon: ListTodo, label: 'Zadania' },
-  { href: '/wall', icon: MessageSquare, label: 'Wall', showCounter: true },
-  { href: '/zespol', icon: Users, label: 'Zespół' },
+  { href: '/dashboard',    icon: LayoutDashboard, label: 'Dashboard' },
+  { href: '/komunikacja',  icon: MessageSquare,   label: 'Komunikacja', showCounter: true },
+  { href: '/zadania',      icon: ListTodo,        label: 'Zadania' },
+  { href: '/kontakty',     icon: BookUser,        label: 'Baza kontaktów' },
+  { href: '/nieruchomosci',icon: Building2,       label: 'Nieruchomości' },
+  { href: '/leady',        icon: Inbox,           label: 'Leady' },
+  { href: '/mapa',         icon: MapPin,          label: 'Mapa' },
+  { href: '/zespol',       icon: Users,           label: 'Zespół' },
 ]
 
 const adminItems = [

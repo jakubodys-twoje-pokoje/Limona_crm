@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic'
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Edit, Clock, User, Phone, Plus, CheckCircle, Circle, Trash2 } from 'lucide-react'
+import { ArrowLeft, Edit, Clock, User, Phone, Plus, CheckCircle, Circle, Trash2, Tag, Home, BookOpen, Layers, FileText, ExternalLink, Square, CheckSquare, Building2, Compass, BarChart2 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { useProperties } from '@/hooks/useProperties'
 import { useTasks } from '@/hooks/useTasks'
@@ -19,8 +19,25 @@ import { Avatar } from '@/components/ui/Avatar'
 import { Modal } from '@/components/ui/Modal'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { formatMoney, cn } from '@/lib/utils'
-import type { Property, Task } from '@/types/database'
+import type { Property, Task, Document } from '@/types/database'
 import type { Calc1Input, Calc2Input } from '@/lib/calculator'
+import { STAGE_TASK_TEMPLATES, getStageLabel, DEAL_TYPE_LABELS } from '@/lib/stages'
+import type { DealType } from '@/types/database'
+import { AgentReport } from '@/components/properties/AgentReport'
+
+const CHECKLIST_INFO = [
+  'Zweryfikowana KW', 'Kontakt z właścicielem', 'Rzut planu / metraż',
+  'Rok budowy potwierdzony', 'Piętro i układ', 'Stan techniczny oceniony',
+  'Zadłużenie potwierdzone', 'Czynsz miesięczny ustalony', 'Operat szacunkowy',
+  'Zdjęcia wykonane',
+]
+const CHECKLIST_DOCS = [
+  'Akt własności / odpis z KW', 'Zaświadczenie o niezaleganiu w czynszu',
+  'Zaświadczenie ze spółdzielni / wspólnoty', 'Zaświadczenie z urzędu skarbowego',
+  'Poprzedni akt notarialny', 'Pełnomocnictwo (jeśli dotyczy)',
+  'Umowa przedwstępna kupna', 'Umowa przedwstępna sprzedaży',
+  'Protokół zdania nieruchomości',
+]
 
 function actionLabel(action: string): string {
   const map: Record<string, string> = {
@@ -45,9 +62,79 @@ export default function PropertyDetailPage() {
 
   const [property, setProperty] = useState<Property | null>(null)
   const [loadingProp, setLoadingProp] = useState(true)
-  const [activeTab, setActiveTab] = useState<'calc' | 'tasks' | 'log'>('calc')
+  const [activeTab, setActiveTab] = useState<'calc' | 'tasks' | 'docs' | 'checklist' | 'log' | 'report'>('tasks')
   const [showEditModal, setShowEditModal] = useState(false)
   const [newTaskTitle, setNewTaskTitle] = useState('')
+  const [showTemplates, setShowTemplates] = useState(false)
+  const [selectedTemplates, setSelectedTemplates] = useState<string[]>([])
+
+  // Documents state
+  const [documents, setDocuments] = useState<Document[]>([])
+  const [docsLoading, setDocsLoading] = useState(false)
+  const [newDocName, setNewDocName] = useState('')
+  const [newDocUrl, setNewDocUrl] = useState('')
+  const [newDocType, setNewDocType] = useState('')
+  const [addingDoc, setAddingDoc] = useState(false)
+
+  // Checklist state (stored in localStorage per property)
+  const [checkedItems, setCheckedItems] = useState<Set<string>>(new Set())
+
+  useEffect(() => {
+    if (!propertyId) return
+    try {
+      const saved = JSON.parse(localStorage.getItem(`limona-checklist-${propertyId}`) || '[]') as string[]
+      setCheckedItems(new Set(saved))
+    } catch { /* ignore */ }
+  }, [propertyId])
+
+  function toggleCheck(item: string) {
+    setCheckedItems(prev => {
+      const next = new Set(prev)
+      if (next.has(item)) next.delete(item)
+      else next.add(item)
+      localStorage.setItem(`limona-checklist-${propertyId}`, JSON.stringify(Array.from(next)))
+      return next
+    })
+  }
+
+  async function fetchDocs() {
+    setDocsLoading(true)
+    const res = await fetch(`/api/documents?propertyId=${propertyId}`)
+    if (res.ok) setDocuments(await res.json())
+    setDocsLoading(false)
+  }
+
+  useEffect(() => {
+    if (activeTab === 'docs') fetchDocs()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, propertyId])
+
+  async function handleAddDoc(e: React.FormEvent) {
+    e.preventDefault()
+    if (!newDocName.trim() || !newDocUrl.trim()) return
+    setAddingDoc(true)
+    const res = await fetch('/api/documents', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        property_id: propertyId,
+        name: newDocName.trim(),
+        file_url: newDocUrl.trim(),
+        file_type: newDocType || null,
+        stage: property?.status || null,
+      }),
+    })
+    if (res.ok) {
+      setNewDocName(''); setNewDocUrl(''); setNewDocType('')
+      fetchDocs()
+    }
+    setAddingDoc(false)
+  }
+
+  async function handleDeleteDoc(id: string) {
+    await fetch(`/api/documents/${id}`, { method: 'DELETE' })
+    setDocuments(prev => prev.filter(d => d.id !== id))
+  }
 
   const [calc1Input, setCalc1Input] = useState<Calc1Input>({
     valuePerSqm: 0, totalDebt: 0, commissionPct: 0, notaryFee: 1000, manualOffer: null,
@@ -59,13 +146,12 @@ export default function PropertyDetailPage() {
 
   useEffect(() => {
     async function load() {
-      if (!propertyId) { router.push('/nieruchomosci'); return }
       const res = await fetch(`/api/properties/${propertyId}`)
       if (!res.ok) { router.push('/nieruchomosci'); return }
       const p: Property = await res.json()
       setProperty(p)
 
-      if (p.debt_type === 'above_value') {
+      if (p.deal_type === 'zadluzony_powyzej' || p.debt_type === 'above_value') {
         setCalc2Input({
           valuePerSqm: p.value_per_sqm || 0,
           totalDebt: p.total_debt || 0,
@@ -91,7 +177,23 @@ export default function PropertyDetailPage() {
     load()
   }, [propertyId, router])
 
-  if (!propertyId) return null
+  async function handleToggleTask(task: Task) {
+    if (!user) return
+    const { error } = await updateTask(task.id, { status: task.status === 'done' ? 'todo' : 'done' }, user.id)
+    if (error) showToast(error, 'error')
+  }
+
+  if (loadingProp) {
+    return (
+      <div className="space-y-4 max-w-5xl">
+        <Skeleton className="h-8 w-48" />
+        <Skeleton className="h-32" />
+        <Skeleton className="h-64" />
+      </div>
+    )
+  }
+
+  if (!property || !propertyId) return null
   const currentPropertyId = propertyId
 
   async function handleEdit(data: Partial<Property>) {
@@ -118,25 +220,19 @@ export default function PropertyDetailPage() {
     setNewTaskTitle('')
   }
 
-  async function handleToggleTask(task: Task) {
-    if (!user) return
-    const { error } = await updateTask(task.id, { status: task.status === 'done' ? 'todo' : 'done' }, user.id)
-    if (error) showToast(error, 'error')
-  }
+  const isAbove = property.deal_type === 'zadluzony_powyzej' || property.debt_type === 'above_value'
+  const stageTemplates = STAGE_TASK_TEMPLATES[property.status] ?? []
 
-  if (loadingProp) {
-    return (
-      <div className="space-y-4 max-w-5xl">
-        <Skeleton className="h-8 w-48" />
-        <Skeleton className="h-32" />
-        <Skeleton className="h-64" />
-      </div>
+  async function applyTemplates() {
+    if (!user || selectedTemplates.length === 0) return
+    await Promise.all(
+      selectedTemplates.map(title =>
+        createTask({ title, property_id: currentPropertyId, status: 'todo', priority: 'medium' }, user.id)
+      )
     )
+    setShowTemplates(false)
+    setSelectedTemplates([])
   }
-
-  if (!property) return null
-
-  const isAbove = property.debt_type === 'above_value'
 
   return (
     <div className="space-y-6 max-w-5xl">
@@ -149,6 +245,16 @@ export default function PropertyDetailPage() {
           <h1 className="limona-heading text-2xl lg:text-3xl">{property.location}</h1>
           <div className="flex items-center gap-2 mt-2 flex-wrap">
             <Badge value={property.status} />
+            {property.deal_type && (
+              <span className={cn(
+                'text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded',
+                property.deal_type === 'zadluzony_ponizej' ? 'bg-limona-blue/15 text-limona-blue' :
+                property.deal_type === 'zadluzony_powyzej' ? 'bg-limona-yellow/15 text-limona-yellow' :
+                'bg-limona-lime/15 text-limona-lime'
+              )}>
+                {DEAL_TYPE_LABELS[property.deal_type as DealType]}
+              </span>
+            )}
             {property.property_type && (
               <span className="text-xs text-limona-text-muted capitalize">{property.property_type}</span>
             )}
@@ -196,6 +302,9 @@ export default function PropertyDetailPage() {
             <User size={14} className="text-limona-text-muted" />
             <Avatar name={property.assignee.full_name} size="sm" />
             <span className="text-limona-text">{property.assignee.full_name}</span>
+            {property.co_assignees && property.co_assignees.length > 0 && (
+              <span className="text-xs text-limona-text-dim">+{property.co_assignees.length}</span>
+            )}
           </div>
         )}
         <div className="flex items-center gap-2">
@@ -206,6 +315,94 @@ export default function PropertyDetailPage() {
         </div>
       </div>
 
+      {/* Extended property info */}
+      {(property.owner_name || property.kw_number || property.source || property.czynsz_miesieczny) && (
+        <div className="limona-card p-4 grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
+          {property.owner_name && (
+            <div className="flex items-start gap-2">
+              <Home size={14} className="text-limona-text-muted mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="text-[10px] text-limona-text-dim uppercase tracking-wider">Właściciel</p>
+                <p className="text-limona-text">{property.owner_name}</p>
+              </div>
+            </div>
+          )}
+          {property.kw_number && (
+            <div className="flex items-start gap-2">
+              <BookOpen size={14} className="text-limona-text-muted mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="text-[10px] text-limona-text-dim uppercase tracking-wider">Numer KW</p>
+                <p className="text-limona-text font-mono text-xs">{property.kw_number}</p>
+                {property.kw_opis && <p className="text-limona-text-dim text-xs mt-0.5">{property.kw_opis}</p>}
+              </div>
+            </div>
+          )}
+          {property.source && (
+            <div className="flex items-start gap-2">
+              <Tag size={14} className="text-limona-text-muted mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="text-[10px] text-limona-text-dim uppercase tracking-wider">Źródło</p>
+                <p className="text-limona-text">{property.source}</p>
+              </div>
+            </div>
+          )}
+          {property.czynsz_miesieczny && (
+            <div className="flex items-start gap-2">
+              <Layers size={14} className="text-limona-text-muted mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="text-[10px] text-limona-text-dim uppercase tracking-wider">Czynsz / mies.</p>
+                <p className="text-limona-text font-mono">{formatMoney(property.czynsz_miesieczny)}</p>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Physical info */}
+      {(property.uklad || property.pietro != null || property.rok_budowy || property.balkon_metraz || property.strony_swiata || property.operat_szacunkowy) && (
+        <div className="limona-card p-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 text-sm">
+          {property.uklad && (
+            <div>
+              <p className="text-[10px] text-limona-text-dim uppercase tracking-wider mb-0.5">Układ</p>
+              <p className="text-limona-text">{property.uklad}</p>
+            </div>
+          )}
+          {property.pietro != null && (
+            <div>
+              <p className="text-[10px] text-limona-text-dim uppercase tracking-wider mb-0.5">Piętro</p>
+              <p className="text-limona-text font-mono">{property.pietro}</p>
+            </div>
+          )}
+          {property.rok_budowy && (
+            <div>
+              <p className="text-[10px] text-limona-text-dim uppercase tracking-wider mb-0.5">Rok budowy</p>
+              <p className="text-limona-text font-mono">{property.rok_budowy}</p>
+            </div>
+          )}
+          {property.balkon_metraz && (
+            <div>
+              <p className="text-[10px] text-limona-text-dim uppercase tracking-wider mb-0.5">Balkon/Taras</p>
+              <p className="text-limona-text font-mono">{property.balkon_metraz} m²</p>
+            </div>
+          )}
+          {property.strony_swiata && (
+            <div className="flex items-start gap-1">
+              <Compass size={12} className="text-limona-text-dim mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="text-[10px] text-limona-text-dim uppercase tracking-wider mb-0.5">Strony</p>
+                <p className="text-limona-text">{property.strony_swiata}</p>
+              </div>
+            </div>
+          )}
+          {property.operat_szacunkowy && (
+            <div>
+              <p className="text-[10px] text-limona-text-dim uppercase tracking-wider mb-0.5">Operat szac.</p>
+              <p className="text-limona-text font-mono">{formatMoney(property.operat_szacunkowy)}</p>
+            </div>
+          )}
+        </div>
+      )}
+
       {property.notes && (
         <div className="limona-card-accent p-4">
           <p className="text-xs text-limona-text-muted uppercase tracking-wider mb-2">Notatki</p>
@@ -213,10 +410,12 @@ export default function PropertyDetailPage() {
         </div>
       )}
 
-      <div className="flex gap-1 border-b border-limona-border">
+      <div className="flex gap-1 border-b border-limona-border overflow-x-auto">
         {([
-          { key: 'calc', label: 'Kalkulator' },
           { key: 'tasks', label: `Zadania (${tasks.length})` },
+          { key: 'docs', label: `Dokumenty (${documents.length})` },
+          { key: 'checklist', label: `Checklista (${checkedItems.size}/${CHECKLIST_INFO.length + CHECKLIST_DOCS.length})` },
+          { key: 'report', label: 'Raport agenta' },
           { key: 'log', label: 'Historia' },
         ] as const).map(tab => (
           <button
@@ -265,7 +464,51 @@ export default function PropertyDetailPage() {
               <Plus size={14} />
               Dodaj
             </button>
+            {stageTemplates.length > 0 && (
+              <button
+                type="button"
+                onClick={() => { setShowTemplates(true); setSelectedTemplates([...stageTemplates]) }}
+                className="limona-btn-outline text-xs flex items-center gap-1 whitespace-nowrap"
+              >
+                <Layers size={14} />
+                Szablony etapu
+              </button>
+            )}
           </form>
+
+          {/* Stage templates modal */}
+          {showTemplates && (
+            <div className="limona-card-accent p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-limona-lime uppercase tracking-wider font-bold">
+                  Szablony zadań — {getStageLabel(property.status)}
+                </p>
+                <button onClick={() => setShowTemplates(false)} className="text-limona-text-dim hover:text-limona-text text-xs">✕</button>
+              </div>
+              <div className="space-y-2">
+                {stageTemplates.map(t => (
+                  <label key={t} className="flex items-center gap-3 cursor-pointer group">
+                    <input
+                      type="checkbox"
+                      checked={selectedTemplates.includes(t)}
+                      onChange={e => setSelectedTemplates(prev =>
+                        e.target.checked ? [...prev, t] : prev.filter(x => x !== t)
+                      )}
+                      className="w-4 h-4 accent-limona-lime"
+                    />
+                    <span className="text-sm text-limona-text group-hover:text-limona-white transition-colors">{t}</span>
+                  </label>
+                ))}
+              </div>
+              <div className="flex gap-2 pt-1">
+                <button onClick={applyTemplates} disabled={selectedTemplates.length === 0}
+                  className="limona-btn-sm disabled:opacity-40">
+                  Utwórz zaznaczone ({selectedTemplates.length})
+                </button>
+                <button onClick={() => setShowTemplates(false)} className="limona-btn-outline text-xs">Anuluj</button>
+              </div>
+            </div>
+          )}
 
           {tasks.length === 0 ? (
             <p className="text-center text-limona-text-muted py-8">Brak zadań</p>
@@ -301,6 +544,179 @@ export default function PropertyDetailPage() {
             ))
           )}
         </div>
+      )}
+
+      {activeTab === 'docs' && (
+        <div className="space-y-4">
+          {/* PDF / Cloud storage guide */}
+          <div className="limona-card p-4 border-l-[3px] border-l-limona-blue text-sm">
+            <p className="text-xs font-bold text-limona-blue uppercase tracking-wider mb-2">Pliki PDF — Google Drive</p>
+            <p className="text-limona-text-muted text-xs leading-relaxed">
+              Wgraj PDF księgi wieczystej lub inne dokumenty na <strong className="text-limona-white">Dysk Google</strong> i wklej udostępniony link poniżej.
+              Udostępnianie: kliknij prawym na plik → Udostępnij → Kopiuj link (dostęp: każdy z linkiem).
+            </p>
+          </div>
+          <form onSubmit={handleAddDoc} className="limona-card-accent p-4 space-y-3">
+            <p className="text-xs text-limona-lime uppercase tracking-wider font-bold">Dodaj dokument (link Google Drive)</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <input
+                className="limona-input"
+                placeholder="Nazwa dokumentu"
+                value={newDocName}
+                onChange={e => setNewDocName(e.target.value)}
+                required
+              />
+              <input
+                className="limona-input"
+                placeholder="Link (Google Drive / URL)"
+                value={newDocUrl}
+                onChange={e => setNewDocUrl(e.target.value)}
+                required
+              />
+            </div>
+            <div className="flex items-center gap-3">
+              <select
+                className="limona-select flex-1"
+                value={newDocType}
+                onChange={e => setNewDocType(e.target.value)}
+              >
+                <option value="">Typ dokumentu (opcjonalnie)</option>
+                <option value="kw">📄 Odpis z KW (PDF)</option>
+                <option value="akt_wlasnosci">Akt własności</option>
+                <option value="zaswiadczenie">Zaświadczenie</option>
+                <option value="umowa">Umowa</option>
+                <option value="operat">Operat szacunkowy</option>
+                <option value="zdjecia">Zdjęcia</option>
+                <option value="inne">Inne</option>
+              </select>
+              <button type="submit" disabled={addingDoc} className="limona-btn-sm flex items-center gap-1 whitespace-nowrap">
+                <Plus size={14} /> Dodaj
+              </button>
+            </div>
+          </form>
+
+          {docsLoading ? (
+            <div className="space-y-2">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-12" />)}</div>
+          ) : documents.length === 0 ? (
+            <div className="text-center py-12">
+              <FileText size={32} className="text-limona-text-dim mx-auto mb-3" />
+              <p className="text-limona-text-muted">Brak dokumentów</p>
+              <p className="text-xs text-limona-text-dim mt-1">Dodaj link do dokumentu powyżej</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {documents.map(doc => (
+                <div key={doc.id} className="limona-card flex items-center gap-3 p-3">
+                  <FileText size={16} className="text-limona-text-muted flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-limona-text font-medium truncate">{doc.name}</p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      {doc.file_type && (
+                        <span className="text-[10px] uppercase tracking-wider text-limona-text-dim border border-limona-border rounded px-1">{doc.file_type}</span>
+                      )}
+                      {doc.stage && (
+                        <span className="text-[10px] text-limona-text-dim">etap: {doc.stage}</span>
+                      )}
+                      {doc.uploader && (
+                        <span className="text-[10px] text-limona-text-dim">{doc.uploader.full_name}</span>
+                      )}
+                    </div>
+                  </div>
+                  <a
+                    href={doc.file_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 text-xs text-limona-lime hover:text-limona-lime-hover transition-colors flex-shrink-0"
+                  >
+                    <ExternalLink size={14} />
+                    Otwórz
+                  </a>
+                  <button
+                    onClick={() => handleDeleteDoc(doc.id)}
+                    className="p-1 text-limona-text-dim hover:text-limona-red transition-colors flex-shrink-0"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'checklist' && (
+        <div className="space-y-6">
+          <div>
+            <p className="text-xs text-limona-lime uppercase tracking-wider font-bold mb-3 flex items-center gap-2">
+              <Building2 size={14} />
+              Zbieranie informacji ({CHECKLIST_INFO.filter(i => checkedItems.has(i)).length}/{CHECKLIST_INFO.length})
+            </p>
+            <div className="space-y-2">
+              {CHECKLIST_INFO.map(item => (
+                <button
+                  key={item}
+                  onClick={() => toggleCheck(item)}
+                  className={cn(
+                    'w-full flex items-center gap-3 p-3 rounded text-left transition-colors border',
+                    checkedItems.has(item)
+                      ? 'border-limona-green/30 bg-limona-green/5'
+                      : 'border-limona-border hover:border-limona-border/60 hover:bg-limona-surface-2'
+                  )}
+                >
+                  {checkedItems.has(item)
+                    ? <CheckSquare size={16} className="text-limona-green flex-shrink-0" />
+                    : <Square size={16} className="text-limona-text-dim flex-shrink-0" />
+                  }
+                  <span className={cn('text-sm', checkedItems.has(item) ? 'text-limona-text-muted line-through' : 'text-limona-text')}>
+                    {item}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <p className="text-xs text-limona-lime uppercase tracking-wider font-bold mb-3 flex items-center gap-2">
+              <FileText size={14} />
+              Dokumenty do sprzedaży ({CHECKLIST_DOCS.filter(i => checkedItems.has(i)).length}/{CHECKLIST_DOCS.length})
+            </p>
+            <div className="space-y-2">
+              {CHECKLIST_DOCS.map(item => (
+                <button
+                  key={item}
+                  onClick={() => toggleCheck(item)}
+                  className={cn(
+                    'w-full flex items-center gap-3 p-3 rounded text-left transition-colors border',
+                    checkedItems.has(item)
+                      ? 'border-limona-green/30 bg-limona-green/5'
+                      : 'border-limona-border hover:border-limona-border/60 hover:bg-limona-surface-2'
+                  )}
+                >
+                  {checkedItems.has(item)
+                    ? <CheckSquare size={16} className="text-limona-green flex-shrink-0" />
+                    : <Square size={16} className="text-limona-text-dim flex-shrink-0" />
+                  }
+                  <span className={cn('text-sm', checkedItems.has(item) ? 'text-limona-text-muted line-through' : 'text-limona-text')}>
+                    {item}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+          <button
+            onClick={() => {
+              if (!confirm('Zresetować wszystkie punkty checklisty?')) return
+              setCheckedItems(new Set())
+              localStorage.removeItem(`limona-checklist-${propertyId}`)
+            }}
+            className="text-xs text-limona-text-dim hover:text-limona-red transition-colors"
+          >
+            Resetuj checklistę
+          </button>
+        </div>
+      )}
+
+      {activeTab === 'report' && (
+        <AgentReport property={property} />
       )}
 
       {activeTab === 'log' && (

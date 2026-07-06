@@ -39,6 +39,7 @@ export function Calculator1({ input, onChange, showInputs = true }: Calculator1P
                 min="0"
                 step="1000"
               />
+              <p className="text-[11px] text-limona-text-dim mt-1">Wartość rynkowa nieruchomości wg najniższej wyceny. Stąd liczymy RW = I × 90%.</p>
             </div>
             <div>
               <label className="limona-label block mb-2">Zadłużenie (K) [zł]</label>
@@ -51,6 +52,7 @@ export function Calculator1({ input, onChange, showInputs = true }: Calculator1P
                 min="0"
                 step="1000"
               />
+              <p className="text-[11px] text-limona-text-dim mt-1">Łączna kwota wszystkich zobowiązań: hipoteki, zaległości, komornik.</p>
             </div>
             <div>
               <label className="limona-label block mb-2">Prowizja pośrednika (L) [%]</label>
@@ -68,6 +70,7 @@ export function Calculator1({ input, onChange, showInputs = true }: Calculator1P
                 }}
                 placeholder="2.46"
               />
+              <p className="text-[11px] text-limona-text-dim mt-1">Prowizja agencji nieruchomości pośredniczącej przy sprzedaży. Wpisz 0 jeśli bez pośrednika.</p>
             </div>
             <div>
               <label className="limona-label block mb-2">Taksa notarialna (O) [zł]</label>
@@ -79,6 +82,7 @@ export function Calculator1({ input, onChange, showInputs = true }: Calculator1P
                 placeholder="1000"
                 min="0"
               />
+              <p className="text-[11px] text-limona-text-dim mt-1">Koszty notarialne przy podpisaniu umowy kupna. Domyślnie 1 000 zł.</p>
             </div>
             <div className="sm:col-span-2">
               <label className="limona-label block mb-2">Ręczna oferta (U) [zł] — opcjonalnie</label>
@@ -94,6 +98,7 @@ export function Calculator1({ input, onChange, showInputs = true }: Calculator1P
                 min="0"
                 step="1000"
               />
+              <p className="text-[11px] text-limona-text-dim mt-1">Wpisz jeśli chcesz obliczyć dla konkretnej kwoty oferty zamiast standardowego M = RW − 30%. Zobaczysz oba warianty.</p>
             </div>
           </div>
         </div>

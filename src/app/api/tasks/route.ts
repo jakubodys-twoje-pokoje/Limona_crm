@@ -26,7 +26,8 @@ export async function GET(req: NextRequest) {
   if (propertyId) query = query.eq('property_id', propertyId)
   if (visibleIds?.length) {
     const ids = visibleIds.join(',')
-    query = query.or(`assigned_to.in.(${ids}),created_by.in.(${ids})`)
+    // widać też zadania, gdzie user jest współprzypisanym (co_assignees[])
+    query = query.or(`assigned_to.in.(${ids}),created_by.in.(${ids}),co_assignees.ov.{${ids}}`)
   }
 
   const { data, error } = await query

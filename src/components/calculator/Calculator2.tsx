@@ -34,10 +34,12 @@ export function Calculator2({ input, onChange, showInputs = true }: Calculator2P
               <div>
                 <label className="limona-label block mb-2">Wartość po najniższej m² (I) [zł]</label>
                 <input type="number" className="limona-input" value={input.valuePerSqm || ''} onChange={e => handleNum('valuePerSqm', e.target.value)} placeholder="656000" min="0" step="1000" />
+                <p className="text-[11px] text-limona-text-dim mt-1">Wartość rynkowa wg najniższej wyceny. RW = I × 90%.</p>
               </div>
               <div>
                 <label className="limona-label block mb-2">Całk. zadłużenie (K) [zł]</label>
                 <input type="number" className="limona-input" value={input.totalDebt || ''} onChange={e => handleNum('totalDebt', e.target.value)} placeholder="790000" min="0" step="1000" />
+                <p className="text-[11px] text-limona-text-dim mt-1">Suma wszystkich wierzytelności. Przy powyżej wartości K &gt; I.</p>
               </div>
               <div>
                 <label className="limona-label block mb-2">Prowizja pośrednika (W) [%]</label>
@@ -51,10 +53,12 @@ export function Calculator2({ input, onChange, showInputs = true }: Calculator2P
                   }}
                   placeholder="2.46"
                 />
+                <p className="text-[11px] text-limona-text-dim mt-1">Prowizja agencji przy sprzedaży. Wpisz 0 jeśli bez pośrednika.</p>
               </div>
               <div>
                 <label className="limona-label block mb-2">Taksa notarialna (Z) [zł]</label>
                 <input type="number" className="limona-input" value={input.notaryFee || ''} onChange={e => handleNum('notaryFee', e.target.value)} placeholder="1000" min="0" />
+                <p className="text-[11px] text-limona-text-dim mt-1">Koszty notarialne przy umowie kupna. Domyślnie 1 000 zł.</p>
               </div>
             </div>
           </div>
@@ -65,23 +69,35 @@ export function Calculator2({ input, onChange, showInputs = true }: Calculator2P
               <div>
                 <label className="limona-label block mb-2">Kwota 1. wierzyciela (L) [zł]</label>
                 <input type="number" className="limona-input" value={input.creditor1 || ''} onChange={e => handleNum('creditor1', e.target.value)} placeholder="600000" min="0" step="1000" />
+                <p className="text-[11px] text-limona-text-dim mt-1">Największy wierzyciel (np. bank hipoteczny).</p>
               </div>
               <div>
                 <label className="limona-label block mb-2">Kwota 2. wierzyciela (M) [zł]</label>
                 <input type="number" className="limona-input" value={input.creditor2 || ''} onChange={e => handleNum('creditor2', e.target.value)} placeholder="150000" min="0" step="1000" />
+                <p className="text-[11px] text-limona-text-dim mt-1">Drugi wierzyciel (np. wspólnota, urząd skarbowy).</p>
               </div>
               <div>
                 <label className="limona-label block mb-2">Kwota 3. wierzyciela (N) [zł]</label>
                 <input type="number" className="limona-input" value={input.creditor3 || ''} onChange={e => handleNum('creditor3', e.target.value)} placeholder="40000" min="0" step="1000" />
+                <p className="text-[11px] text-limona-text-dim mt-1">Trzeci wierzyciel (np. komornik). Zostaw 0 jeśli nie ma.</p>
               </div>
               <div>
-                <label className="limona-label block mb-2">Wsp. właściciela (R)</label>
-                <input type="number" className="limona-input"
-                  value={input.ownerCoefficient || ''}
-                  onChange={e => handleNum('ownerCoefficient', e.target.value)}
-                  placeholder="0.025" min="0" max="1" step="0.001"
+                <label className="limona-label block mb-2">Wsp. właściciela (R) [%]</label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  className="limona-input"
+                  value={input.ownerCoefficient ? (input.ownerCoefficient * 100).toFixed(3).replace(/\.?0+$/, '') : ''}
+                  onChange={e => {
+                    const raw = e.target.value.replace(',', '.')
+                    if (raw === '' || /^\d*\.?\d*$/.test(raw)) {
+                      const v = parseFloat(raw)
+                      onChange('ownerCoefficient', isNaN(v) ? 0 : v / 100)
+                    }
+                  }}
+                  placeholder="2.5"
                 />
-                <span className="text-xs text-limona-text-dim">Domyślnie 0.025 = 2.5%</span>
+                <p className="text-[11px] text-limona-text-dim mt-1">Jaki % ceny skupu idzie do właściciela. Wpisz np. 2.5 (= 2.5% = 0.025). Domyślnie 2.5%.</p>
               </div>
               <div className="sm:col-span-2">
                 <label className="limona-label block mb-2">Ręczna oferta max (AF) [zł] — opcjonalnie</label>
@@ -90,6 +106,7 @@ export function Calculator2({ input, onChange, showInputs = true }: Calculator2P
                   onChange={e => { const v = parseFloat(e.target.value); onChange('manualOffer', isNaN(v) ? null : v) }}
                   placeholder="500000" min="0" step="1000"
                 />
+                <p className="text-[11px] text-limona-text-dim mt-1">Wpisz jeśli uzgodniłeś konkretną maksymalną kwotę z wierzycielami. Zobaczysz oba warianty.</p>
               </div>
             </div>
           </div>

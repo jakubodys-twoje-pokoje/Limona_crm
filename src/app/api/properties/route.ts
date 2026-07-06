@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getSessionUser, unauthorized } from '@/lib/api-auth'
+import { geocodeAddress } from '@/lib/geocode'
 
 const SELECT_WITH_RELATIONS = `*,
   creator:profiles!properties_created_by_fkey(id,full_name,avatar_url),
@@ -37,9 +38,12 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json()
 
+  // Auto-geokodowanie przy tworzeniu (nieblokujące — brak współrzędnych to null)
+  const coords = await geocodeAddress(body.location, null, null)
+
   const { data: property, error } = await supabase
     .from('properties')
-    .insert({ ...body, created_by: user.id })
+    .insert({ ...body, created_by: user.id, ...(coords ?? {}) })
     .select(SELECT_WITH_RELATIONS)
     .single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
