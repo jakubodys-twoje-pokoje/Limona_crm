@@ -25,7 +25,7 @@ export type TaskStatus = 'todo' | 'in_progress' | 'done' | 'blocked'
 
 export type TaskPriority = 'low' | 'medium' | 'high' | 'urgent'
 
-export type UserRole = 'admin' | 'manager' | 'user' | 'viewer'
+export type UserRole = 'admin' | 'kierownik_centrali' | 'manager' | 'user' | 'viewer'
 
 // --- Etap 0: dane strukturalne z pracy kontaktowej + temperatura leada ---
 export type TaskType = 'wizyta' | 'telefon' | 'inne'
@@ -104,6 +104,7 @@ export interface Property {
   creator?: Profile
   assignee?: Profile
   co_assignee_profiles?: Profile[]
+  kontakt?: Kontakt
 }
 
 export interface Task {
@@ -315,6 +316,24 @@ export interface KontaktKomentarz {
   content: string
   created_at: string
   // Joined fields
+  user?: { id: string; full_name: string; avatar_url: string | null }
+}
+
+export interface PropertyComment {
+  id: string
+  property_id: string
+  user_id: string | null
+  content: string
+  created_at: string
+  user?: { id: string; full_name: string; avatar_url: string | null }
+}
+
+export interface LeadComment {
+  id: string
+  lead_id: string
+  user_id: string | null
+  content: string
+  created_at: string
   user?: { id: string; full_name: string; avatar_url: string | null }
 }
 

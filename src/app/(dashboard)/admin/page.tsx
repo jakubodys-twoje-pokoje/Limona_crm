@@ -245,6 +245,7 @@ export default function AdminPage() {
             <label className="limona-label block mb-2">Rola</label>
             <select className="limona-select" value={createForm.role} onChange={e => setCreateForm(f => ({ ...f, role: e.target.value as UserRole }))}>
               <option value="admin">Admin</option>
+              <option value="kierownik_centrali">Kierownik centrali</option>
               <option value="manager">Manager</option>
               <option value="user">User</option>
               <option value="viewer">Viewer</option>
@@ -274,6 +275,7 @@ export default function AdminPage() {
             <label className="limona-label block mb-2">Rola</label>
             <select className="limona-select" value={editForm.role} onChange={e => setEditForm(f => ({ ...f, role: e.target.value as UserRole }))}>
               <option value="admin">Admin — pełny dostęp + panel admina</option>
+              <option value="kierownik_centrali">Kierownik centrali — ewaluacja wszystkich zespołów, bez zarządzania kontami</option>
               <option value="manager">Manager — widzi wszystko, zarządza leadami</option>
               <option value="user">User — widzi swoje + przypisane</option>
               <option value="viewer">Viewer — tylko odczyt</option>

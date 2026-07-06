@@ -86,6 +86,10 @@ export function PropertyForm({ initial = {}, onSubmit, onCancel, submitLabel = '
   const [kontaktSearch, setKontaktSearch] = useState('')
   const [users, setUsers] = useState<UserOption[]>([])
   const [coAssignees, setCoAssignees] = useState<string[]>(initial.co_assignees || [])
+  const [statusComment, setStatusComment] = useState('')
+  // Wymóg komentarza dotyczy tylko edycji (jest poprzedni status do porównania)
+  const isEditingStatus = !!initial.status
+  const statusChanged = isEditingStatus && form.status !== initial.status
 
   useEffect(() => {
     fetch('/api/kontakty?limit=500')
@@ -115,6 +119,7 @@ export function PropertyForm({ initial = {}, onSubmit, onCancel, submitLabel = '
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    if (statusChanged && !statusComment.trim()) return
     setLoading(true)
     try {
       const dealType = (form.deal_type as DealType) || null
@@ -153,6 +158,7 @@ export function PropertyForm({ initial = {}, onSubmit, onCancel, submitLabel = '
         operat_szacunkowy: form.operat_szacunkowy ? parseFloat(form.operat_szacunkowy) : null,
         co_assignees: coAssignees,
       }
+      if (statusChanged) (data as Partial<Property> & { statusComment?: string }).statusComment = statusComment.trim()
       await onSubmit(data)
     } finally {
       setLoading(false)
@@ -204,6 +210,20 @@ export function PropertyForm({ initial = {}, onSubmit, onCancel, submitLabel = '
             </select>
           </div>
         </div>
+        {statusChanged && (
+          <div className="mt-4 p-3 rounded-lg border border-limona-yellow/40 bg-limona-yellow/5">
+            <label className="limona-label block mb-2 text-limona-yellow">
+              Dlaczego zmieniasz status? *
+            </label>
+            <textarea
+              required
+              className="limona-input w-full min-h-[70px] resize-y text-sm"
+              value={statusComment}
+              onChange={e => setStatusComment(e.target.value)}
+              placeholder="Krótkie uzasadnienie — trafi do historii nieruchomości..."
+            />
+          </div>
+        )}
       </div>
 
       {/* Dane podstawowe */}
@@ -567,7 +587,7 @@ export function PropertyForm({ initial = {}, onSubmit, onCancel, submitLabel = '
         <button type="button" onClick={onCancel} className="limona-btn-outline">
           Anuluj
         </button>
-        <button type="submit" disabled={loading} className="limona-btn disabled:opacity-50">
+        <button type="submit" disabled={loading || (statusChanged && !statusComment.trim())} className="limona-btn disabled:opacity-50">
           {loading ? 'Zapisywanie...' : submitLabel}
         </button>
       </div>

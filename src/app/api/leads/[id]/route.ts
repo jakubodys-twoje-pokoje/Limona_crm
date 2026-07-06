@@ -2,6 +2,8 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getSessionUser, unauthorized } from '@/lib/api-auth'
+import { LEAD_STATUS_LABELS, formatStatusChangeComment } from '@/lib/status-comments'
+import type { LeadStatus } from '@/types/database'
 
 const SELECT_WITH_RELATIONS = `*,
   assignee:profiles!leads_assigned_to_fkey(id,full_name,avatar_url),
@@ -29,6 +31,21 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const { id } = await params
 
   const body = await req.json()
+  const statusComment: string | undefined = body.statusComment
+
+  const { data: existing } = await supabase
+    .from('leads')
+    .select('status')
+    .eq('id', id)
+    .maybeSingle()
+  if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  // Każda zmiana statusu wymaga komentarza uzasadniającego (dlaczego?)
+  const statusChanging = typeof body.status === 'string' && body.status !== existing.status
+  if (statusChanging && !statusComment?.trim()) {
+    return NextResponse.json({ error: 'Zmiana statusu wymaga komentarza — uzasadnij, dlaczego' }, { status: 400 })
+  }
+
   const updates: Record<string, unknown> = {}
   for (const f of ['name', 'phone', 'email', 'location', 'source', 'notes', 'status'] as const) {
     if (body[f] !== undefined) updates[f] = body[f]
@@ -43,6 +60,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     .select(SELECT_WITH_RELATIONS)
     .single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  if (statusChanging && statusComment) {
+    await supabase.from('lead_comments').insert({
+      lead_id: id,
+      user_id: user.id,
+      content: formatStatusChangeComment(LEAD_STATUS_LABELS[body.status as LeadStatus], statusComment),
+    })
+  }
 
   return NextResponse.json(lead)
 }

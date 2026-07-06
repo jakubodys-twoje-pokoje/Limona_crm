@@ -3,7 +3,7 @@
 export const dynamic = 'force-dynamic'
 
 import { useState, useEffect, useRef, useMemo } from 'react'
-import { Plus, Calendar, Link as LinkIcon, Trash2, CheckCircle, Clock, AlertCircle, XCircle, X, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Plus, Calendar, Link as LinkIcon, Trash2, CheckCircle, Clock, AlertCircle, XCircle, X } from 'lucide-react'
 import { useTasks } from '@/hooks/useTasks'
 import { useBoards } from '@/hooks/useBoards'
 import { useAuth } from '@/hooks/useAuth'
@@ -15,6 +15,7 @@ import { Modal } from '@/components/ui/Modal'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { TaskDetailModal } from '@/components/tasks/TaskDetailModal'
 import { BoardView, BOARD_COLORS } from '@/components/tasks/BoardView'
+import { CalendarView } from '@/components/tasks/CalendarView'
 import { TASK_TYPE_LABELS, CONTACT_CATEGORY_LABELS } from '@/lib/reports'
 import { cn } from '@/lib/utils'
 import type { Task, TaskStatus, TaskPriority, TaskType, ContactCategory, Profile } from '@/types/database'
@@ -75,12 +76,12 @@ export default function ZadaniaPage() {
   // For Ogólne mode, pass 'none' so tasks API filters board_id IS NULL
   const boardIdFilter = selectedBoardId === null ? 'none' : selectedBoardId
   const { tasks, loading, createTask, updateTask, deleteTask } = useTasks(undefined, visibleIds, boardIdFilter)
+  // Kalendarz agreguje WSZYSTKIE tablice naraz — niezależnie od aktywnej
+  // zakładki kanbanu (boardId pominięty = brak filtra po stronie API)
+  const { tasks: allBoardsTasks, loading: allBoardsLoading } = useTasks(undefined, visibleIds)
   const { showToast } = useToast()
 
   const [view, setView] = useState<'kanban' | 'list' | 'calendar'>('kanban')
-  const [calMonth, setCalMonth] = useState(() => {
-    const d = new Date(); return { year: d.getFullYear(), month: d.getMonth() }
-  })
   const [showAddModal, setShowAddModal] = useState(false)
   const [addStatus, setAddStatus] = useState<TaskStatus>('todo')
   const [form, setForm] = useState<TaskFormData>({ ...EMPTY_FORM })
@@ -398,12 +399,12 @@ export default function ZadaniaPage() {
         </div>
       )}
 
-      {/* Calendar View */}
+      {/* Calendar View — agreguje zadania ze wszystkich tablic, nie tylko aktywnej zakładki */}
       {view === 'calendar' && (
         <CalendarView
-          tasks={tasks}
-          month={calMonth}
-          onMonthChange={setCalMonth}
+          tasks={allBoardsTasks}
+          loading={allBoardsLoading}
+          profiles={profiles}
           onOpenTask={setSelectedTask}
         />
       )}
@@ -523,144 +524,6 @@ export default function ZadaniaPage() {
         onSubmit={handleCreateBoard}
         onClose={() => setShowNewBoardModal(false)}
       />
-    </div>
-  )
-}
-
-/* ─── CalendarView ─── */
-const DAYS_PL = ['Pon', 'Wt', 'Śr', 'Czw', 'Pt', 'Sob', 'Nie']
-const MONTHS_PL = ['Styczeń','Luty','Marzec','Kwiecień','Maj','Czerwiec','Lipiec','Sierpień','Wrzesień','Październik','Listopad','Grudzień']
-
-const PRIORITY_DOT: Record<string, string> = {
-  urgent: 'bg-limona-red',
-  high:   'bg-orange-500',
-  medium: 'bg-limona-blue',
-  low:    'bg-limona-text-dim',
-}
-
-function CalendarView({ tasks, month, onMonthChange, onOpenTask }: {
-  tasks: Task[]
-  month: { year: number; month: number }
-  onMonthChange: (m: { year: number; month: number }) => void
-  onOpenTask: (t: Task) => void
-}) {
-  const { year, month: mo } = month
-
-  // Build calendar grid: Monday-first
-  const firstDay = new Date(year, mo, 1)
-  // JS: 0=Sun, 1=Mon ... 6=Sat → shift so Mon=0
-  const startOffset = (firstDay.getDay() + 6) % 7
-  const daysInMonth = new Date(year, mo + 1, 0).getDate()
-  const totalCells = Math.ceil((startOffset + daysInMonth) / 7) * 7
-
-  const cells: (number | null)[] = []
-  for (let i = 0; i < totalCells; i++) {
-    const day = i - startOffset + 1
-    cells.push(day >= 1 && day <= daysInMonth ? day : null)
-  }
-
-  // Tasks keyed by day
-  const tasksByDay = useMemo(() => {
-    const map: Record<number, Task[]> = {}
-    tasks.forEach(t => {
-      if (!t.due_date) return
-      const d = new Date(t.due_date)
-      if (d.getFullYear() === year && d.getMonth() === mo) {
-        const day = d.getDate()
-        if (!map[day]) map[day] = []
-        map[day].push(t)
-      }
-    })
-    return map
-  }, [tasks, year, mo])
-
-  const todayDate = new Date()
-  const isToday = (day: number) =>
-    todayDate.getFullYear() === year && todayDate.getMonth() === mo && todayDate.getDate() === day
-
-  function prev() {
-    if (mo === 0) onMonthChange({ year: year - 1, month: 11 })
-    else onMonthChange({ year, month: mo - 1 })
-  }
-  function next() {
-    if (mo === 11) onMonthChange({ year: year + 1, month: 0 })
-    else onMonthChange({ year, month: mo + 1 })
-  }
-
-  return (
-    <div className="space-y-3">
-      {/* Month navigation */}
-      <div className="flex items-center justify-between">
-        <button onClick={prev} className="p-1.5 text-limona-text-muted hover:text-limona-white transition-colors rounded hover:bg-limona-surface-2">
-          <ChevronLeft size={18} />
-        </button>
-        <h3 className="font-heading font-bold text-lg text-limona-white">
-          {MONTHS_PL[mo]} {year}
-        </h3>
-        <button onClick={next} className="p-1.5 text-limona-text-muted hover:text-limona-white transition-colors rounded hover:bg-limona-surface-2">
-          <ChevronRight size={18} />
-        </button>
-      </div>
-
-      {/* Day headers */}
-      <div className="grid grid-cols-7 gap-1">
-        {DAYS_PL.map(d => (
-          <div key={d} className="text-center text-[10px] uppercase tracking-wider text-limona-text-dim py-1 font-bold">
-            {d}
-          </div>
-        ))}
-      </div>
-
-      {/* Calendar grid */}
-      <div className="grid grid-cols-7 gap-1">
-        {cells.map((day, i) => {
-          if (!day) return <div key={i} className="min-h-[80px]" />
-          const dayTasks = tasksByDay[day] || []
-          const today = isToday(day)
-          return (
-            <div key={i} className={cn(
-              'min-h-[80px] rounded p-1.5 border transition-colors',
-              today ? 'border-limona-lime bg-limona-lime/5' : 'border-limona-border/50 bg-limona-surface/30',
-            )}>
-              <div className={cn(
-                'text-xs font-mono mb-1 leading-none',
-                today ? 'text-limona-lime font-bold' : 'text-limona-text-dim'
-              )}>
-                {day}
-              </div>
-              <div className="space-y-0.5">
-                {dayTasks.slice(0, 3).map(task => (
-                  <button
-                    key={task.id}
-                    onClick={() => onOpenTask(task)}
-                    className={cn(
-                      'w-full text-left text-[10px] leading-tight px-1 py-0.5 rounded truncate flex items-center gap-1 hover:opacity-80 transition-opacity',
-                      task.status === 'done' ? 'opacity-40 line-through' : '',
-                    )}
-                    title={task.title}
-                  >
-                    <span className={cn('w-1.5 h-1.5 rounded-full flex-shrink-0', PRIORITY_DOT[task.priority] || 'bg-limona-text-dim')} />
-                    <span className="text-limona-text truncate">{task.title}</span>
-                  </button>
-                ))}
-                {dayTasks.length > 3 && (
-                  <p className="text-[10px] text-limona-text-dim pl-1">+{dayTasks.length - 3} więcej</p>
-                )}
-              </div>
-            </div>
-          )
-        })}
-      </div>
-
-      {/* Legend */}
-      <div className="flex items-center gap-4 pt-2">
-        {Object.entries(PRIORITY_DOT).map(([key, cls]) => (
-          <div key={key} className="flex items-center gap-1">
-            <span className={cn('w-2 h-2 rounded-full', cls)} />
-            <span className="text-[10px] text-limona-text-dim capitalize">{key === 'urgent' ? 'Pilny' : key === 'high' ? 'Wysoki' : key === 'medium' ? 'Średni' : 'Niski'}</span>
-          </div>
-        ))}
-      </div>
     </div>
   )
 }

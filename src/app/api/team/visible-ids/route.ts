@@ -2,13 +2,14 @@ export const dynamic = 'force-dynamic'
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getSessionUser, unauthorized } from '@/lib/api-auth'
+import { canSeeAllTeams } from '@/lib/roles'
 
 export async function GET() {
   const user = await getSessionUser()
   if (!user) return unauthorized()
 
-  // Admin i manager widzą wszystkich
-  if (user.role === 'admin' || user.role === 'manager') {
+  // Admin, manager i kierownik centrali widzą wszystkich (ewaluacja org-wide)
+  if (canSeeAllTeams(user.role)) {
     return NextResponse.json({ visibleIds: null })
   }
 

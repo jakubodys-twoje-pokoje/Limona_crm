@@ -10,6 +10,8 @@ import { useToast } from '@/components/ui/Toast'
 import { Avatar } from '@/components/ui/Avatar'
 import { Modal } from '@/components/ui/Modal'
 import { Skeleton } from '@/components/ui/Skeleton'
+import { StatusChangeCommentModal } from '@/components/shared/StatusChangeCommentModal'
+import { canSeeAllTeams } from '@/lib/roles'
 import { cn } from '@/lib/utils'
 import type { Lead, LeadStatus, Profile } from '@/types/database'
 
@@ -56,8 +58,13 @@ export default function LeadyPage() {
   const [saving, setSaving] = useState(false)
   const [assignModal, setAssignModal] = useState<Lead | null>(null)
   const [assignTo, setAssignTo] = useState('')
+  const [assignComment, setAssignComment] = useState('')
+  // Każda zmiana statusu (w tym konwersja) wymaga komentarza "dlaczego"
+  const [pendingAction, setPendingAction] = useState<
+    { kind: 'status' | 'convert'; lead: Lead; status: LeadStatus } | null
+  >(null)
 
-  const isAdminOrManager = profile?.role === 'admin' || profile?.role === 'manager'
+  const isAdminOrManager = canSeeAllTeams(profile?.role)
 
   const fetchLeads = useCallback(async () => {
     const params = new URLSearchParams()
@@ -99,58 +106,72 @@ export default function LeadyPage() {
     }
   }
 
-  async function updateStatus(lead: Lead, status: LeadStatus) {
-    const res = await fetch(`/api/leads/${lead.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status }),
-    })
-    if (res.ok) fetchLeads()
-    else showToast('Błąd zmiany statusu', 'error')
+  function updateStatus(lead: Lead, status: LeadStatus) {
+    setPendingAction({ kind: 'status', lead, status })
   }
 
   async function handleAssign() {
-    if (!assignModal || !assignTo) return
+    if (!assignModal || !assignTo || !assignComment.trim()) return
     const res = await fetch(`/api/leads/${assignModal.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ assignedTo: assignTo, status: 'assigned' }),
+      body: JSON.stringify({ assignedTo: assignTo, status: 'assigned', statusComment: assignComment.trim() }),
     })
     if (res.ok) {
       showToast('Lead przypisany', 'success')
       setAssignModal(null)
       setAssignTo('')
+      setAssignComment('')
       fetchLeads()
     } else {
       showToast('Błąd przypisania', 'error')
     }
   }
 
-  async function handleConvert(lead: Lead) {
-    if (!user) return
-    const res = await fetch('/api/properties', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        location: lead.location || lead.name,
-        phone: lead.phone || null,
-        status: 'nowa',
-        source: lead.source || null,
-        notes: lead.notes ? `Lead: ${lead.name}\n${lead.notes}` : `Lead: ${lead.name}`,
-        assigned_to: lead.assigned_to || null,
-      }),
-    })
-    if (!res.ok) { showToast('Błąd tworzenia nieruchomości', 'error'); return }
-    const newProp = await res.json()
+  function handleConvert(lead: Lead) {
+    setPendingAction({ kind: 'convert', lead, status: 'converted' })
+  }
 
-    await fetch(`/api/leads/${lead.id}`, {
+  async function confirmPendingAction(comment: string) {
+    if (!pendingAction) return
+    const { kind, lead, status } = pendingAction
+    setPendingAction(null)
+
+    if (kind === 'convert') {
+      if (!user) return
+      const res = await fetch('/api/properties', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          location: lead.location || lead.name,
+          phone: lead.phone || null,
+          status: 'nowa',
+          source: lead.source || null,
+          notes: lead.notes ? `Lead: ${lead.name}\n${lead.notes}` : `Lead: ${lead.name}`,
+          assigned_to: lead.assigned_to || null,
+        }),
+      })
+      if (!res.ok) { showToast('Błąd tworzenia nieruchomości', 'error'); return }
+      const newProp = await res.json()
+
+      await fetch(`/api/leads/${lead.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'converted', propertyId: newProp.id, statusComment: comment }),
+      })
+
+      showToast('Skonwertowano do nieruchomości', 'success')
+      router.push(`/nieruchomosci/${newProp.id}`)
+      return
+    }
+
+    const res = await fetch(`/api/leads/${lead.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'converted', propertyId: newProp.id }),
+      body: JSON.stringify({ status, statusComment: comment }),
     })
-
-    showToast('Skonwertowano do nieruchomości', 'success')
-    router.push(`/nieruchomosci/${newProp.id}`)
+    if (res.ok) fetchLeads()
+    else showToast('Błąd zmiany statusu', 'error')
   }
 
   async function handleDelete(lead: Lead) {
@@ -382,7 +403,7 @@ export default function LeadyPage() {
       </Modal>
 
       {/* Assign modal */}
-      <Modal isOpen={!!assignModal} onClose={() => setAssignModal(null)} title={`Przypisz: ${assignModal?.name}`} size="sm">
+      <Modal isOpen={!!assignModal} onClose={() => { setAssignModal(null); setAssignComment('') }} title={`Przypisz: ${assignModal?.name}`} size="sm">
         <div className="space-y-4">
           <div>
             <label className="limona-label block mb-2">Wybierz agenta</label>
@@ -393,14 +414,31 @@ export default function LeadyPage() {
               ))}
             </select>
           </div>
+          <div>
+            <label className="limona-label block mb-2">Komentarz (dlaczego ta osoba?)</label>
+            <textarea
+              className="limona-input w-full min-h-[70px] resize-y text-sm"
+              value={assignComment}
+              onChange={e => setAssignComment(e.target.value)}
+              placeholder="Np. zna lokalny rynek, ma wolny czas w tym tygodniu..."
+            />
+          </div>
           <div className="flex gap-3 justify-end">
-            <button onClick={() => setAssignModal(null)} className="limona-btn-outline">Anuluj</button>
-            <button onClick={handleAssign} disabled={!assignTo} className="limona-btn disabled:opacity-50">
+            <button onClick={() => { setAssignModal(null); setAssignComment('') }} className="limona-btn-outline">Anuluj</button>
+            <button onClick={handleAssign} disabled={!assignTo || !assignComment.trim()} className="limona-btn disabled:opacity-50">
               Przypisz
             </button>
           </div>
         </div>
       </Modal>
+
+      <StatusChangeCommentModal
+        isOpen={!!pendingAction}
+        onClose={() => setPendingAction(null)}
+        onConfirm={confirmPendingAction}
+        newStatusLabel={pendingAction ? STATUS_CONFIG[pendingAction.status].label : ''}
+        entityLabel="leada"
+      />
     </div>
   )
 }

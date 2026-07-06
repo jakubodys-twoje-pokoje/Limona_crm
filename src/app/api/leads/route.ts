@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getSessionUser, unauthorized } from '@/lib/api-auth'
+import { canSeeAllTeams } from '@/lib/roles'
 
 const SELECT_WITH_RELATIONS = `*,
   assignee:profiles!leads_assigned_to_fkey(id,full_name,avatar_url),
@@ -22,7 +23,7 @@ export async function GET(req: NextRequest) {
   if (assignedTo) query = query.eq('assigned_to', assignedTo)
 
   // Zwykły user widzi tylko swoje / przypisane leady
-  if (user.role !== 'admin' && user.role !== 'manager') {
+  if (!canSeeAllTeams(user.role)) {
     query = query.or(`created_by.eq.${user.id},assigned_to.eq.${user.id}`)
   }
 
@@ -64,7 +65,7 @@ export async function POST(req: NextRequest) {
     const { data: managers } = await admin
       .from('profiles')
       .select('id')
-      .in('role', ['admin', 'manager'])
+      .in('role', ['admin', 'manager', 'kierownik_centrali'])
     const recipients = (managers ?? []).filter(m => m.id !== user.id)
     if (recipients.length > 0) {
       await admin.from('notifications').insert(

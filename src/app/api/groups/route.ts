@@ -49,8 +49,8 @@ export async function GET() {
     })
   }
 
-  // Admin widzi wszystkie zespoły
-  if (user.role === 'admin') {
+  // Admin i kierownik centrali widzą wszystkie zespoły (nadzór/ewaluacja)
+  if (user.role === 'admin' || user.role === 'kierownik_centrali') {
     const { data: allRules } = await supabase
       .from('team_visibility')
       .select('manager_id, manager:profiles!team_visibility_manager_id_fkey(id,full_name)')

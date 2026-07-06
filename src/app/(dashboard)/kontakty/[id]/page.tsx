@@ -15,6 +15,7 @@ import { Skeleton } from '@/components/ui/Skeleton'
 import { Avatar } from '@/components/ui/Avatar'
 import { KontaktForm } from '@/components/kontakty/KontaktForm'
 import { KontaktKomentarze } from '@/components/kontakty/KontaktKomentarze'
+import { StatusChangeCommentModal } from '@/components/shared/StatusChangeCommentModal'
 import { cn } from '@/lib/utils'
 import type { Kontakt, KontaktTyp, Profile } from '@/types/database'
 
@@ -85,7 +86,7 @@ export default function KontaktDetailPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [kontaktId])
 
-  async function patchField(updates: Partial<Kontakt>) {
+  async function patchField(updates: Partial<Kontakt> & { statusComment?: string }) {
     if (!kontakt) return
     setSaving(true)
     const res = await fetch(`/api/kontakty/${kontaktId}`, {
@@ -97,9 +98,25 @@ export default function KontaktDetailPage() {
       const updated: Kontakt = await res.json()
       setKontakt(updated)
     } else {
-      showToast('Błąd zapisu', 'error')
+      showToast((await res.json()).error || 'Błąd zapisu', 'error')
     }
     setSaving(false)
+  }
+
+  // Chęć współpracy / niezainteresowani = decyzje, które trzeba uzasadnić
+  const [pendingFlag, setPendingFlag] = useState<
+    { field: 'chec_wspolpracy' | 'niezainteresowani'; newValue: boolean; label: string } | null
+  >(null)
+
+  function toggleDecisionFlag(field: 'chec_wspolpracy' | 'niezainteresowani', newValue: boolean, label: string) {
+    setPendingFlag({ field, newValue, label })
+  }
+
+  async function confirmFlagChange(comment: string) {
+    if (!pendingFlag) return
+    const { field, newValue } = pendingFlag
+    setPendingFlag(null)
+    await patchField({ [field]: newValue, statusComment: comment })
   }
 
   async function handleEdit(data: Partial<Kontakt>) {
@@ -273,12 +290,12 @@ export default function KontaktDetailPage() {
               <CheckboxRow
                 checked={kontakt.chec_wspolpracy}
                 label="Chęć współpracy (będą polecać)"
-                onToggle={() => patchField({ chec_wspolpracy: !kontakt.chec_wspolpracy })}
+                onToggle={() => toggleDecisionFlag('chec_wspolpracy', !kontakt.chec_wspolpracy, 'Chęć współpracy')}
               />
               <CheckboxRow
                 checked={kontakt.niezainteresowani}
                 label="Niezainteresowani"
-                onToggle={() => patchField({ niezainteresowani: !kontakt.niezainteresowani })}
+                onToggle={() => toggleDecisionFlag('niezainteresowani', !kontakt.niezainteresowani, 'Niezainteresowani')}
               />
               {isSpoldzielnia && (
                 <>
@@ -367,6 +384,14 @@ export default function KontaktDetailPage() {
           </div>
         </div>
       </Modal>
+
+      <StatusChangeCommentModal
+        isOpen={!!pendingFlag}
+        onClose={() => setPendingFlag(null)}
+        onConfirm={confirmFlagChange}
+        newStatusLabel={pendingFlag ? `${pendingFlag.label}: ${pendingFlag.newValue ? 'tak' : 'nie'}` : ''}
+        entityLabel="kontaktu"
+      />
     </div>
   )
 }

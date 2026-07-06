@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getSessionUser, unauthorized } from '@/lib/api-auth'
 import { geocodeAddress } from '@/lib/geocode'
+import { getStageLabel } from '@/lib/stages'
+import { formatStatusChangeComment } from '@/lib/status-comments'
 
 const SELECT_WITH_RELATIONS = `*,
   creator:profiles!properties_created_by_fkey(id,full_name,avatar_url),
@@ -31,6 +33,21 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const { id } = await params
 
   const body = await req.json()
+  const statusComment: string | undefined = body.statusComment
+  delete body.statusComment
+
+  const { data: existing } = await supabase
+    .from('properties')
+    .select('status, deal_type')
+    .eq('id', id)
+    .maybeSingle()
+  if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  // Każda zmiana statusu wymaga komentarza uzasadniającego (dlaczego?)
+  const statusChanging = typeof body.status === 'string' && body.status !== existing.status
+  if (statusChanging && !statusComment?.trim()) {
+    return NextResponse.json({ error: 'Zmiana statusu wymaga komentarza — uzasadnij, dlaczego' }, { status: 400 })
+  }
 
   // Re-geokodowanie, gdy zmienił się adres
   let coordPatch = {}
@@ -53,6 +70,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     action: 'updated',
     details: body,
   })
+
+  if (statusChanging && statusComment) {
+    const dealType = body.deal_type ?? existing.deal_type
+    await supabase.from('property_comments').insert({
+      property_id: id,
+      user_id: user.id,
+      content: formatStatusChangeComment(getStageLabel(body.status, dealType), statusComment),
+    })
+  }
 
   return NextResponse.json(property)
 }

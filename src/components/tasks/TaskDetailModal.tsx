@@ -14,6 +14,8 @@ import { extractMentionedUserIds } from '@/lib/mentions'
 import {
   TASK_TYPE_LABELS, CONTACT_CATEGORY_LABELS, OUTCOME_LABELS, REJECTION_REASON_LABELS,
 } from '@/lib/reports'
+import { TASK_STATUS_LABELS } from '@/lib/status-comments'
+import { StatusChangeCommentModal } from '@/components/shared/StatusChangeCommentModal'
 import { cn } from '@/lib/utils'
 import type {
   Task, TaskStatus, TaskPriority, Profile,
@@ -78,6 +80,8 @@ export function TaskDetailModal({
   const [rejectionNote, setRejectionNote] = useState(task.rejection_note || '')
   // Próba domknięcia bez wyniku — czekamy z „done" aż agent uzupełni
   const [pendingDone, setPendingDone] = useState(false)
+  // Każda zmiana statusu wymaga komentarza „dlaczego" — czeka na potwierdzenie
+  const [pendingStatus, setPendingStatus] = useState<TaskStatus | null>(null)
 
   const { comments, loading: commentsLoading, addComment, deleteComment } = useTaskComments(task.id)
   const [newComment, setNewComment] = useState('')
@@ -142,16 +146,24 @@ export function TaskDetailModal({
     return true
   }
 
-  async function handleStatusChange(newStatus: TaskStatus) {
+  function handleStatusChange(newStatus: TaskStatus) {
     setShowStatusMenu(false)
+    if (newStatus === status) return
     // Wizyta/telefon nie przechodzi w done bez kompletnego wyniku
     if (newStatus === 'done' && isContactTask && !outcomeComplete(outcome, rejectionReason, rejectionNote)) {
       setPendingDone(true)
       return
     }
     setPendingDone(false)
+    setPendingStatus(newStatus) // otwiera prompt "dlaczego" — patrz JSX
+  }
+
+  async function confirmStatusChange(comment: string) {
+    if (!pendingStatus) return
+    const newStatus = pendingStatus
+    setPendingStatus(null)
     setStatus(newStatus)
-    await saveField('status', newStatus)
+    await onUpdate(task.id, { status: newStatus, statusComment: comment } as Partial<Task>)
   }
 
   async function applyOutcome(
@@ -612,6 +624,14 @@ export function TaskDetailModal({
           </div>
         </div>
       </div>
+
+      <StatusChangeCommentModal
+        isOpen={!!pendingStatus}
+        onClose={() => setPendingStatus(null)}
+        onConfirm={confirmStatusChange}
+        newStatusLabel={pendingStatus ? TASK_STATUS_LABELS[pendingStatus] : ''}
+        entityLabel="zadania"
+      />
     </div>
   )
 }

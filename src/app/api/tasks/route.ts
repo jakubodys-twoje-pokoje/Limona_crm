@@ -5,9 +5,10 @@ import { getSessionUser, unauthorized } from '@/lib/api-auth'
 import { validateTaskRules } from '@/lib/task-rules'
 
 const SELECT_WITH_RELATIONS = `*,
-  property:properties!tasks_property_id_fkey(id,location),
+  property:properties!tasks_property_id_fkey(id,location,kontakt_id,kontakt:kontakty!properties_kontakt_id_fkey(id,nazwa)),
   assignee:profiles!tasks_assigned_to_fkey(id,full_name,avatar_url),
-  creator:profiles!tasks_created_by_fkey(id,full_name,avatar_url)`
+  creator:profiles!tasks_created_by_fkey(id,full_name,avatar_url),
+  board:boards!tasks_board_id_fkey(id,name,color)`
 
 export async function GET(req: NextRequest) {
   const user = await getSessionUser()
@@ -17,6 +18,9 @@ export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl
   const propertyId = searchParams.get('propertyId')
   const visibleIds = searchParams.get('visibleIds')?.split(',').filter(Boolean)
+  const boardId = searchParams.get('boardId')
+  const dueFrom = searchParams.get('dueFrom')
+  const dueTo = searchParams.get('dueTo')
 
   let query = supabase
     .from('tasks')
@@ -24,6 +28,12 @@ export async function GET(req: NextRequest) {
     .order('created_at', { ascending: false })
 
   if (propertyId) query = query.eq('property_id', propertyId)
+  // boardId=none -> zadania bez tablicy ("Ogólne"); konkretne id -> ta tablica;
+  // brak parametru -> wszystkie tablice naraz (używa tego kalendarz)
+  if (boardId === 'none') query = query.is('board_id', null)
+  else if (boardId) query = query.eq('board_id', boardId)
+  if (dueFrom) query = query.gte('due_date', dueFrom)
+  if (dueTo) query = query.lte('due_date', dueTo)
   if (visibleIds?.length) {
     const ids = visibleIds.join(',')
     // widać też zadania, gdzie user jest współprzypisanym (co_assignees[])
