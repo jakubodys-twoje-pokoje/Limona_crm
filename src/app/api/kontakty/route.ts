@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getSessionUser, unauthorized, forbidden } from '@/lib/api-auth'
 import { geocodeAddress } from '@/lib/geocode'
-import { canSeeAllTeams, canSeeInvestors } from '@/lib/roles'
+import { canSeeAllTeams, canSeeInvestors, canManageTeams } from '@/lib/roles'
 
 const SELECT_WITH_RELATIONS = `*,
   creator:profiles!kontakty_created_by_fkey(id,full_name,avatar_url),
@@ -74,6 +74,9 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json()
   if (body.typ === 'inwestor' && !canSeeInvestors(user.role)) return forbidden()
+  // Przypisywanie kontaktu do innego agenta — tylko centrala/admin. Zwykły
+  // user zawsze staje się właścicielem własnego nowego kontaktu.
+  if (!canManageTeams(user.role)) body.assigned_to = user.id
   // Auto-geokodowanie przy tworzeniu (nieblokujące — brak współrzędnych to null)
   const coords = await geocodeAddress(body.ulica, body.miasto, body.wojewodztwo)
 

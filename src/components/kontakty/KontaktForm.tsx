@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
-import { canSeeInvestors } from '@/lib/roles'
+import { canSeeInvestors, canManageTeams } from '@/lib/roles'
 import type { Kontakt, KontaktTyp, Profile, WeeklyHours } from '@/types/database'
 import { KONTAKT_TYP_LABELS, KONTAKT_TYPY, TYPY_SPOLDZIELNIA, TYPY_Z_PROWIZJA, WEEK_DAYS, WEEK_DAY_LABELS } from '@/types/database'
 
@@ -55,8 +55,13 @@ function Field({ label, children, className }: { label: string; children: React.
 }
 
 export function KontaktForm({ initial, profiles, onSubmit, onCancel, submitLabel = 'Zapisz' }: Props) {
-  const { profile } = useAuth()
-  const [form, setForm] = useState<Partial<Kontakt>>({ ...DEFAULTS, ...initial })
+  const { user, profile } = useAuth()
+  const canAssign = canManageTeams(profile?.role)
+  const [form, setForm] = useState<Partial<Kontakt>>({
+    ...DEFAULTS,
+    assigned_to: canAssign ? null : (user?.id ?? null),
+    ...initial,
+  })
   const [submitting, setSubmitting] = useState(false)
 
   const typ = (form.typ || 'spoldzielnia') as KontaktTyp
@@ -163,16 +168,24 @@ export function KontaktForm({ initial, profiles, onSubmit, onCancel, submitLabel
             />
           </Field>
 
-          <Field label="Przypisana osoba">
-            <select
-              className="limona-input w-full"
-              value={form.assigned_to || ''}
-              onChange={e => set('assigned_to', e.target.value || null)}
-            >
-              <option value="">— brak przypisania —</option>
-              {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
-            </select>
-          </Field>
+          {canAssign ? (
+            <Field label="Przypisana osoba">
+              <select
+                className="limona-input w-full"
+                value={form.assigned_to || ''}
+                onChange={e => set('assigned_to', e.target.value || null)}
+              >
+                <option value="">— brak przypisania —</option>
+                {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
+              </select>
+            </Field>
+          ) : (
+            <Field label="Przypisana osoba">
+              <p className="limona-input w-full flex items-center text-limona-text-muted">
+                {profiles.find(p => p.id === form.assigned_to)?.full_name || 'Ty'}
+              </p>
+            </Field>
+          )}
 
           <Field label="Oddział (opcjonalnie)">
             <input

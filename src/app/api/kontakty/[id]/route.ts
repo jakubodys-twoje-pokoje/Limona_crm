@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getSessionUser, unauthorized } from '@/lib/api-auth'
 import { geocodeAddress } from '@/lib/geocode'
 import { formatFlagChangeComment } from '@/lib/status-comments'
-import { canSeeInvestors } from '@/lib/roles'
+import { canSeeInvestors, canManageTeams } from '@/lib/roles'
 
 const SELECT_WITH_RELATIONS = `*,
   creator:profiles!kontakty_created_by_fkey(id,full_name,avatar_url),
@@ -46,6 +46,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       return NextResponse.json({ error: 'Not found' }, { status: 404 })
     }
   }
+
+  // Przypisywanie kontaktu do innego agenta — tylko centrala/admin
+  if (!canManageTeams(user.role)) delete body.assigned_to
 
   // Flagi decyzyjne (chęć współpracy / niezainteresowani) wymagają
   // komentarza uzasadniającego przy każdej zmianie — reszta checkboxów
