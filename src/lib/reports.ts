@@ -1,6 +1,9 @@
 import type {
-  ContactCategory, RejectionReason, TaskOutcome, TaskType,
+  ContactCategory, RejectionReason, TaskOutcome, TaskType, TaskStatus, TaskPriority,
 } from '@/types/database'
+import { TASK_STATUS_LABELS } from '@/lib/status-comments'
+
+export { TASK_STATUS_LABELS }
 
 // ---------------------------------------------------------------
 // Polskie etykiety (jedno źródło dla UI i tekstu raportu)
@@ -50,14 +53,18 @@ export const REPORT_CATEGORY_HEADERS: Record<ContactCategory, string> = {
 // ---------------------------------------------------------------
 // Kształt odpowiedzi GET /api/reports/daily
 // ---------------------------------------------------------------
-export interface ReportTask {
+// Spisana lista zadań dnia (nie tylko domknięte) — status + opcjonalna
+// notatka doklejana ręcznie przy wypełnianiu raportu.
+export interface ReportDayTask {
   id: string
   title: string
-  task_type: TaskType | null
+  status: TaskStatus
+  priority: TaskPriority
+  due_time: string | null
   contact_category: ContactCategory | null
   outcome: TaskOutcome | null
-  rejection_reason: RejectionReason | null
   property: { id: string; location: string } | null
+  note: string
 }
 
 export interface CategoryCounters {
@@ -77,7 +84,7 @@ export interface DailyReportData {
   date: string
   userId: string
   userName: string
-  doneTasks: ReportTask[]
+  dayTasks: ReportDayTask[]
   categories: Partial<Record<ContactCategory, CategoryCounters>>
   newProperties: ReportProperty[]
   planTomorrow: { id: string; title: string; property: { id: string; location: string } | null }[]
@@ -130,14 +137,16 @@ export function buildReportText(data: DailyReportData): string {
   lines.push(data.note.content.trim() || '—')
   lines.push('')
 
-  lines.push('CO UDAŁO SIĘ ZROBIĆ')
-  if (data.doneTasks.length === 0) {
+  lines.push(`ZADANIA DNIA (${data.dayTasks.length})`)
+  if (data.dayTasks.length === 0) {
     lines.push('—')
   } else {
-    for (const t of data.doneTasks) {
+    for (const t of data.dayTasks) {
       const loc = t.property ? ` (${t.property.location})` : ''
       const outcome = t.outcome ? ` — ${OUTCOME_LABELS[t.outcome]}` : ''
-      lines.push(`- ${t.title}${loc}${outcome}`)
+      const time = t.due_time ? `${t.due_time.slice(0, 5)} ` : ''
+      lines.push(`- [${TASK_STATUS_LABELS[t.status]}] ${time}${t.title}${loc}${outcome}`)
+      if (t.note.trim()) lines.push(`  notatka: ${t.note.trim()}`)
     }
   }
   lines.push('')

@@ -18,11 +18,12 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: 'Nieprawidłowa data (YYYY-MM-DD)' }, { status: 400 })
   }
   const content = typeof body.content === 'string' ? body.content : ''
+  const task_notes = body.task_notes && typeof body.task_notes === 'object' ? body.task_notes : {}
 
   const { error } = await supabase
     .from('daily_reports')
     .upsert(
-      { user_id: user.id, date, content },
+      { user_id: user.id, date, content, task_notes },
       { onConflict: 'user_id,date' }
     )
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

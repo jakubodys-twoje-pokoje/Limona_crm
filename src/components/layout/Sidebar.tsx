@@ -3,13 +3,13 @@
 import { memo, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
-import { LayoutDashboard, Building2, ListTodo, MessageSquare, Users, UserCog, User, LogOut, BookUser, MapPin, Inbox, CalendarDays, ChevronDown, Landmark, Gavel, Briefcase, Users2, TrendingUp } from 'lucide-react'
+import { LayoutDashboard, Building2, ListTodo, MessageSquare, Users, UserCog, User, LogOut, BookUser, MapPin, Inbox, CalendarDays, ChevronDown, Landmark, Gavel, Briefcase, Users2, TrendingUp, ClipboardList } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { useWallContext } from '@/hooks/useWallProvider'
 import { NotificationBell } from '@/components/ui/NotificationBell'
 import { Avatar } from '@/components/ui/Avatar'
 import { cn } from '@/lib/utils'
-import { canSeeInvestors } from '@/lib/roles'
+import { canSeeInvestors, canManageTeams } from '@/lib/roles'
 
 interface NavChild { href: string; icon: typeof ListTodo; label: string }
 interface NavItem { href: string; icon: typeof ListTodo; label: string; showCounter?: boolean; children?: NavChild[] }
@@ -39,6 +39,10 @@ const adminItems: NavItem[] = [
   { href: '/admin', icon: UserCog, label: 'Użytkownicy' },
 ]
 
+const managementItems: NavItem[] = [
+  { href: '/raporty', icon: ClipboardList, label: 'Raporty' },
+]
+
 export const Sidebar = memo(function Sidebar() {
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -48,7 +52,7 @@ export const Sidebar = memo(function Sidebar() {
   const isAdmin = profile?.role === 'admin'
   const [manuallyToggled, setManuallyToggled] = useState<Record<string, boolean>>({})
 
-  const allItems = [...navItems, ...(isAdmin ? adminItems : [])].map(item => {
+  const allItems = [...navItems, ...(canManageTeams(profile?.role) ? managementItems : []), ...(isAdmin ? adminItems : [])].map(item => {
     if (item.href !== '/kontakty' || !item.children || canSeeInvestors(profile?.role)) return item
     return { ...item, children: item.children.filter(c => c.href !== '/kontakty?typ=inwestor') }
   })

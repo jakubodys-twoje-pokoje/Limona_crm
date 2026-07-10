@@ -3,8 +3,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getSessionUser, unauthorized, forbidden } from '@/lib/api-auth'
 import { warsawDayRange, warsawToday, shiftDate } from '@/lib/reports'
-import type { CategoryCounters, DailyReportData, ReportTask, ReportProperty } from '@/lib/reports'
+import type { CategoryCounters, DailyReportData, ReportDayTask, ReportProperty } from '@/lib/reports'
 import { formatPropertyAddress } from '@/lib/utils'
+import { canManageTeams } from '@/lib/roles'
 import type { ContactCategory, TaskOutcome } from '@/types/database'
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
@@ -27,10 +28,11 @@ export async function GET(req: NextRequest) {
   }
   const userId = searchParams.get('userId') || user.id
 
-  // Cudzy raport: tylko admin lub manager widzący usera w team_visibility
+  // Cudzy raport: admin/kierownik_centrali widzą wszystko, manager tylko
+  // usera widocznego w team_visibility, zwykły user tylko siebie.
   let userName = user.name
   if (userId !== user.id) {
-    if (user.role !== 'admin') {
+    if (!canManageTeams(user.role)) {
       const { data: rule } = await supabase
         .from('team_visibility')
         .select('id')
@@ -51,16 +53,15 @@ export async function GET(req: NextRequest) {
   const { start, end } = warsawDayRange(date)
   const tomorrow = shiftDate(date, 1)
   const mine = `assigned_to.eq.${userId},and(assigned_to.is.null,created_by.eq.${userId})`
+  const dayClause = `due_date.eq.${date},and(completed_at.gte.${start},completed_at.lt.${end})`
 
-  const [doneRes, newPropsRes, planRes, noteRes] = await Promise.all([
+  const [dayTasksRes, newPropsRes, planRes, noteRes] = await Promise.all([
     supabase
       .from('tasks')
-      .select('id, title, task_type, contact_category, outcome, rejection_reason, property:properties!tasks_property_id_fkey(id,adres,kod_pocztowy,miasto)')
-      .eq('status', 'done')
-      .gte('completed_at', start)
-      .lt('completed_at', end)
+      .select('id, title, status, priority, due_time, task_type, contact_category, outcome, rejection_reason, property:properties!tasks_property_id_fkey(id,adres,kod_pocztowy,miasto)')
       .or(mine)
-      .order('completed_at', { ascending: true }),
+      .or(dayClause)
+      .order('due_time', { ascending: true, nullsFirst: false }),
     supabase
       .from('properties')
       .select('id, adres, kod_pocztowy, miasto')
@@ -77,21 +78,24 @@ export async function GET(req: NextRequest) {
       .order('created_at', { ascending: true }),
     supabase
       .from('daily_reports')
-      .select('content, submitted_at')
+      .select('content, submitted_at, task_notes')
       .eq('user_id', userId)
       .eq('date', date)
       .maybeSingle(),
   ])
 
-  const firstError = doneRes.error || newPropsRes.error || planRes.error || noteRes.error
+  const firstError = dayTasksRes.error || newPropsRes.error || planRes.error || noteRes.error
   if (firstError) return NextResponse.json({ error: firstError.message }, { status: 500 })
 
-  const doneTasks = ((doneRes.data ?? []) as unknown as { property: RawPropertyRef | null; [k: string]: unknown }[]).map(withLocation) as unknown as ReportTask[]
+  const taskNotes: Record<string, string> = noteRes.data?.task_notes ?? {}
+  const dayTasks: ReportDayTask[] = ((dayTasksRes.data ?? []) as unknown as { id: string; property: RawPropertyRef | null; [k: string]: unknown }[])
+    .map(withLocation)
+    .map(t => ({ ...t, note: taskNotes[t.id as string] ?? '' })) as unknown as ReportDayTask[]
 
-  // Liczniki kategoria kontaktu × wynik (tylko zadania kontaktowe)
+  // Liczniki kategoria kontaktu × wynik (tylko domknięte zadania kontaktowe)
   const categories: Partial<Record<ContactCategory, CategoryCounters>> = {}
-  for (const t of doneTasks) {
-    if (!t.contact_category) continue
+  for (const t of dayTasks) {
+    if (t.status !== 'done' || !t.contact_category) continue
     const c = (categories[t.contact_category] ??= {
       total: 0, zainteresowany: 0, oczekuje_na_materialy: 0, niezainteresowany: 0, brak_kontaktu: 0,
     })
@@ -106,7 +110,7 @@ export async function GET(req: NextRequest) {
     date,
     userId,
     userName,
-    doneTasks,
+    dayTasks,
     categories,
     newProperties,
     planTomorrow: ((planRes.data ?? []) as unknown as { property: RawPropertyRef | null; [k: string]: unknown }[]).map(withLocation) as unknown as DailyReportData['planTomorrow'],
