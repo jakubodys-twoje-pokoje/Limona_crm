@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import dynamic from 'next/dynamic'
+import { useSearchParams } from 'next/navigation'
 import { List, Map } from 'lucide-react'
 import { useKontakty } from '@/hooks/useKontakty'
 import { useAuth } from '@/hooks/useAuth'
@@ -11,7 +12,8 @@ import { KontaktForm } from '@/components/kontakty/KontaktForm'
 import { Modal } from '@/components/ui/Modal'
 import { useToast } from '@/components/ui/Toast'
 import { cn } from '@/lib/utils'
-import type { Kontakt, Profile } from '@/types/database'
+import { KONTAKT_TYP_LABELS, KONTAKT_TYPY } from '@/types/database'
+import type { Kontakt, KontaktTyp, Profile } from '@/types/database'
 
 const KontaktyMap = dynamic(() => import('@/components/kontakty/KontaktyMap'), { ssr: false })
 
@@ -19,8 +21,11 @@ type ViewMode = 'lista' | 'mapa'
 
 export default function KontaktyPage() {
   const { user, profile } = useAuth()
+  const searchParams = useSearchParams()
+  const typParam = searchParams.get('typ')
+  const activeTyp: KontaktTyp | null = typParam && (KONTAKT_TYPY as string[]).includes(typParam) ? typParam as KontaktTyp : null
   const { visibleIds } = useVisibleUserIds(user?.id, profile?.role)
-  const filters = useMemo(() => ({ visibleIds }), [visibleIds])
+  const filters = useMemo(() => ({ visibleIds, typ: activeTyp || undefined }), [visibleIds, activeTyp])
   const { kontakty, loading, createKontakt } = useKontakty(filters)
   const { showToast } = useToast()
   const [profiles, setProfiles] = useState<Profile[]>([])
@@ -47,9 +52,11 @@ export default function KontaktyPage() {
       <div className="flex items-start justify-between gap-4">
         <div>
           <span className="limona-eyebrow">Partnerzy i dostawcy</span>
-          <h1 className="limona-heading text-3xl mt-1">Baza kontaktów</h1>
+          <h1 className="limona-heading text-3xl mt-1">
+            {activeTyp ? KONTAKT_TYP_LABELS[activeTyp] : 'Baza kontaktów'}
+          </h1>
           <p className="text-limona-text-muted text-sm mt-1">
-            Spółdzielnie, pośrednicy, kancelarie i inni partnerzy
+            {activeTyp ? `Kontakty typu: ${KONTAKT_TYP_LABELS[activeTyp]}` : 'Inwestorzy, spółdzielnie, wspólnoty, zarządcy i komornicy'}
           </p>
         </div>
 
@@ -103,6 +110,7 @@ export default function KontaktyPage() {
         size="xl"
       >
         <KontaktForm
+          initial={activeTyp ? { typ: activeTyp } : undefined}
           profiles={profiles}
           onSubmit={handleAdd}
           onCancel={() => setShowAddModal(false)}

@@ -2,8 +2,8 @@
 
 import { memo, useState } from 'react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Building2, ListTodo, MessageSquare, Users, UserCog, User, LogOut, BookUser, MapPin, Inbox, CalendarDays, ChevronDown } from 'lucide-react'
+import { usePathname, useSearchParams } from 'next/navigation'
+import { LayoutDashboard, Building2, ListTodo, MessageSquare, Users, UserCog, User, LogOut, BookUser, MapPin, Inbox, CalendarDays, ChevronDown, Landmark, Gavel, Briefcase, Users2, TrendingUp } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { useWallContext } from '@/hooks/useWallProvider'
 import { NotificationBell } from '@/components/ui/NotificationBell'
@@ -20,7 +20,14 @@ const navItems: NavItem[] = [
     { href: '/zadania',           icon: ListTodo,     label: 'Kanban' },
     { href: '/zadania/kalendarz', icon: CalendarDays, label: 'Kalendarz' },
   ] },
-  { href: '/kontakty',     icon: BookUser,        label: 'Baza kontaktów' },
+  { href: '/kontakty',     icon: BookUser,        label: 'Baza kontaktów', children: [
+    { href: '/kontakty',                 icon: BookUser,    label: 'Wszystkie' },
+    { href: '/kontakty?typ=inwestor',    icon: TrendingUp,  label: 'Inwestorzy' },
+    { href: '/kontakty?typ=spoldzielnia',icon: Landmark,    label: 'Spółdzielnie' },
+    { href: '/kontakty?typ=wspolnota',   icon: Users2,      label: 'Wspólnoty' },
+    { href: '/kontakty?typ=zarzadca',    icon: Briefcase,   label: 'Zarządcy' },
+    { href: '/kontakty?typ=komornik',    icon: Gavel,       label: 'Komornicy' },
+  ] },
   { href: '/nieruchomosci',icon: Building2,       label: 'Nieruchomości' },
   { href: '/leady',        icon: Inbox,           label: 'Leady' },
   { href: '/mapa',         icon: MapPin,          label: 'Mapa' },
@@ -33,12 +40,18 @@ const adminItems: NavItem[] = [
 
 export const Sidebar = memo(function Sidebar() {
   const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const currentFull = pathname + (searchParams.toString() ? `?${searchParams.toString()}` : '')
   const { user, profile, signOut } = useAuth()
   const { unreadCount } = useWallContext()
   const isAdmin = profile?.role === 'admin'
   const [manuallyToggled, setManuallyToggled] = useState<Record<string, boolean>>({})
 
   const allItems = [...navItems, ...(isAdmin ? adminItems : [])]
+
+  function isChildActive(child: NavChild) {
+    return child.href.includes('?') ? currentFull === child.href : pathname === child.href
+  }
 
   return (
     <aside className="hidden lg:flex flex-col w-64 h-screen bg-limona-surface border-r border-limona-border fixed left-0 top-0 z-40">
@@ -58,7 +71,7 @@ export const Sidebar = memo(function Sidebar() {
       {/* Navigation */}
       <nav className="flex-1 p-4 space-y-1">
         {allItems.map(item => {
-          const hasChildActive = item.children?.some(c => pathname.startsWith(c.href)) ?? false
+          const hasChildActive = item.children?.some(isChildActive) ?? false
           const isActive = pathname.startsWith(item.href)
           const counter = 'showCounter' in item && item.showCounter ? unreadCount : 0
 
@@ -80,7 +93,7 @@ export const Sidebar = memo(function Sidebar() {
                 {expanded && (
                   <div className="ml-4 pl-3 border-l border-limona-border space-y-1 mb-1">
                     {item.children.map(child => {
-                      const childActive = pathname === child.href || (child.href !== '/zadania' && pathname.startsWith(child.href))
+                      const childActive = isChildActive(child)
                       return (
                         <Link key={child.href} href={child.href}
                           className={cn(

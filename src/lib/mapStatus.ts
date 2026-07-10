@@ -41,17 +41,11 @@ export function getKontaktMapStatusColor(k: KontaktStatusFlags): string {
 // Monogramy renderowane wewnątrz pinów — kształt/glif = rodzaj (podtyp),
 // obrys pinu = rodzaj (kontakt vs nieruchomość), kolor = status.
 export const KONTAKT_TYP_SHORT: Record<KontaktTyp, string> = {
-  spoldzielnia: 'SP',
-  wspolnota_zarzadca: 'WZ',
-  posrednik_nieruchomosci: 'PN',
-  posrednik_finansowy: 'PF',
-  kancelaria_spadkowa: 'KS',
-  kancelaria_rozwodowa: 'KR',
-  notariusz: 'NT',
-  rzeczoznawca: 'RZ',
-  komornik: 'KM',
-  fundusz: 'FN',
   inwestor: 'IN',
+  spoldzielnia: 'SP',
+  wspolnota: 'WS',
+  zarzadca: 'ZA',
+  komornik: 'KM',
 }
 
 export const PROPERTY_TYPE_SHORT: Record<PropertyType, string> = {

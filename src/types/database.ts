@@ -233,78 +233,45 @@ export interface Document {
 }
 
 export type KontaktTyp =
-  | 'spoldzielnia'
-  | 'wspolnota_zarzadca'
-  | 'posrednik_nieruchomosci'
-  | 'posrednik_finansowy'
-  | 'kancelaria_spadkowa'
-  | 'kancelaria_rozwodowa'
-  | 'notariusz'
-  | 'rzeczoznawca'
-  | 'komornik'
-  | 'fundusz'
   | 'inwestor'
+  | 'spoldzielnia'
+  | 'wspolnota'
+  | 'zarzadca'
+  | 'komornik'
 
 export const KONTAKT_TYP_LABELS: Record<KontaktTyp, string> = {
-  spoldzielnia: 'Spółdzielnia',
-  wspolnota_zarzadca: 'Wspólnota/Zarządca',
-  posrednik_nieruchomosci: 'Pośrednik nieruchomości',
-  posrednik_finansowy: 'Pośrednik finansowy',
-  kancelaria_spadkowa: 'Kancelaria spadkowa',
-  kancelaria_rozwodowa: 'Kancelaria rozwodowa',
-  notariusz: 'Notariusz',
-  rzeczoznawca: 'Rzeczoznawca',
-  komornik: 'Komornik',
-  fundusz: 'Fundusz',
   inwestor: 'Inwestor',
+  spoldzielnia: 'Spółdzielnia',
+  wspolnota: 'Wspólnota',
+  zarzadca: 'Zarządca',
+  komornik: 'Komornik',
 }
 
 export const KONTAKT_TYPY: KontaktTyp[] = [
-  'spoldzielnia',
-  'wspolnota_zarzadca',
-  'posrednik_nieruchomosci',
-  'posrednik_finansowy',
-  'kancelaria_spadkowa',
-  'kancelaria_rozwodowa',
-  'notariusz',
-  'rzeczoznawca',
-  'komornik',
-  'fundusz',
   'inwestor',
+  'spoldzielnia',
+  'wspolnota',
+  'zarzadca',
+  'komornik',
 ]
 
 // Map pin colors — one distinct color per contact type
 export const KONTAKT_TYP_COLORS: Record<KontaktTyp, string> = {
-  spoldzielnia:             '#1d4ed8', // blue
-  wspolnota_zarzadca:       '#0e7490', // cyan
-  posrednik_nieruchomosci:  '#c2410c', // burnt orange
-  posrednik_finansowy:      '#b45309', // dark amber
-  kancelaria_spadkowa:      '#6d28d9', // violet
-  kancelaria_rozwodowa:     '#be185d', // rose
-  notariusz:                '#047857', // emerald
-  rzeczoznawca:             '#65a30d', // lime-green
-  komornik:                 '#dc2626', // red
-  fundusz:                  '#7c3aed', // purple
-  inwestor:                 '#0d9488', // teal
+  inwestor:    '#0d9488', // teal
+  spoldzielnia:'#1d4ed8', // blue
+  wspolnota:   '#0e7490', // cyan
+  zarzadca:    '#c2410c', // burnt orange
+  komornik:    '#dc2626', // red
 }
 
 // Color used for numbered tour pins (overrides type color)
 export const TOUR_PIN_COLOR = '#eab308' // yellow
 
-// Types that are spółdzielnia / wspólnota (have building/flat counts + specific statuses)
-export const TYPY_SPOLDZIELNIA = new Set<KontaktTyp>(['spoldzielnia', 'wspolnota_zarzadca'])
+// Types that are spółdzielnia / wspólnota (mają zgody na ulotki/plakaty, operatora budowy)
+export const TYPY_SPOLDZIELNIA = new Set<KontaktTyp>(['spoldzielnia', 'wspolnota'])
 
-// Types that can have chec_wspolpracy → prowizja/umowa
-export const TYPY_Z_PROWIZJA = new Set<KontaktTyp>([
-  'posrednik_nieruchomosci',
-  'posrednik_finansowy',
-  'kancelaria_spadkowa',
-  'kancelaria_rozwodowa',
-  'notariusz',
-  'rzeczoznawca',
-  'komornik',
-  'fundusz',
-])
+// Types that can have chec_wspolpracy → prowizja/umowa (polecają nieruchomości za prowizję)
+export const TYPY_Z_PROWIZJA = new Set<KontaktTyp>(['zarzadca', 'komornik'])
 
 export type WeekDay = 'poniedzialek' | 'wtorek' | 'sroda' | 'czwartek' | 'piatek' | 'sobota' | 'niedziela'
 
