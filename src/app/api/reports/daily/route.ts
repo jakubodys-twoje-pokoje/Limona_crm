@@ -28,18 +28,28 @@ export async function GET(req: NextRequest) {
   }
   const userId = searchParams.get('userId') || user.id
 
-  // Cudzy raport: admin/kierownik_centrali widzą wszystko, manager tylko
-  // usera widocznego w team_visibility, zwykły user tylko siebie.
+  // Cudzy raport: admin/kierownik_centrali widzą wszystko, lider zespołu
+  // tylko współczłonków swoich zespołów, zwykły user tylko siebie.
   let userName = user.name
   if (userId !== user.id) {
     if (!canManageTeams(user.role)) {
-      const { data: rule } = await supabase
-        .from('team_visibility')
-        .select('id')
-        .eq('manager_id', user.id)
-        .eq('member_id', userId)
-        .maybeSingle()
-      if (!rule) return forbidden()
+      const { data: leadRows } = await supabase
+        .from('team_members')
+        .select('team_id')
+        .eq('user_id', user.id)
+        .eq('is_lead', true)
+      const teamIds = (leadRows ?? []).map(r => r.team_id)
+      let sharesTeam = false
+      if (teamIds.length) {
+        const { data: rule } = await supabase
+          .from('team_members')
+          .select('id')
+          .eq('user_id', userId)
+          .in('team_id', teamIds)
+          .maybeSingle()
+        sharesTeam = !!rule
+      }
+      if (!sharesTeam) return forbidden()
     }
     const { data: target } = await supabase
       .from('profiles')

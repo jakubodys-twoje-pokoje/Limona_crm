@@ -2,69 +2,36 @@ export const dynamic = 'force-dynamic'
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getSessionUser, unauthorized } from '@/lib/api-auth'
+import { canManageTeams } from '@/lib/roles'
 
 interface GroupInfo { id: string; name: string; memberCount: number; role: string }
 
-// GET /api/groups — grupy (zespoły z team_visibility), do których należy user
+// GET /api/groups — zespoły (teams), do których należy user; admin/kierownik
+// centrali widzą też pozostałe zespoły (nadzór/ewaluacja).
 export async function GET() {
   const user = await getSessionUser()
   if (!user) return unauthorized()
   const supabase = await createClient()
 
+  const { data: teams, error } = await supabase
+    .from('teams')
+    .select('id, name, members:team_members(user_id, is_lead)')
+    .order('name', { ascending: true })
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
   const groups: GroupInfo[] = []
+  const orgWide = canManageTeams(user.role)
 
-  const countMembers = async (managerId: string) => {
-    const { count } = await supabase
-      .from('team_visibility')
-      .select('id', { count: 'exact', head: true })
-      .eq('manager_id', managerId)
-    return (count ?? 0) + 1
-  }
-
-  // Grupa, której jestem menedżerem
-  if (user.role === 'admin' || user.role === 'manager') {
-    const { data: managed } = await supabase
-      .from('team_visibility')
-      .select('id')
-      .eq('manager_id', user.id)
-    if (managed && managed.length > 0) {
-      groups.push({ id: user.id, name: `Zespół ${user.name}`, memberCount: managed.length + 1, role: 'manager' })
-    }
-  }
-
-  // Grupy, w których jestem członkiem
-  const { data: membership } = await supabase
-    .from('team_visibility')
-    .select('manager_id, manager:profiles!team_visibility_manager_id_fkey(id,full_name)')
-    .eq('member_id', user.id)
-
-  for (const tv of membership ?? []) {
-    if (groups.find(g => g.id === tv.manager_id)) continue
-    const manager = tv.manager as unknown as { full_name: string } | null
+  for (const t of teams ?? []) {
+    const members = (t.members ?? []) as { user_id: string; is_lead: boolean }[]
+    const mine = members.find(m => m.user_id === user.id)
+    if (!mine && !orgWide) continue
     groups.push({
-      id: tv.manager_id,
-      name: `Zespół ${manager?.full_name ?? ''}`,
-      memberCount: await countMembers(tv.manager_id),
-      role: 'member',
+      id: t.id,
+      name: t.name,
+      memberCount: members.length,
+      role: mine ? (mine.is_lead ? 'lead' : 'member') : 'obserwator',
     })
-  }
-
-  // Admin i kierownik centrali widzą wszystkie zespoły (nadzór/ewaluacja)
-  if (user.role === 'admin' || user.role === 'kierownik_centrali') {
-    const { data: allRules } = await supabase
-      .from('team_visibility')
-      .select('manager_id, manager:profiles!team_visibility_manager_id_fkey(id,full_name)')
-      .neq('manager_id', user.id)
-    for (const tv of allRules ?? []) {
-      if (groups.find(g => g.id === tv.manager_id)) continue
-      const manager = tv.manager as unknown as { full_name: string } | null
-      groups.push({
-        id: tv.manager_id,
-        name: `Zespół ${manager?.full_name ?? ''}`,
-        memberCount: await countMembers(tv.manager_id),
-        role: 'member',
-      })
-    }
   }
 
   return NextResponse.json(groups)

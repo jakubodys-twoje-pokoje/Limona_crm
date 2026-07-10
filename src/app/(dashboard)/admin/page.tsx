@@ -3,9 +3,10 @@
 export const dynamic = 'force-dynamic'
 
 import { useState, useEffect } from 'react'
-import { Shield, Trash2, Edit, X, UserPlus, Database, Users, UsersRound } from 'lucide-react'
+import Link from 'next/link'
+import { Shield, Trash2, Edit, UserPlus, Database, UsersRound } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
-import { useTeamVisibility } from '@/hooks/useTeamVisibility'
+import { useTeams } from '@/hooks/useTeams'
 import { useToast } from '@/components/ui/Toast'
 import { Avatar } from '@/components/ui/Avatar'
 import { Modal } from '@/components/ui/Modal'
@@ -19,17 +20,12 @@ export default function AdminPage() {
   const { showToast } = useToast()
   const isAdmin = myProfile?.role === 'admin'
 
-  const { rules, profiles, loading, addRule, removeRule, refetch } = useTeamVisibility()
+  const { teams, profiles, loading, refetch } = useTeams()
   const canManageGroups = canManageTeams(myProfile?.role)
   const [editingUser, setEditingUser] = useState<Profile | null>(null)
   const [editForm, setEditForm] = useState({ full_name: '', role: 'user' as UserRole, avatar_url: '', rejon: '' })
   const [deleteConfirm, setDeleteConfirm] = useState<Profile | null>(null)
   const [saving, setSaving] = useState(false)
-
-  // Group assignment
-  const [assigningUser, setAssigningUser] = useState<Profile | null>(null)
-  const [assignManagerId, setAssignManagerId] = useState('')
-  const [assigning, setAssigning] = useState(false)
 
   // Create user form
   const [showCreateModal, setShowCreateModal] = useState(false)
@@ -99,27 +95,6 @@ export default function AdminPage() {
     setDeleteConfirm(null)
   }
 
-  function openAssign(p: Profile) {
-    setAssigningUser(p)
-    setAssignManagerId('')
-  }
-
-  async function handleAssign(e: React.FormEvent) {
-    e.preventDefault()
-    if (!assigningUser || !assignManagerId) return
-    setAssigning(true)
-    const { error } = await addRule(assignManagerId, assigningUser.id, myProfile?.id || '')
-    if (error) showToast(error, 'error')
-    else { showToast('Użytkownik przypisany do zespołu', 'success'); setAssigningUser(null) }
-    setAssigning(false)
-  }
-
-  async function handleRemoveFromGroup(ruleId: string) {
-    const { error } = await removeRule(ruleId)
-    if (error) showToast(error, 'error')
-    else showToast('Usunięto z zespołu', 'success')
-  }
-
   async function handleCreateUser(e: React.FormEvent) {
     e.preventDefault()
     setCreating(true)
@@ -167,8 +142,7 @@ export default function AdminPage() {
       ) : (
         <div className="space-y-3">
           {profiles.map(p => {
-            const managedRules = rules.filter(r => r.manager_id === p.id)
-            const memberRules = rules.filter(r => r.member_id === p.id)
+            const myTeams = teams.filter(t => t.members?.some(m => m.user_id === p.id))
             return (
               <div key={p.id} className="limona-card p-4 group">
                 <div className="flex items-center gap-4">
@@ -205,30 +179,23 @@ export default function AdminPage() {
 
                 {canManageGroups && (
                   <div className="flex flex-wrap items-center gap-2 mt-3 pl-[calc(3rem+1rem)]">
-                    {managedRules.length > 0 && (
-                      <span className="limona-badge text-[10px] bg-limona-yellow/15 text-limona-yellow flex items-center gap-1">
-                        <UsersRound size={11} />
-                        Kierownik zespołu ({managedRules.length})
-                      </span>
-                    )}
-                    {memberRules.map(rule => (
-                      <span key={rule.id} className="limona-badge text-[10px] bg-limona-surface-2 text-limona-text-muted flex items-center gap-1.5">
-                        Zespół: {rule.manager?.full_name || rule.manager_id.slice(0, 8)}
-                        <button
-                          onClick={() => handleRemoveFromGroup(rule.id)}
-                          className="hover:text-limona-red transition-colors"
-                          title="Usuń z zespołu"
-                        >
-                          <X size={10} />
-                        </button>
-                      </span>
-                    ))}
-                    <button
-                      onClick={() => openAssign(p)}
-                      className="text-[10px] text-limona-text-dim hover:text-limona-lime uppercase tracking-wider flex items-center gap-1 transition-colors"
+                    {myTeams.length === 0 ? (
+                      <span className="text-[10px] text-limona-text-dim uppercase tracking-wider">Bez zespołu</span>
+                    ) : myTeams.map(t => {
+                      const isLead = t.members?.find(m => m.user_id === p.id)?.is_lead
+                      return (
+                        <span key={t.id} className="limona-badge text-[10px] bg-limona-surface-2 text-limona-text-muted flex items-center gap-1">
+                          {isLead && <UsersRound size={10} className="text-limona-yellow" />}
+                          {t.name}
+                        </span>
+                      )
+                    })}
+                    <Link
+                      href="/zespol"
+                      className="text-[10px] text-limona-text-dim hover:text-limona-lime uppercase tracking-wider transition-colors"
                     >
-                      <Users size={11} /> Przypisz do zespołu
-                    </button>
+                      Zarządzaj w Zespole →
+                    </Link>
                   </div>
                 )}
               </div>
@@ -357,27 +324,6 @@ export default function AdminPage() {
             </button>
           </div>
         </div>
-      </Modal>
-
-      {/* Assign to group */}
-      <Modal isOpen={!!assigningUser} onClose={() => setAssigningUser(null)} title={`Przypisz do zespołu: ${assigningUser?.full_name}`} size="sm">
-        <form onSubmit={handleAssign} className="space-y-4">
-          <div>
-            <label className="limona-label block mb-2">Kierownik zespołu</label>
-            <select className="limona-select" value={assignManagerId} onChange={e => setAssignManagerId(e.target.value)} required autoFocus>
-              <option value="">Wybierz kierownika...</option>
-              {profiles.filter(p => p.id !== assigningUser?.id).map(p => (
-                <option key={p.id} value={p.id}>{p.full_name} ({ROLE_LABELS[p.role] ?? p.role})</option>
-              ))}
-            </select>
-          </div>
-          <div className="flex gap-3 justify-end pt-2">
-            <button type="button" onClick={() => setAssigningUser(null)} className="limona-btn-outline">Anuluj</button>
-            <button type="submit" disabled={assigning || !assignManagerId} className="limona-btn disabled:opacity-50">
-              {assigning ? 'Przypisywanie...' : 'Przypisz'}
-            </button>
-          </div>
-        </form>
       </Modal>
 
       {/* Delete Confirm */}

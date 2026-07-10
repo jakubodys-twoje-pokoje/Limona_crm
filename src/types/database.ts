@@ -349,6 +349,25 @@ export interface Kontakt {
   komentarze?: KontaktKomentarz[]
 }
 
+export interface TeamMember {
+  id: string
+  team_id: string
+  user_id: string
+  is_lead: boolean
+  created_at: string
+  profile?: Profile
+}
+
+export interface Team {
+  id: string
+  name: string
+  description: string | null
+  created_by: string | null
+  created_at: string
+  updated_at: string
+  members?: TeamMember[]
+}
+
 export interface KontaktShare {
   id: string
   kontakt_id: string

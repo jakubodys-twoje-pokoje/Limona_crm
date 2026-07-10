@@ -13,14 +13,27 @@ export async function GET() {
     return NextResponse.json({ visibleIds: null })
   }
 
-  // Fetch who this user manages
+  // W przeciwnym razie: widzi siebie + współczłonków każdego zespołu, gdzie
+  // jest liderem (is_lead) — niezależnie od formalnej roli konta.
   const supabase = await createClient()
-  const { data: rules, error } = await supabase
-    .from('team_visibility')
-    .select('member_id')
-    .eq('manager_id', user.id)
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  const { data: leadRows, error: leadError } = await supabase
+    .from('team_members')
+    .select('team_id')
+    .eq('user_id', user.id)
+    .eq('is_lead', true)
+  if (leadError) return NextResponse.json({ error: leadError.message }, { status: 500 })
 
-  const visibleIds = [user.id, ...(rules ?? []).map(r => r.member_id)]
+  const teamIds = (leadRows ?? []).map(r => r.team_id)
+  let memberIds: string[] = []
+  if (teamIds.length) {
+    const { data: members, error: membersError } = await supabase
+      .from('team_members')
+      .select('user_id')
+      .in('team_id', teamIds)
+    if (membersError) return NextResponse.json({ error: membersError.message }, { status: 500 })
+    memberIds = (members ?? []).map(m => m.user_id)
+  }
+
+  const visibleIds = Array.from(new Set([user.id, ...memberIds]))
   return NextResponse.json({ visibleIds })
 }

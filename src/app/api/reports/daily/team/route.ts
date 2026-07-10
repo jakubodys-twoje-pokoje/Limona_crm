@@ -8,7 +8,7 @@ import { canManageTeams } from '@/lib/roles'
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
 // Roster raportów dziennych dla panelu przeglądania — admin/kierownik_centrali,
-// org-wide (nie tylko własny zespół z team_visibility).
+// org-wide (nie tylko własny zespół).
 export async function GET(req: NextRequest) {
   const user = await getSessionUser()
   if (!user) return unauthorized()

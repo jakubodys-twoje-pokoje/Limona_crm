@@ -1,7 +1,7 @@
 import type { UserRole } from '@/types/database'
 
 /**
- * Role z widocznością danych ponad własny zespół (team_visibility):
+ * Role z widocznością danych ponad własny zespół (teams/team_members):
  * manager widzi swój zespół + wszystko operacyjnie (istniejąca konwencja
  * tej apki — visibleIds=null dla managera), kierownik_centrali dodatkowo
  * widzi ewaluację wszystkich zespołów naraz, bez uprawnień admina do
@@ -12,9 +12,10 @@ export function canSeeAllTeams(role: UserRole | string | undefined): boolean {
 }
 
 /**
- * Kto może zarządzać regułami team_visibility (tworzyć/usuwać przypisania
- * manager↔członek). Celowo węższe niż canSeeAllTeams — zwykły manager jest
- * podmiotem tych reguł, a nie osobą je układającą.
+ * Kto może zarządzać zespołami (tworzyć/usuwać zespoły, dodawać/usuwać
+ * członków, ustawiać liderów). Celowo węższe niż canSeeAllTeams — zwykły
+ * manager jest liderem konkretnego zespołu, a nie osobą zarządzającą
+ * strukturą wszystkich zespołów.
  */
 export function canManageTeams(role: UserRole | string | undefined): boolean {
   return role === 'admin' || role === 'kierownik_centrali'

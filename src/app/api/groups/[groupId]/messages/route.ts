@@ -2,20 +2,21 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getSessionUser, unauthorized } from '@/lib/api-auth'
+import { canManageTeams } from '@/lib/roles'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 const SELECT_WITH_AUTHOR = '*, author:profiles!group_messages_user_id_fkey(id,full_name,avatar_url)'
 
+// groupId = teams.id
 async function canAccessGroup(
   supabase: SupabaseClient, userId: string, userRole: string, groupId: string,
 ): Promise<boolean> {
-  if (userRole === 'admin') return true
-  if (userId === groupId) return true
+  if (canManageTeams(userRole)) return true
   const { data } = await supabase
-    .from('team_visibility')
+    .from('team_members')
     .select('id')
-    .eq('manager_id', groupId)
-    .eq('member_id', userId)
+    .eq('team_id', groupId)
+    .eq('user_id', userId)
     .maybeSingle()
   return !!data
 }
@@ -67,12 +68,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ gro
     .single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  // Powiadom pozostałych członków grupy (kierownik + jego zespół z team_visibility)
-  const { data: rules } = await supabase
-    .from('team_visibility')
-    .select('member_id')
-    .eq('manager_id', groupId)
-  const memberIds = new Set<string>([groupId, ...(rules ?? []).map(r => r.member_id)])
+  // Powiadom pozostałych członków zespołu
+  const { data: members } = await supabase
+    .from('team_members')
+    .select('user_id')
+    .eq('team_id', groupId)
+  const memberIds = new Set<string>((members ?? []).map(m => m.user_id))
   memberIds.delete(user.id)
   if (memberIds.size > 0) {
     await supabase.from('notifications').insert(
