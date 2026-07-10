@@ -44,9 +44,14 @@ export default function ZadaniaKalendarzPage() {
     return await deleteTask(id)
   }
 
-  async function handleQuickAddTask(title: string, dueDateKey: string) {
+  async function handleQuickAddTask(title: string, dueDateKey: string, dueTime: string | null) {
     if (!user) return
-    await createTask({ title, due_date: dueDateKey, status: 'todo', priority: 'medium' }, user.id)
+    await createTask({ title, due_date: dueDateKey, due_time: dueTime, status: 'todo', priority: 'medium' }, user.id)
+  }
+
+  async function handleMoveTask(taskId: string, dueDateKey: string, dueTime: string | null) {
+    if (!user) return
+    await updateTask(taskId, { due_date: dueDateKey, due_time: dueTime }, user.id)
   }
 
   return (
@@ -68,6 +73,7 @@ export default function ZadaniaKalendarzPage() {
         profiles={profiles}
         onOpenTask={setSelectedTask}
         onQuickAddTask={handleQuickAddTask}
+        onMoveTask={handleMoveTask}
       />
 
       {selectedTask && (

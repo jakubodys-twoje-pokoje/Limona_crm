@@ -147,6 +147,7 @@ export interface Task {
   rejection_reason: RejectionReason | null
   rejection_note: string | null
   due_date: string | null
+  due_time: string | null
   assigned_to: string | null
   co_assignees: string[]
   board_id: string | null

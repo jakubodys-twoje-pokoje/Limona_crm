@@ -1,7 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
-import Link from 'next/link'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   ChevronLeft, ChevronRight, Calendar as CalendarIcon, LayoutGrid, AlertTriangle,
   Link as LinkIcon, BookUser, CheckCircle2, Circle, Plus,
@@ -34,6 +33,11 @@ const PRIORITY_ORDER: Record<TaskPriority, number> = { urgent: 0, high: 1, mediu
 const NO_BOARD_COLOR = '#6b7280'
 const NO_BOARD_NAME = 'Ogólne'
 
+const HOUR_HEIGHT = 48 // px na godzinę w siatce dnia
+const SNAP_MIN = 30    // przyciąganie kliknięć/przeciągania do 30 min
+const CHIP_H = 32
+const CHIP_GAP = 3
+
 function toDateKey(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
@@ -41,6 +45,12 @@ function toDateKey(d: Date): string {
 function parseDateKey(key: string): Date {
   const [y, m, d] = key.split('-').map(Number)
   return new Date(y, m - 1, d)
+}
+
+function addDays(key: string, n: number): string {
+  const d = parseDateKey(key)
+  d.setDate(d.getDate() + n)
+  return toDateKey(d)
 }
 
 // Poniedziałek jako pierwszy dzień tygodnia zawierającego `date`
@@ -51,41 +61,61 @@ function startOfWeek(date: Date): Date {
   return d
 }
 
+function timeToMinutes(t: string): number {
+  const [h, m] = t.split(':').map(Number)
+  return h * 60 + m
+}
+
+function minutesToTime(mins: number): string {
+  const clamped = Math.max(0, Math.min(23 * 60 + 59, mins))
+  const h = Math.floor(clamped / 60)
+  const m = clamped % 60
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
+}
+
+function snapMinutes(mins: number): number {
+  return Math.round(mins / SNAP_MIN) * SNAP_MIN
+}
+
 interface CalendarViewProps {
   /** Zadania ze WSZYSTKICH tablic — kalendarz nie zależy od wybranej zakładki kanbanu */
   tasks: Task[]
   loading: boolean
   profiles: Profile[]
   onOpenTask: (t: Task) => void
-  /** Szybkie dodanie zadania z terminem na wybrany dzień (klik na kartkę w kalendarzu) */
-  onQuickAddTask?: (title: string, dueDateKey: string) => Promise<void>
+  /** Szybkie dodanie zadania z terminem (+opcjonalnie godziną) — klik na kartkę/slot w kalendarzu */
+  onQuickAddTask?: (title: string, dueDateKey: string, dueTime: string | null) => Promise<void>
+  /** Przeciągnięcie zadania na inny dzień/godzinę */
+  onMoveTask?: (taskId: string, dueDateKey: string, dueTime: string | null) => Promise<void>
 }
 
-export function CalendarView({ tasks, loading, profiles, onOpenTask, onQuickAddTask }: CalendarViewProps) {
-  const [mode, setMode] = useState<'day' | 'month'>('day')
+export function CalendarView({ tasks, loading, profiles, onOpenTask, onQuickAddTask, onMoveTask }: CalendarViewProps) {
+  const [mode, setMode] = useState<'threeday' | 'month'>('threeday')
   const [selectedDate, setSelectedDate] = useState(() => toDateKey(new Date()))
   const [calMonth, setCalMonth] = useState(() => {
     const d = new Date(); return { year: d.getFullYear(), month: d.getMonth() }
   })
   const [assigneeFilter, setAssigneeFilter] = useState('')
   const [hideDone, setHideDone] = useState(false)
-  const [quickAddDate, setQuickAddDate] = useState<string | null>(null)
+  const [quickAdd, setQuickAdd] = useState<{ date: string; time: string | null } | null>(null)
   const [quickAddTitle, setQuickAddTitle] = useState('')
   const [quickAddSaving, setQuickAddSaving] = useState(false)
+  const [dragOverSlot, setDragOverSlot] = useState<string | null>(null)
+  const gridScrollRef = useRef<HTMLDivElement>(null)
 
-  function openQuickAdd(dateKey: string, e?: React.MouseEvent) {
+  function openQuickAdd(dateKey: string, time: string | null, e?: React.MouseEvent) {
     e?.stopPropagation()
     setQuickAddTitle('')
-    setQuickAddDate(dateKey)
+    setQuickAdd({ date: dateKey, time })
   }
 
   async function submitQuickAdd(e: React.FormEvent) {
     e.preventDefault()
-    if (!quickAddTitle.trim() || !quickAddDate || !onQuickAddTask) return
+    if (!quickAddTitle.trim() || !quickAdd || !onQuickAddTask) return
     setQuickAddSaving(true)
     try {
-      await onQuickAddTask(quickAddTitle.trim(), quickAddDate)
-      setQuickAddDate(null)
+      await onQuickAddTask(quickAddTitle.trim(), quickAdd.date, quickAdd.time)
+      setQuickAdd(null)
       setQuickAddTitle('')
     } finally {
       setQuickAddSaving(false)
@@ -117,42 +147,42 @@ export function CalendarView({ tasks, loading, profiles, onOpenTask, onQuickAddT
     setSelectedDate(key)
     const d = parseDateKey(key)
     setCalMonth({ year: d.getFullYear(), month: d.getMonth() })
-    setMode('day')
+    setMode('threeday')
   }
 
   function goToday() {
     selectDate(todayKey)
   }
 
-  // ── Widok dzienny ──────────────────────────────────────────────────────
+  function shiftDays(n: number) {
+    setSelectedDate(k => addDays(k, n))
+  }
+
+  // ── Widok 3-dniowy ──────────────────────────────────────────────────────
+  const visibleDays = useMemo(
+    () => [0, 1, 2].map(i => addDays(selectedDate, i)),
+    [selectedDate],
+  )
+
   const overdueTasks = useMemo(() => {
     return visibleTasks
       .filter(t => t.due_date && t.due_date.slice(0, 10) < selectedDate && t.status !== 'done')
       .sort((a, b) => PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority])
   }, [visibleTasks, selectedDate])
 
-  const dayTasksAll = tasksByDate[selectedDate] ?? []
-  const dayTasks = hideDone ? dayTasksAll.filter(t => t.status !== 'done') : dayTasksAll
+  function dayTasksFor(key: string): Task[] {
+    const all = tasksByDate[key] ?? []
+    return hideDone ? all.filter(t => t.status !== 'done') : all
+  }
 
-  const dayGroups = useMemo(() => {
-    const groups = new Map<string, { name: string; color: string; tasks: Task[] }>()
-    for (const t of dayTasks) {
-      const key = t.board_id ?? 'none'
-      if (!groups.has(key)) {
-        groups.set(key, {
-          name: t.board?.name ?? NO_BOARD_NAME,
-          color: t.board?.color ?? NO_BOARD_COLOR,
-          tasks: [],
-        })
-      }
-      groups.get(key)!.tasks.push(t)
-    }
-    for (const g of groups.values()) g.tasks.sort((a, b) => PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority])
-    return Array.from(groups.values())
-  }, [dayTasks])
-
-  const doneCount = dayTasksAll.filter(t => t.status === 'done').length
-  const totalCount = dayTasksAll.length
+  // Auto-scroll do bieżącej godziny (albo 7:00, gdy poza widokiem) przy zmianie okna
+  useEffect(() => {
+    if (mode !== 'threeday' || !gridScrollRef.current) return
+    const now = new Date()
+    const base = visibleDays.includes(todayKey) ? now.getHours() * 60 + now.getMinutes() : 7 * 60
+    gridScrollRef.current.scrollTop = Math.max(0, (base / 60) * HOUR_HEIGHT - 140)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, selectedDate])
 
   // ── Pasek tygodnia ─────────────────────────────────────────────────────
   const weekDays = useMemo(() => {
@@ -202,16 +232,52 @@ export function CalendarView({ tasks, loading, profiles, onOpenTask, onQuickAddT
     return Array.from(map.values())
   }, [visibleTasks])
 
-  const dateLabel = parseDateKey(selectedDate).toLocaleDateString('pl-PL', {
-    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
-  })
+  const rangeLabel = useMemo(() => {
+    const first = parseDateKey(visibleDays[0])
+    const last = parseDateKey(visibleDays[2])
+    const sameMonth = first.getMonth() === last.getMonth()
+    const firstStr = first.toLocaleDateString('pl-PL', { day: 'numeric', month: sameMonth ? undefined : 'long' })
+    const lastStr = last.toLocaleDateString('pl-PL', { day: 'numeric', month: 'long', year: 'numeric' })
+    return `${firstStr} – ${lastStr}`
+  }, [visibleDays])
+
+  function handleDragStart(e: React.DragEvent, task: Task) {
+    e.dataTransfer.setData('text/plain', task.id)
+    e.dataTransfer.effectAllowed = 'move'
+  }
+
+  async function handleDropAllDay(e: React.DragEvent, dayKey: string) {
+    e.preventDefault()
+    setDragOverSlot(null)
+    const taskId = e.dataTransfer.getData('text/plain')
+    if (taskId && onMoveTask) await onMoveTask(taskId, dayKey, null)
+  }
+
+  async function handleDropGrid(e: React.DragEvent, dayKey: string) {
+    e.preventDefault()
+    setDragOverSlot(null)
+    const taskId = e.dataTransfer.getData('text/plain')
+    if (!taskId || !onMoveTask) return
+    const rect = e.currentTarget.getBoundingClientRect()
+    const offsetY = e.clientY - rect.top
+    const mins = snapMinutes((offsetY / HOUR_HEIGHT) * 60)
+    await onMoveTask(taskId, dayKey, minutesToTime(mins))
+  }
+
+  function handleGridClick(e: React.MouseEvent, dayKey: string) {
+    if (!onQuickAddTask) return
+    const rect = e.currentTarget.getBoundingClientRect()
+    const offsetY = e.clientY - rect.top
+    const mins = snapMinutes((offsetY / HOUR_HEIGHT) * 60)
+    openQuickAdd(dayKey, minutesToTime(mins))
+  }
 
   return (
     <div className="space-y-4">
       {/* Toolbar */}
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex gap-1 p-1 bg-limona-surface rounded">
-          {(['day', 'month'] as const).map(m => (
+          {(['threeday', 'month'] as const).map(m => (
             <button
               key={m}
               onClick={() => setMode(m)}
@@ -220,8 +286,8 @@ export function CalendarView({ tasks, loading, profiles, onOpenTask, onQuickAddT
                 mode === m ? 'bg-limona-lime text-black' : 'text-limona-text-muted hover:text-limona-white',
               )}
             >
-              {m === 'day' ? <CalendarIcon size={12} /> : <LayoutGrid size={12} />}
-              {m === 'day' ? 'Dzień' : 'Miesiąc'}
+              {m === 'threeday' ? <CalendarIcon size={12} /> : <LayoutGrid size={12} />}
+              {m === 'threeday' ? '3 dni' : 'Miesiąc'}
             </button>
           ))}
         </div>
@@ -254,7 +320,7 @@ export function CalendarView({ tasks, loading, profiles, onOpenTask, onQuickAddT
           {weekDays.map(d => {
             const key = toDateKey(d)
             const count = (tasksByDate[key] ?? []).filter(t => t.status !== 'done').length
-            const isSelected = key === selectedDate
+            const isSelected = visibleDays.includes(key)
             const isToday = key === todayKey
             const isOverdueDay = key < todayKey && count > 0
             return (
@@ -294,25 +360,22 @@ export function CalendarView({ tasks, loading, profiles, onOpenTask, onQuickAddT
         <div className="space-y-2">
           {[...Array(4)].map((_, i) => <div key={i} className="limona-card h-16 animate-pulse" />)}
         </div>
-      ) : mode === 'day' ? (
-        <div className="space-y-4">
+      ) : mode === 'threeday' ? (
+        <div className="space-y-3">
           <div className="flex items-center justify-between gap-2">
-            <h3 className="font-heading font-bold text-lg text-limona-white capitalize">{dateLabel}</h3>
-            <div className="flex items-center gap-3 flex-shrink-0">
-              {totalCount > 0 && (
-                <span className="text-xs text-limona-text-muted">
-                  <span className="text-limona-green font-mono">{doneCount}</span>/{totalCount} zrobionych
-                </span>
-              )}
-              {onQuickAddTask && (
-                <button onClick={() => openQuickAdd(selectedDate)} className="limona-btn-sm text-xs flex items-center gap-1">
-                  <Plus size={12} /> Zadanie
-                </button>
-              )}
+            <div className="flex items-center gap-2">
+              <button onClick={() => shiftDays(-1)} className="p-1.5 text-limona-text-muted hover:text-limona-white transition-colors rounded hover:bg-limona-surface-2">
+                <ChevronLeft size={16} />
+              </button>
+              <h3 className="font-heading font-bold text-base text-limona-white capitalize">{rangeLabel}</h3>
+              <button onClick={() => shiftDays(1)} className="p-1.5 text-limona-text-muted hover:text-limona-white transition-colors rounded hover:bg-limona-surface-2">
+                <ChevronRight size={16} />
+              </button>
             </div>
+            <span className="text-xs text-limona-text-dim hidden sm:inline">Przeciągnij zadanie, by zmienić termin</span>
           </div>
 
-          {/* Zaległe — zawsze na górze, niezależnie od wybranego dnia */}
+          {/* Zaległe — zawsze widoczne, niezależnie od wybranego okna */}
           {overdueTasks.length > 0 && (
             <div className="space-y-2">
               <p className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-limona-red">
@@ -320,31 +383,140 @@ export function CalendarView({ tasks, loading, profiles, onOpenTask, onQuickAddT
               </p>
               <div className="space-y-1.5">
                 {overdueTasks.map(t => (
-                  <CalendarTaskRow key={t.id} task={t} onOpen={() => onOpenTask(t)} overdue />
+                  <CalendarTaskRow
+                    key={t.id}
+                    task={t}
+                    onOpen={() => onOpenTask(t)}
+                    overdue
+                    draggable={!!onMoveTask}
+                    onDragStart={e => handleDragStart(e, t)}
+                  />
                 ))}
               </div>
             </div>
           )}
 
-          {dayGroups.length === 0 ? (
-            <div className="limona-card p-8 text-center text-limona-text-dim text-sm">
-              Brak zadań z terminem na ten dzień
-            </div>
-          ) : (
-            dayGroups.map(group => (
-              <div key={group.name} className="space-y-1.5">
-                <p className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-limona-text-muted">
-                  <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: group.color }} />
-                  {group.name}
-                </p>
-                <div className="space-y-1.5">
-                  {group.tasks.map(t => (
-                    <CalendarTaskRow key={t.id} task={t} onOpen={() => onOpenTask(t)} />
-                  ))}
+          {/* Nagłówki dni + pasek "cały dzień" */}
+          <div className="grid grid-cols-[44px_1fr_1fr_1fr] gap-1.5">
+            <div />
+            {visibleDays.map(dayKey => {
+              const d = parseDateKey(dayKey)
+              const isToday = dayKey === todayKey
+              return (
+                <div key={dayKey} className={cn('text-center rounded-t px-1 py-1', isToday && 'bg-limona-lime/10')}>
+                  <p className="text-[9px] uppercase tracking-wider text-limona-text-dim">{DAYS_PL[(d.getDay() + 6) % 7]}</p>
+                  <p className={cn('text-sm font-mono font-bold', isToday ? 'text-limona-lime' : 'text-limona-white')}>
+                    {d.getDate()} {MONTHS_PL[d.getMonth()].slice(0, 3)}
+                  </p>
                 </div>
+              )
+            })}
+          </div>
+
+          <div className="grid grid-cols-[44px_1fr_1fr_1fr] gap-1.5">
+            <div className="text-[9px] text-limona-text-dim text-right pr-1 pt-1 uppercase tracking-wider">cały dzień</div>
+            {visibleDays.map(dayKey => {
+              const allDayTasks = dayTasksFor(dayKey).filter(t => !t.due_time)
+              return (
+                <div
+                  key={dayKey}
+                  onDragOver={e => { e.preventDefault(); setDragOverSlot(`all-${dayKey}`) }}
+                  onDragLeave={() => setDragOverSlot(null)}
+                  onDrop={e => handleDropAllDay(e, dayKey)}
+                  className={cn(
+                    'min-h-[36px] rounded border border-dashed p-1 space-y-1 transition-colors',
+                    dragOverSlot === `all-${dayKey}` ? 'border-limona-lime bg-limona-lime/5' : 'border-limona-border/40',
+                  )}
+                >
+                  {allDayTasks.map(t => (
+                    <MiniTaskChip
+                      key={t.id}
+                      task={t}
+                      onOpen={() => onOpenTask(t)}
+                      draggable={!!onMoveTask}
+                      onDragStart={e => handleDragStart(e, t)}
+                    />
+                  ))}
+                  {onQuickAddTask && (
+                    <button
+                      type="button"
+                      onClick={() => openQuickAdd(dayKey, null)}
+                      className="w-full text-[9px] text-limona-text-dim hover:text-limona-lime text-center py-0.5 transition-colors"
+                    >
+                      + dodaj
+                    </button>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Siatka godzinowa — przewijalna, 3 kolumny dni */}
+          <div ref={gridScrollRef} className="overflow-y-auto rounded border border-limona-border/50" style={{ maxHeight: 520 }}>
+            <div className="grid grid-cols-[44px_1fr_1fr_1fr] gap-1.5 relative" style={{ height: HOUR_HEIGHT * 24 }}>
+              {/* Etykiety godzin */}
+              <div className="relative">
+                {Array.from({ length: 24 }, (_, h) => (
+                  <div
+                    key={h}
+                    className="absolute left-0 right-1 text-right text-[9px] text-limona-text-dim font-mono"
+                    style={{ top: h * HOUR_HEIGHT - 6 }}
+                  >
+                    {String(h).padStart(2, '0')}:00
+                  </div>
+                ))}
               </div>
-            ))
-          )}
+
+              {visibleDays.map(dayKey => {
+                const isToday = dayKey === todayKey
+                const timedTasks = dayTasksFor(dayKey).filter(t => t.due_time)
+                  .sort((a, b) => a.due_time!.localeCompare(b.due_time!))
+                let lastBottom = -Infinity
+                const positioned = timedTasks.map(t => {
+                  let top = (timeToMinutes(t.due_time!.slice(0, 5)) / 60) * HOUR_HEIGHT
+                  if (top < lastBottom) top = lastBottom
+                  lastBottom = top + CHIP_H + CHIP_GAP
+                  return { task: t, top }
+                })
+                const now = new Date()
+                const nowTop = (now.getHours() * 60 + now.getMinutes()) / 60 * HOUR_HEIGHT
+
+                return (
+                  <div
+                    key={dayKey}
+                    onClick={e => handleGridClick(e, dayKey)}
+                    onDragOver={e => { e.preventDefault(); setDragOverSlot(`grid-${dayKey}`) }}
+                    onDragLeave={() => setDragOverSlot(null)}
+                    onDrop={e => handleDropGrid(e, dayKey)}
+                    className={cn(
+                      'relative border-l border-limona-border/30 cursor-crosshair transition-colors',
+                      dragOverSlot === `grid-${dayKey}` && 'bg-limona-lime/5',
+                    )}
+                  >
+                    {Array.from({ length: 24 }, (_, h) => (
+                      <div key={h} className="absolute left-0 right-0 border-t border-limona-border/20" style={{ top: h * HOUR_HEIGHT }} />
+                    ))}
+                    {isToday && (
+                      <div className="absolute left-0 right-0 border-t-2 border-limona-red z-20 pointer-events-none" style={{ top: nowTop }}>
+                        <span className="absolute -left-1 -top-1 w-2 h-2 rounded-full bg-limona-red" />
+                      </div>
+                    )}
+                    {positioned.map(({ task: t, top }) => (
+                      <div key={t.id} className="absolute left-0.5 right-0.5" style={{ top }}>
+                        <MiniTaskChip
+                          task={t}
+                          onOpen={() => onOpenTask(t)}
+                          draggable={!!onMoveTask}
+                          onDragStart={e => handleDragStart(e, t)}
+                          showTime
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
         </div>
       ) : (
         <div className="space-y-3">
@@ -400,7 +572,7 @@ export function CalendarView({ tasks, loading, profiles, onOpenTask, onQuickAddT
                   {onQuickAddTask && (
                     <button
                       type="button"
-                      onClick={e => openQuickAdd(key, e)}
+                      onClick={e => openQuickAdd(key, null, e)}
                       title="Dodaj zadanie na ten dzień"
                       className="absolute top-1 right-1 p-0.5 rounded text-limona-text-dim opacity-0 group-hover:opacity-100 hover:text-limona-lime hover:bg-limona-surface-2 transition-all"
                     >
@@ -439,11 +611,13 @@ export function CalendarView({ tasks, loading, profiles, onOpenTask, onQuickAddT
         </span>
       </div>
 
-      {/* Szybkie dodanie zadania na dany dzień */}
+      {/* Szybkie dodanie zadania na dany dzień / godzinę */}
       <Modal
-        isOpen={!!quickAddDate}
-        onClose={() => setQuickAddDate(null)}
-        title={quickAddDate ? `Nowe zadanie — ${parseDateKey(quickAddDate).toLocaleDateString('pl-PL', { day: 'numeric', month: 'long' })}` : 'Nowe zadanie'}
+        isOpen={!!quickAdd}
+        onClose={() => setQuickAdd(null)}
+        title={quickAdd
+          ? `Nowe zadanie — ${parseDateKey(quickAdd.date).toLocaleDateString('pl-PL', { day: 'numeric', month: 'long' })}${quickAdd.time ? `, ${quickAdd.time}` : ''}`
+          : 'Nowe zadanie'}
         size="sm"
       >
         <form onSubmit={submitQuickAdd} className="space-y-4">
@@ -456,7 +630,7 @@ export function CalendarView({ tasks, loading, profiles, onOpenTask, onQuickAddT
             onChange={e => setQuickAddTitle(e.target.value)}
           />
           <div className="flex gap-3 justify-end pt-2">
-            <button type="button" onClick={() => setQuickAddDate(null)} className="limona-btn-outline">Anuluj</button>
+            <button type="button" onClick={() => setQuickAdd(null)} className="limona-btn-outline">Anuluj</button>
             <button type="submit" disabled={quickAddSaving || !quickAddTitle.trim()} className="limona-btn disabled:opacity-50">
               {quickAddSaving ? 'Dodawanie...' : 'Dodaj zadanie'}
             </button>
@@ -467,13 +641,58 @@ export function CalendarView({ tasks, loading, profiles, onOpenTask, onQuickAddT
   )
 }
 
-function CalendarTaskRow({ task, onOpen, overdue }: { task: Task; onOpen: () => void; overdue?: boolean }) {
+function MiniTaskChip({
+  task, onOpen, draggable, onDragStart, showTime,
+}: {
+  task: Task
+  onOpen: () => void
+  draggable?: boolean
+  onDragStart?: (e: React.DragEvent) => void
+  showTime?: boolean
+}) {
   return (
     <button
+      type="button"
+      draggable={draggable}
+      onDragStart={onDragStart}
+      onClick={e => { e.stopPropagation(); onOpen() }}
+      title={task.title}
+      style={{ height: showTime ? CHIP_H : undefined }}
+      className={cn(
+        'w-full flex items-center gap-1 px-1.5 rounded text-left bg-limona-surface-2 border border-limona-border/60 hover:border-limona-lime/50 transition-colors overflow-hidden',
+        task.status === 'done' && 'opacity-50',
+        draggable && 'cursor-grab active:cursor-grabbing',
+      )}
+    >
+      <span className={cn('w-1.5 h-1.5 rounded-full flex-shrink-0', PRIORITY_DOT[task.priority])} />
+      {showTime && task.due_time && (
+        <span className="text-[9px] font-mono text-limona-text-dim flex-shrink-0">{task.due_time.slice(0, 5)}</span>
+      )}
+      <span className={cn('text-[10px] truncate flex-1', task.status === 'done' && 'line-through text-limona-text-muted')}>
+        {task.title}
+      </span>
+    </button>
+  )
+}
+
+function CalendarTaskRow({
+  task, onOpen, overdue, draggable, onDragStart,
+}: {
+  task: Task
+  onOpen: () => void
+  overdue?: boolean
+  draggable?: boolean
+  onDragStart?: (e: React.DragEvent) => void
+}) {
+  return (
+    <button
+      draggable={draggable}
+      onDragStart={onDragStart}
       onClick={onOpen}
       className={cn(
         'limona-card w-full text-left p-3 flex items-center gap-3 hover:border-limona-lime/30 transition-all',
         task.status === 'done' && 'opacity-50',
+        draggable && 'cursor-grab active:cursor-grabbing',
       )}
     >
       {task.status === 'done'

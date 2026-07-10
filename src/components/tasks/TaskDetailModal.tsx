@@ -65,6 +65,7 @@ export function TaskDetailModal({
   const [status, setStatus] = useState<TaskStatus>(task.status as TaskStatus)
   const [priority, setPriority] = useState<TaskPriority>(task.priority as TaskPriority)
   const [dueDate, setDueDate] = useState(task.due_date ? task.due_date.split('T')[0] : '')
+  const [dueTime, setDueTime] = useState(task.due_time ? task.due_time.slice(0, 5) : '')
   const [assignedTo, setAssignedTo] = useState(task.assigned_to || '')
   const [showStatusMenu, setShowStatusMenu] = useState(false)
   const [showPriorityMenu, setShowPriorityMenu] = useState(false)
@@ -95,6 +96,7 @@ export function TaskDetailModal({
     setStatus(task.status as TaskStatus)
     setPriority(task.priority as TaskPriority)
     setDueDate(task.due_date ? task.due_date.split('T')[0] : '')
+    setDueTime(task.due_time ? task.due_time.slice(0, 5) : '')
     setAssignedTo(task.assigned_to || '')
     setTaskType(task.task_type || '')
     setContactCategory(task.contact_category || '')
@@ -223,6 +225,11 @@ export function TaskDetailModal({
   async function handleDueDateChange(dateStr: string) {
     setDueDate(dateStr)
     await saveField('due_date', dateStr || null)
+  }
+
+  async function handleDueTimeChange(timeStr: string) {
+    setDueTime(timeStr)
+    await saveField('due_time', timeStr || null)
   }
 
   async function handleAddComment() {
@@ -599,6 +606,9 @@ export function TaskDetailModal({
                   <Calendar size={12} className="text-limona-text-dim flex-shrink-0" />
                   <input type="date" className="limona-input text-xs py-2 flex-1" value={dueDate}
                     onChange={e => handleDueDateChange(e.target.value)} />
+                  <input type="time" className="limona-input text-xs py-2 w-24" value={dueTime}
+                    disabled={!dueDate} title={!dueDate ? 'Ustaw najpierw datę' : 'Godzina (opcjonalnie)'}
+                    onChange={e => handleDueTimeChange(e.target.value)} />
                 </div>
                 {dueDate && new Date(dueDate) < new Date() && status !== 'done' && (
                   <p className="flex items-center gap-1 text-[10px] text-limona-red mt-1">
