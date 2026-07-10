@@ -243,7 +243,7 @@ export default function KontaktyMap({ kontakty, properties = [], height = '560px
       <div className={isFullHeight ? 'flex flex-col h-full' : 'space-y-2'}>
         <div
           ref={mapRef}
-          className={cn('w-full', isFullHeight ? 'flex-1 min-h-0' : 'rounded-lg border border-limona-border')}
+          className={cn('w-full isolate relative z-0', isFullHeight ? 'flex-1 min-h-0' : 'rounded-lg border border-limona-border')}
           style={{ height: isFullHeight ? undefined : height }}
         />
         {!isFullHeight && (

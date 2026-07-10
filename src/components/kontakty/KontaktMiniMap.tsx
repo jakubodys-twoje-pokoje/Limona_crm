@@ -28,8 +28,9 @@ export default function KontaktMiniMap({ lat, lng, nazwa, kontaktId, onGeocode }
     import('leaflet').then(L => {
       import('leaflet/dist/leaflet.css' as never)
 
-      const map = L.map(mapRef.current!, { center: [lat, lng], zoom: 15, zoomControl: true, scrollWheelZoom: false })
+      const map = L.map(mapRef.current!, { center: [lat, lng], zoom: 15, zoomControl: false, scrollWheelZoom: false })
       mapObj.current = map
+      L.control.zoom({ position: 'bottomright' }).addTo(map)
 
       L.tileLayer(
         'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
@@ -42,7 +43,14 @@ export default function KontaktMiniMap({ lat, lng, nazwa, kontaktId, onGeocode }
         iconSize: [16, 16],
         iconAnchor: [8, 8],
       })
-      L.marker([lat, lng], { icon }).addTo(map).bindPopup(nazwa).openPopup()
+      L.marker([lat, lng], { icon }).addTo(map)
+        .bindPopup(nazwa, { autoPan: false })
+        .openPopup()
+
+      // Kontener bywa zainicjowany, zanim otaczająca karta ustabilizuje swój
+      // rozmiar (np. w trakcie ładowania danych powyżej) — bez tego Leaflet
+      // liczy zły rozmiar i popup/zoom renderują się w złym miejscu.
+      requestAnimationFrame(() => map.invalidateSize())
     })
 
     return () => {
@@ -94,7 +102,7 @@ export default function KontaktMiniMap({ lat, lng, nazwa, kontaktId, onGeocode }
 
   return (
     <div className="space-y-2">
-      <div ref={mapRef} className="w-full rounded border border-limona-border" style={{ height: '200px' }} />
+      <div ref={mapRef} className="w-full rounded border border-limona-border isolate relative z-0" style={{ height: '340px' }} />
       <div className="flex items-center justify-between">
         <a
           href={`https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}&zoom=15`}
