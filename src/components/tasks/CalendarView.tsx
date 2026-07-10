@@ -4,10 +4,11 @@ import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import {
   ChevronLeft, ChevronRight, Calendar as CalendarIcon, LayoutGrid, AlertTriangle,
-  Link as LinkIcon, BookUser, CheckCircle2, Circle,
+  Link as LinkIcon, BookUser, CheckCircle2, Circle, Plus,
 } from 'lucide-react'
 import { Avatar } from '@/components/ui/Avatar'
 import { Badge } from '@/components/ui/Badge'
+import { Modal } from '@/components/ui/Modal'
 import { cn, formatPropertyAddress } from '@/lib/utils'
 import type { Task, TaskPriority, Profile } from '@/types/database'
 
@@ -56,9 +57,11 @@ interface CalendarViewProps {
   loading: boolean
   profiles: Profile[]
   onOpenTask: (t: Task) => void
+  /** Szybkie dodanie zadania z terminem na wybrany dzień (klik na kartkę w kalendarzu) */
+  onQuickAddTask?: (title: string, dueDateKey: string) => Promise<void>
 }
 
-export function CalendarView({ tasks, loading, profiles, onOpenTask }: CalendarViewProps) {
+export function CalendarView({ tasks, loading, profiles, onOpenTask, onQuickAddTask }: CalendarViewProps) {
   const [mode, setMode] = useState<'day' | 'month'>('day')
   const [selectedDate, setSelectedDate] = useState(() => toDateKey(new Date()))
   const [calMonth, setCalMonth] = useState(() => {
@@ -66,6 +69,28 @@ export function CalendarView({ tasks, loading, profiles, onOpenTask }: CalendarV
   })
   const [assigneeFilter, setAssigneeFilter] = useState('')
   const [hideDone, setHideDone] = useState(false)
+  const [quickAddDate, setQuickAddDate] = useState<string | null>(null)
+  const [quickAddTitle, setQuickAddTitle] = useState('')
+  const [quickAddSaving, setQuickAddSaving] = useState(false)
+
+  function openQuickAdd(dateKey: string, e?: React.MouseEvent) {
+    e?.stopPropagation()
+    setQuickAddTitle('')
+    setQuickAddDate(dateKey)
+  }
+
+  async function submitQuickAdd(e: React.FormEvent) {
+    e.preventDefault()
+    if (!quickAddTitle.trim() || !quickAddDate || !onQuickAddTask) return
+    setQuickAddSaving(true)
+    try {
+      await onQuickAddTask(quickAddTitle.trim(), quickAddDate)
+      setQuickAddDate(null)
+      setQuickAddTitle('')
+    } finally {
+      setQuickAddSaving(false)
+    }
+  }
 
   const todayKey = toDateKey(new Date())
 
@@ -271,13 +296,20 @@ export function CalendarView({ tasks, loading, profiles, onOpenTask }: CalendarV
         </div>
       ) : mode === 'day' ? (
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-2">
             <h3 className="font-heading font-bold text-lg text-limona-white capitalize">{dateLabel}</h3>
-            {totalCount > 0 && (
-              <span className="text-xs text-limona-text-muted">
-                <span className="text-limona-green font-mono">{doneCount}</span>/{totalCount} zrobionych
-              </span>
-            )}
+            <div className="flex items-center gap-3 flex-shrink-0">
+              {totalCount > 0 && (
+                <span className="text-xs text-limona-text-muted">
+                  <span className="text-limona-green font-mono">{doneCount}</span>/{totalCount} zrobionych
+                </span>
+              )}
+              {onQuickAddTask && (
+                <button onClick={() => openQuickAdd(selectedDate)} className="limona-btn-sm text-xs flex items-center gap-1">
+                  <Plus size={12} /> Zadanie
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Zaległe — zawsze na górze, niezależnie od wybranego dnia */}
@@ -342,11 +374,14 @@ export function CalendarView({ tasks, loading, profiles, onOpenTask }: CalendarV
               // Unikalne kolory tablic obecne tego dnia — max 4 kropki + licznik
               const dots = Array.from(new Set(dTasks.map(t => t.board?.color ?? NO_BOARD_COLOR))).slice(0, 4)
               return (
-                <button
+                <div
                   key={i}
+                  role="button"
+                  tabIndex={0}
                   onClick={() => selectDate(key)}
+                  onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') selectDate(key) }}
                   className={cn(
-                    'min-h-[84px] rounded p-1.5 border transition-colors text-left',
+                    'group relative min-h-[84px] rounded p-1.5 border transition-colors text-left cursor-pointer',
                     isSelected ? 'border-limona-lime bg-limona-lime/10'
                       : isToday ? 'border-limona-lime/50 bg-limona-lime/5' : 'border-limona-border/50 bg-limona-surface/30 hover:bg-limona-surface-2/50',
                   )}
@@ -362,7 +397,17 @@ export function CalendarView({ tasks, loading, profiles, onOpenTask }: CalendarV
                       <p className="text-[10px] text-limona-text-muted font-mono">{dTasks.length} zad.</p>
                     </>
                   )}
-                </button>
+                  {onQuickAddTask && (
+                    <button
+                      type="button"
+                      onClick={e => openQuickAdd(key, e)}
+                      title="Dodaj zadanie na ten dzień"
+                      className="absolute top-1 right-1 p-0.5 rounded text-limona-text-dim opacity-0 group-hover:opacity-100 hover:text-limona-lime hover:bg-limona-surface-2 transition-all"
+                    >
+                      <Plus size={12} />
+                    </button>
+                  )}
+                </div>
               )
             })}
           </div>
@@ -393,6 +438,31 @@ export function CalendarView({ tasks, loading, profiles, onOpenTask }: CalendarV
           <AlertTriangle size={10} /> Przeterminowane
         </span>
       </div>
+
+      {/* Szybkie dodanie zadania na dany dzień */}
+      <Modal
+        isOpen={!!quickAddDate}
+        onClose={() => setQuickAddDate(null)}
+        title={quickAddDate ? `Nowe zadanie — ${parseDateKey(quickAddDate).toLocaleDateString('pl-PL', { day: 'numeric', month: 'long' })}` : 'Nowe zadanie'}
+        size="sm"
+      >
+        <form onSubmit={submitQuickAdd} className="space-y-4">
+          <input
+            autoFocus
+            required
+            className="limona-input w-full"
+            placeholder="Tytuł zadania..."
+            value={quickAddTitle}
+            onChange={e => setQuickAddTitle(e.target.value)}
+          />
+          <div className="flex gap-3 justify-end pt-2">
+            <button type="button" onClick={() => setQuickAddDate(null)} className="limona-btn-outline">Anuluj</button>
+            <button type="submit" disabled={quickAddSaving || !quickAddTitle.trim()} className="limona-btn disabled:opacity-50">
+              {quickAddSaving ? 'Dodawanie...' : 'Dodaj zadanie'}
+            </button>
+          </div>
+        </form>
+      </Modal>
     </div>
   )
 }

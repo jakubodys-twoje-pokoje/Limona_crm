@@ -17,7 +17,7 @@ import type { Task, Profile } from '@/types/database'
 export default function ZadaniaKalendarzPage() {
   const { user, profile } = useAuth()
   const { visibleIds } = useVisibleUserIds(user?.id, profile?.role)
-  const { tasks, loading, updateTask, deleteTask } = useTasks(undefined, visibleIds)
+  const { tasks, loading, createTask, updateTask, deleteTask } = useTasks(undefined, visibleIds)
   const [profiles, setProfiles] = useState<Profile[]>([])
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
 
@@ -44,6 +44,11 @@ export default function ZadaniaKalendarzPage() {
     return await deleteTask(id)
   }
 
+  async function handleQuickAddTask(title: string, dueDateKey: string) {
+    if (!user) return
+    await createTask({ title, due_date: dueDateKey, status: 'todo', priority: 'medium' }, user.id)
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -62,6 +67,7 @@ export default function ZadaniaKalendarzPage() {
         loading={loading}
         profiles={profiles}
         onOpenTask={setSelectedTask}
+        onQuickAddTask={handleQuickAddTask}
       />
 
       {selectedTask && (
