@@ -5,7 +5,7 @@ import { getSessionUser, unauthorized } from '@/lib/api-auth'
 import { validateTaskRules } from '@/lib/task-rules'
 
 const SELECT_WITH_RELATIONS = `*,
-  property:properties!tasks_property_id_fkey(id,location,kontakt_id,kontakt:kontakty!properties_kontakt_id_fkey(id,nazwa)),
+  property:properties!tasks_property_id_fkey(id,adres,kod_pocztowy,miasto,kontakt_id,kontakt:kontakty!properties_kontakt_id_fkey(id,nazwa)),
   assignee:profiles!tasks_assigned_to_fkey(id,full_name,avatar_url),
   creator:profiles!tasks_created_by_fkey(id,full_name,avatar_url),
   board:boards!tasks_board_id_fkey(id,name,color)`
