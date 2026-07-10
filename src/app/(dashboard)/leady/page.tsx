@@ -139,15 +139,17 @@ export default function LeadyPage() {
 
     if (kind === 'convert') {
       if (!user) return
+      const noteLines = [`Lead: ${lead.name}`]
+      if (lead.source) noteLines.push(`Źródło: ${lead.source}`)
+      if (lead.notes) noteLines.push(lead.notes)
+
       const res = await fetch('/api/properties', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          location: lead.location || lead.name,
+          adres: lead.location || lead.name,
           phone: lead.phone || null,
-          status: 'nowa',
-          source: lead.source || null,
-          notes: lead.notes ? `Lead: ${lead.name}\n${lead.notes}` : `Lead: ${lead.name}`,
+          notes: noteLines.join('\n'),
           assigned_to: lead.assigned_to || null,
         }),
       })
