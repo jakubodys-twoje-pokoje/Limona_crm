@@ -16,6 +16,15 @@ export interface PropertyLineItem {
   value: number
 }
 
+export interface ChecklistItemState {
+  checked: boolean
+  checked_by: string | null
+  checked_by_name: string | null
+  checked_at: string | null
+}
+
+export type PropertyChecklist = Record<string, ChecklistItemState>
+
 export type TaskStatus = 'todo' | 'in_progress' | 'done' | 'blocked'
 
 export type TaskPriority = 'low' | 'medium' | 'high' | 'urgent'
@@ -92,6 +101,7 @@ export interface Property {
   balkon_metraz: number | null
   strony_swiata: string | null
   wycena_szacunkowa: number | null
+  checklist: PropertyChecklist
   co_assignees: string[]
   lat: number | null
   lng: number | null

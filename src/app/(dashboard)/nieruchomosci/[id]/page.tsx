@@ -19,7 +19,7 @@ import { Modal } from '@/components/ui/Modal'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { formatMoney, formatPropertyAddress, cn } from '@/lib/utils'
 import { sumLineItems } from '@/lib/calculator'
-import type { Property, Task, Document, PropertyNegotiationNote, PropertyInvestor, StatusDluznika, StatusInwestora, InvestorPropertyStatus } from '@/types/database'
+import type { Property, Task, Document, PropertyNegotiationNote, PropertyInvestor, StatusDluznika, StatusInwestora, InvestorPropertyStatus, ChecklistItemState } from '@/types/database'
 import {
   STAGE_TASK_TEMPLATES, DEAL_TYPE_LABELS,
   STATUS_DLUZNIKA_OPTIONS, STATUS_DLUZNIKA_LABELS, STATUS_INWESTORA_OPTIONS, STATUS_INWESTORA_LABELS,
@@ -53,6 +53,13 @@ const KW_DZIALY = [
   ['kw_dzial4_komentarz', 'Dział IV — hipoteki'],
 ] as const
 
+function formatChecklistMeta(state: ChecklistItemState | undefined): string | null {
+  if (!state?.checked) return null
+  const who = state.checked_by_name || 'Ktoś'
+  const when = state.checked_at ? new Date(state.checked_at).toLocaleString('pl-PL', { dateStyle: 'short', timeStyle: 'short' }) : ''
+  return when ? `${who}, ${when}` : who
+}
+
 function actionLabel(action: string): string {
   const map: Record<string, string> = {
     created: 'Dodano nieruchomość',
@@ -70,7 +77,7 @@ export default function PropertyDetailPage() {
   const { id } = useParams()
   const propertyId = Array.isArray(id) ? id[0] : id
   const router = useRouter()
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
   const { updateProperty, deleteProperty } = useProperties()
   const { tasks, createTask, updateTask, deleteTask } = useTasks(propertyId)
   const { logs, loading: logsLoading } = useActivityLog(propertyId)
@@ -94,9 +101,6 @@ export default function PropertyDetailPage() {
   const [kwForm, setKwForm] = useState<Record<string, string>>({})
   const [savingKw, setSavingKw] = useState(false)
 
-  // Checklist state (stored in localStorage per property)
-  const [checkedItems, setCheckedItems] = useState<Set<string>>(new Set())
-
   // Status change (dłużnik/inwestor)
   const [statusChange, setStatusChange] = useState<{ field: 'status_dluznika' | 'status_inwestora'; value: string; label: string } | null>(null)
 
@@ -114,22 +118,16 @@ export default function PropertyDetailPage() {
   const [newInvestorName, setNewInvestorName] = useState('')
   const [newInvestorPhone, setNewInvestorPhone] = useState('')
 
-  useEffect(() => {
-    if (!propertyId) return
-    try {
-      const saved = JSON.parse(localStorage.getItem(`limona-checklist-${propertyId}`) || '[]') as string[]
-      setCheckedItems(new Set(saved))
-    } catch { /* ignore */ }
-  }, [propertyId])
-
-  function toggleCheck(item: string) {
-    setCheckedItems(prev => {
-      const next = new Set(prev)
-      if (next.has(item)) next.delete(item)
-      else next.add(item)
-      localStorage.setItem(`limona-checklist-${propertyId}`, JSON.stringify(Array.from(next)))
-      return next
-    })
+  async function toggleCheck(item: string) {
+    if (!user || !property || !propertyId) return
+    const wasChecked = property.checklist?.[item]?.checked
+    const nextState: ChecklistItemState = wasChecked
+      ? { checked: false, checked_by: null, checked_by_name: null, checked_at: null }
+      : { checked: true, checked_by: user.id, checked_by_name: profile?.full_name || null, checked_at: new Date().toISOString() }
+    const nextChecklist = { ...(property.checklist || {}), [item]: nextState }
+    setProperty(prev => prev ? { ...prev, checklist: nextChecklist } : prev)
+    const { error } = await updateProperty(propertyId, { checklist: nextChecklist }, user.id)
+    if (error) showToast(error, 'error')
   }
 
   async function fetchDocs() {
@@ -534,7 +532,7 @@ export default function PropertyDetailPage() {
         {([
           { key: 'tasks', label: `Zadania (${tasks.length})` },
           { key: 'docs', label: `Dokumenty (${documents.length})` },
-          { key: 'checklist', label: `Checklista i status (${checkedItems.size}/${CHECKLIST_INFO.length + CHECKLIST_DOCS.length})` },
+          { key: 'checklist', label: `Checklista i status (${Object.values(property.checklist || {}).filter(s => s.checked).length}/${CHECKLIST_INFO.length + CHECKLIST_DOCS.length})` },
           { key: 'negocjacja', label: 'Negocjacja' },
           { key: 'inwestorzy', label: `Inwestorzy (${investors.length || ''})` },
           { key: 'report', label: 'Raport agenta' },
@@ -806,64 +804,80 @@ export default function PropertyDetailPage() {
           <div>
             <p className="text-xs text-limona-lime uppercase tracking-wider font-bold mb-3 flex items-center gap-2">
               <Building2 size={14} />
-              Zbieranie informacji ({CHECKLIST_INFO.filter(i => checkedItems.has(i)).length}/{CHECKLIST_INFO.length})
+              Zbieranie informacji ({CHECKLIST_INFO.filter(i => property.checklist?.[i]?.checked).length}/{CHECKLIST_INFO.length})
             </p>
             <div className="space-y-2">
-              {CHECKLIST_INFO.map(item => (
-                <button
-                  key={item}
-                  onClick={() => toggleCheck(item)}
-                  className={cn(
-                    'w-full flex items-center gap-3 p-3 rounded text-left transition-colors border',
-                    checkedItems.has(item)
-                      ? 'border-limona-green/30 bg-limona-green/5'
-                      : 'border-limona-border hover:border-limona-border/60 hover:bg-limona-surface-2'
-                  )}
-                >
-                  {checkedItems.has(item)
-                    ? <CheckSquare size={16} className="text-limona-green flex-shrink-0" />
-                    : <Square size={16} className="text-limona-text-dim flex-shrink-0" />
-                  }
-                  <span className={cn('text-sm', checkedItems.has(item) ? 'text-limona-text-muted line-through' : 'text-limona-text')}>
-                    {item}
-                  </span>
-                </button>
-              ))}
+              {CHECKLIST_INFO.map(item => {
+                const state = property.checklist?.[item]
+                const meta = formatChecklistMeta(state)
+                return (
+                  <button
+                    key={item}
+                    onClick={() => toggleCheck(item)}
+                    className={cn(
+                      'w-full flex items-center gap-3 p-3 rounded text-left transition-colors border',
+                      state?.checked
+                        ? 'border-limona-green/30 bg-limona-green/5'
+                        : 'border-limona-border hover:border-limona-border/60 hover:bg-limona-surface-2'
+                    )}
+                  >
+                    {state?.checked
+                      ? <CheckSquare size={16} className="text-limona-green flex-shrink-0" />
+                      : <Square size={16} className="text-limona-text-dim flex-shrink-0" />
+                    }
+                    <span className="flex-1">
+                      <span className={cn('block text-sm', state?.checked ? 'text-limona-text-muted line-through' : 'text-limona-text')}>
+                        {item}
+                      </span>
+                      {meta && <span className="block text-xs text-limona-text-dim mt-0.5">✓ {meta}</span>}
+                    </span>
+                  </button>
+                )
+              })}
             </div>
           </div>
           <div>
             <p className="text-xs text-limona-lime uppercase tracking-wider font-bold mb-3 flex items-center gap-2">
               <FileText size={14} />
-              Dokumenty do sprzedaży ({CHECKLIST_DOCS.filter(i => checkedItems.has(i)).length}/{CHECKLIST_DOCS.length})
+              Dokumenty do sprzedaży ({CHECKLIST_DOCS.filter(i => property.checklist?.[i]?.checked).length}/{CHECKLIST_DOCS.length})
             </p>
             <div className="space-y-2">
-              {CHECKLIST_DOCS.map(item => (
-                <button
-                  key={item}
-                  onClick={() => toggleCheck(item)}
-                  className={cn(
-                    'w-full flex items-center gap-3 p-3 rounded text-left transition-colors border',
-                    checkedItems.has(item)
-                      ? 'border-limona-green/30 bg-limona-green/5'
-                      : 'border-limona-border hover:border-limona-border/60 hover:bg-limona-surface-2'
-                  )}
-                >
-                  {checkedItems.has(item)
-                    ? <CheckSquare size={16} className="text-limona-green flex-shrink-0" />
-                    : <Square size={16} className="text-limona-text-dim flex-shrink-0" />
-                  }
-                  <span className={cn('text-sm', checkedItems.has(item) ? 'text-limona-text-muted line-through' : 'text-limona-text')}>
-                    {item}
-                  </span>
-                </button>
-              ))}
+              {CHECKLIST_DOCS.map(item => {
+                const state = property.checklist?.[item]
+                const meta = formatChecklistMeta(state)
+                return (
+                  <button
+                    key={item}
+                    onClick={() => toggleCheck(item)}
+                    className={cn(
+                      'w-full flex items-center gap-3 p-3 rounded text-left transition-colors border',
+                      state?.checked
+                        ? 'border-limona-green/30 bg-limona-green/5'
+                        : 'border-limona-border hover:border-limona-border/60 hover:bg-limona-surface-2'
+                    )}
+                  >
+                    {state?.checked
+                      ? <CheckSquare size={16} className="text-limona-green flex-shrink-0" />
+                      : <Square size={16} className="text-limona-text-dim flex-shrink-0" />
+                    }
+                    <span className="flex-1">
+                      <span className={cn('block text-sm', state?.checked ? 'text-limona-text-muted line-through' : 'text-limona-text')}>
+                        {item}
+                      </span>
+                      {meta && <span className="block text-xs text-limona-text-dim mt-0.5">✓ {meta}</span>}
+                    </span>
+                  </button>
+                )
+              })}
             </div>
           </div>
           <button
-            onClick={() => {
+            onClick={async () => {
+              if (!user || !propertyId) return
               if (!confirm('Zresetować wszystkie punkty checklisty?')) return
-              setCheckedItems(new Set())
-              localStorage.removeItem(`limona-checklist-${propertyId}`)
+              setProperty(prev => prev ? { ...prev, checklist: {} } : prev)
+              const { error } = await updateProperty(propertyId, { checklist: {} }, user.id)
+              if (error) showToast(error, 'error')
             }}
             className="text-xs text-limona-text-dim hover:text-limona-red transition-colors"
           >
