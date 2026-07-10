@@ -1,10 +1,11 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { List, Map } from 'lucide-react'
 import { useKontakty } from '@/hooks/useKontakty'
 import { useAuth } from '@/hooks/useAuth'
+import { useVisibleUserIds } from '@/hooks/useTeamVisibility'
 import { KontaktyTable } from '@/components/kontakty/KontaktyTable'
 import { KontaktForm } from '@/components/kontakty/KontaktForm'
 import { Modal } from '@/components/ui/Modal'
@@ -17,8 +18,10 @@ const KontaktyMap = dynamic(() => import('@/components/kontakty/KontaktyMap'), {
 type ViewMode = 'lista' | 'mapa'
 
 export default function KontaktyPage() {
-  const { user } = useAuth()
-  const { kontakty, loading, createKontakt } = useKontakty()
+  const { user, profile } = useAuth()
+  const { visibleIds } = useVisibleUserIds(user?.id, profile?.role)
+  const filters = useMemo(() => ({ visibleIds }), [visibleIds])
+  const { kontakty, loading, createKontakt } = useKontakty(filters)
   const { showToast } = useToast()
   const [profiles, setProfiles] = useState<Profile[]>([])
   const [showAddModal, setShowAddModal] = useState(false)

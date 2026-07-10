@@ -2,8 +2,8 @@
 
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
-import type { Kontakt, KontaktTyp, Profile } from '@/types/database'
-import { KONTAKT_TYP_LABELS, KONTAKT_TYPY, TYPY_SPOLDZIELNIA, TYPY_Z_PROWIZJA } from '@/types/database'
+import type { Kontakt, KontaktTyp, Profile, WeeklyHours } from '@/types/database'
+import { KONTAKT_TYP_LABELS, KONTAKT_TYPY, TYPY_SPOLDZIELNIA, TYPY_Z_PROWIZJA, WEEK_DAYS, WEEK_DAY_LABELS } from '@/types/database'
 
 const WOJEWODZTWA = [
   'dolnośląskie','kujawsko-pomorskie','lubelskie','lubuskie','łódzkie',
@@ -26,14 +26,12 @@ const DEFAULTS: Partial<Kontakt> = {
   wojewodztwo: '',
   miasto: '',
   ulica: '',
-  godziny_otwarcia: '',
+  godziny_otwarcia: {},
   telefon: '',
   email: '',
   opis: '',
   assigned_to: null,
   oddzial: '',
-  liczba_budynkow: null,
-  liczba_mieszkan: null,
   wizyta_osobista: false,
   wyslany_mail_oferta: false,
   zgoda_ulotki: false,
@@ -73,8 +71,6 @@ export function KontaktForm({ initial, profiles, onSubmit, onCancel, submitLabel
 
     const payload: Partial<Kontakt> = {
       ...form,
-      liczba_budynkow: isSpoldzielnia ? (form.liczba_budynkow ?? null) : null,
-      liczba_mieszkan: isSpoldzielnia ? (form.liczba_mieszkan ?? null) : null,
       ustalona_prowizja: (hasWspolpracaWithProwizja && form.chec_wspolpracy) ? (form.ustalona_prowizja || null) : null,
       umowa_url:         (hasWspolpracaWithProwizja && form.chec_wspolpracy) ? (form.umowa_url || null) : null,
     }
@@ -144,15 +140,6 @@ export function KontaktForm({ initial, profiles, onSubmit, onCancel, submitLabel
             />
           </Field>
 
-          <Field label="Godziny otwarcia / przyjęć stron">
-            <input
-              className="limona-input w-full"
-              value={form.godziny_otwarcia || ''}
-              onChange={e => set('godziny_otwarcia', e.target.value)}
-              placeholder="np. Pn–Pt 9:00–15:00"
-            />
-          </Field>
-
           <Field label="Telefon">
             <input
               className="limona-input w-full"
@@ -204,32 +191,22 @@ export function KontaktForm({ initial, profiles, onSubmit, onCancel, submitLabel
         </div>
       </div>
 
-      {/* Sekcja: pola specyficzne dla spółdzielni/wspólnoty */}
-      {isSpoldzielnia && (
-        <div>
-          <p className="limona-eyebrow mb-4">Dane zasobu</p>
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="Liczba budynków">
+      {/* Sekcja: godziny otwarcia per dzień */}
+      <div>
+        <p className="limona-eyebrow mb-4">Godziny otwarcia / przyjęć stron</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {WEEK_DAYS.map(day => (
+            <Field key={day} label={WEEK_DAY_LABELS[day]}>
               <input
-                type="number"
-                min={0}
                 className="limona-input w-full"
-                value={form.liczba_budynkow ?? ''}
-                onChange={e => set('liczba_budynkow', e.target.value ? parseInt(e.target.value) : null)}
+                value={form.godziny_otwarcia?.[day] || ''}
+                onChange={e => set('godziny_otwarcia', { ...(form.godziny_otwarcia as WeeklyHours), [day]: e.target.value })}
+                placeholder="np. 9:00-15:00 (puste = zamknięte)"
               />
             </Field>
-            <Field label="Liczba mieszkań">
-              <input
-                type="number"
-                min={0}
-                className="limona-input w-full"
-                value={form.liczba_mieszkan ?? ''}
-                onChange={e => set('liczba_mieszkan', e.target.value ? parseInt(e.target.value) : null)}
-              />
-            </Field>
-          </div>
+          ))}
         </div>
-      )}
+      </div>
 
       {/* Sekcja: statusy realizacji */}
       <div>

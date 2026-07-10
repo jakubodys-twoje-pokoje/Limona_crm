@@ -6,7 +6,7 @@ import { Plus, Search, Filter, ChevronUp, ChevronDown, X } from 'lucide-react'
 import { Avatar } from '@/components/ui/Avatar'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { cn } from '@/lib/utils'
-import { isOpenNow } from '@/lib/godziny'
+import { isOpenNow, hasAnyHours } from '@/lib/godziny'
 import type { Kontakt, KontaktTyp, Profile } from '@/types/database'
 import { KONTAKT_TYP_LABELS, KONTAKT_TYPY } from '@/types/database'
 
@@ -133,7 +133,7 @@ export function KontaktyTable({ kontakty, loading, profiles, onAdd }: Props) {
 
         if (search) {
           const q = search.toLowerCase()
-          const hay = [k.nazwa, k.miasto, k.ulica, k.wojewodztwo, k.godziny_otwarcia, k.email, k.telefon, k.opis].join(' ').toLowerCase()
+          const hay = [k.nazwa, k.miasto, k.ulica, k.wojewodztwo, k.email, k.telefon, k.opis].join(' ').toLowerCase()
           if (!hay.includes(q)) return false
         }
 
@@ -149,7 +149,7 @@ export function KontaktyTable({ kontakty, loading, profiles, onAdd }: Props) {
         if (fOperator && !k.operator_budowy_zainteresowani) return false
 
         // Dane kontaktu
-        if (fGodziny  && !k.godziny_otwarcia?.trim()) return false
+        if (fGodziny  && !hasAnyHours(k.godziny_otwarcia)) return false
         if (fOtwarte  && isOpenNow(k.godziny_otwarcia) !== true) return false
         if (fTelefon  && !k.telefon?.trim())          return false
         if (fEmail    && !k.email?.trim())             return false
@@ -332,7 +332,7 @@ export function KontaktyTable({ kontakty, loading, profiles, onAdd }: Props) {
                       <div className="flex items-center gap-2">
                         <span className="font-medium text-limona-white">{k.nazwa}</span>
                         {openNow === true  && <span title="Otwarte teraz" className="w-2 h-2 rounded-full bg-limona-green flex-shrink-0" />}
-                        {openNow === false && k.godziny_otwarcia && <span title="Zamknięte" className="w-2 h-2 rounded-full bg-limona-red/60 flex-shrink-0" />}
+                        {openNow === false && hasAnyHours(k.godziny_otwarcia) && <span title="Zamknięte" className="w-2 h-2 rounded-full bg-limona-red/60 flex-shrink-0" />}
                       </div>
                     </td>
                     <td className="py-3 px-3 text-limona-text-muted whitespace-nowrap">

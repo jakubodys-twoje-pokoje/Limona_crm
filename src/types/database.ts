@@ -123,6 +123,7 @@ export interface PropertyInvestor {
 export interface Task {
   id: string
   property_id: string | null
+  kontakt_id: string | null
   title: string
   description: string | null
   status: TaskStatus
@@ -145,6 +146,7 @@ export interface Task {
   updated_at: string
   // Joined fields
   property?: Property
+  kontakt?: Kontakt
   assignee?: Profile
   creator?: Profile
   board?: Board
@@ -291,6 +293,33 @@ export const TYPY_Z_PROWIZJA = new Set<KontaktTyp>([
   'fundusz',
 ])
 
+export type WeekDay = 'poniedzialek' | 'wtorek' | 'sroda' | 'czwartek' | 'piatek' | 'sobota' | 'niedziela'
+
+export const WEEK_DAYS: WeekDay[] = ['poniedzialek', 'wtorek', 'sroda', 'czwartek', 'piatek', 'sobota', 'niedziela']
+
+export const WEEK_DAY_LABELS: Record<WeekDay, string> = {
+  poniedzialek: 'Poniedziałek',
+  wtorek: 'Wtorek',
+  sroda: 'Środa',
+  czwartek: 'Czwartek',
+  piatek: 'Piątek',
+  sobota: 'Sobota',
+  niedziela: 'Niedziela',
+}
+
+export const WEEK_DAY_SHORT: Record<WeekDay, string> = {
+  poniedzialek: 'Pn',
+  wtorek: 'Wt',
+  sroda: 'Śr',
+  czwartek: 'Czw',
+  piatek: 'Pt',
+  sobota: 'Sob',
+  niedziela: 'Ndz',
+}
+
+// Godziny otwarcia per dzień, np. "9:00-17:00"; pusty/brak klucza = zamknięte
+export type WeeklyHours = Partial<Record<WeekDay, string>>
+
 export interface Kontakt {
   id: string
   typ: KontaktTyp
@@ -298,15 +327,13 @@ export interface Kontakt {
   wojewodztwo: string | null
   miasto: string | null
   ulica: string | null
-  godziny_otwarcia: string | null
+  godziny_otwarcia: WeeklyHours
   telefon: string | null
   email: string | null
   opis: string | null
   assigned_to: string | null
   oddzial: string | null
   created_by: string | null
-  liczba_budynkow: number | null
-  liczba_mieszkan: number | null
   wizyta_osobista: boolean
   wyslany_mail_oferta: boolean
   zgoda_ulotki: boolean
@@ -324,6 +351,15 @@ export interface Kontakt {
   assignee?: Profile
   creator?: Profile
   komentarze?: KontaktKomentarz[]
+}
+
+export interface KontaktShare {
+  id: string
+  kontakt_id: string
+  shared_with_user_id: string
+  created_by: string | null
+  created_at: string
+  shared_with?: Profile
 }
 
 export interface KontaktKomentarz {
@@ -389,8 +425,13 @@ export interface Database {
       }
       tasks: {
         Row: Task
-        Insert: Omit<Task, 'id' | 'created_at' | 'updated_at' | 'property' | 'assignee' | 'creator'>
-        Update: Partial<Omit<Task, 'id' | 'created_at' | 'updated_at' | 'property' | 'assignee' | 'creator'>>
+        Insert: Omit<Task, 'id' | 'created_at' | 'updated_at' | 'property' | 'kontakt' | 'assignee' | 'creator'>
+        Update: Partial<Omit<Task, 'id' | 'created_at' | 'updated_at' | 'property' | 'kontakt' | 'assignee' | 'creator'>>
+      }
+      kontakt_shares: {
+        Row: KontaktShare
+        Insert: Omit<KontaktShare, 'id' | 'created_at' | 'shared_with'>
+        Update: Partial<Omit<KontaktShare, 'id' | 'created_at' | 'shared_with'>>
       }
       activity_log: {
         Row: ActivityLog

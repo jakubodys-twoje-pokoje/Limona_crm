@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getSessionUser, unauthorized } from '@/lib/api-auth'
 import { geocodeAddress } from '@/lib/geocode'
+import { canSeeAllTeams } from '@/lib/roles'
 
 const SELECT_WITH_RELATIONS = `*,
   creator:profiles!kontakty_created_by_fkey(id,full_name,avatar_url),
@@ -26,6 +27,22 @@ export async function GET(req: NextRequest) {
   const miasto = sp.get('miasto')
   const assignedTo = sp.get('assigned_to')
   const search = sp.get('search')
+  const visibleIds = sp.get('visibleIds')?.split(',').filter(Boolean)
+
+  // Widoczność: admin/manager/kierownik_centrali widzą wszystko; reszta —
+  // tylko własne kontakty (assigned_to/created_by wśród visibleIds) plus
+  // to, co zostało im jawnie udostępnione (kontakt_shares).
+  if (!canSeeAllTeams(user.role) && visibleIds?.length) {
+    const { data: shares } = await supabase
+      .from('kontakt_shares')
+      .select('kontakt_id')
+      .eq('shared_with_user_id', user.id)
+    const sharedIds = (shares ?? []).map(s => s.kontakt_id)
+    const ids = visibleIds.join(',')
+    const clauses = [`assigned_to.in.(${ids})`, `created_by.in.(${ids})`]
+    if (sharedIds.length) clauses.push(`id.in.(${sharedIds.join(',')})`)
+    query = query.or(clauses.join(','))
+  }
 
   if (typ) query = query.eq('typ', typ)
   if (wojewodztwo) query = query.eq('wojewodztwo', wojewodztwo)

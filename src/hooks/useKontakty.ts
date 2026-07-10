@@ -17,6 +17,7 @@ export interface KontaktyFilters {
   zgoda_ulotki?: boolean
   zgoda_plakat?: boolean
   operator_budowy_zainteresowani?: boolean
+  visibleIds?: string[] | null
 }
 
 export function useKontakty(filters?: KontaktyFilters) {
@@ -32,6 +33,7 @@ export function useKontakty(filters?: KontaktyFilters) {
     if (filters.miasto)      p.set('miasto', filters.miasto)
     if (filters.assigned_to) p.set('assigned_to', filters.assigned_to)
     if (filters.search)      p.set('search', filters.search)
+    if (filters.visibleIds?.length) p.set('visibleIds', filters.visibleIds.join(','))
     for (const flag of [
       'wizyta_osobista',
       'wyslany_mail_oferta',
