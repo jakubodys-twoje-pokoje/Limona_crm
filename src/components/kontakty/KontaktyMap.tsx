@@ -16,6 +16,8 @@ interface Props {
   height?: string
   tourOrder?: Map<string, number>
   onAddToTour?: (k: Kontakt) => void
+  /** Domyślny środek mapy (np. rejon użytkownika) — użyty zamiast pierwszego pinu, jeśli podany */
+  defaultCenter?: { lat: number; lng: number } | null
 }
 
 // Kształt obrysu pinu koduje rodzaj (kontakt = łza, nieruchomość = domek);
@@ -68,7 +70,7 @@ const MAP_CSS = `
 .lm-in-tour{color:#6b7280;background:transparent;cursor:default;font-size:10px}
 `
 
-export default function KontaktyMap({ kontakty, properties = [], height = '560px', tourOrder, onAddToTour }: Props) {
+export default function KontaktyMap({ kontakty, properties = [], height = '560px', tourOrder, onAddToTour, defaultCenter }: Props) {
   const mapRef    = useRef<HTMLDivElement>(null)
   const mapObj    = useRef<unknown>(null)
   const onAddRef  = useRef(onAddToTour)
@@ -93,11 +95,13 @@ export default function KontaktyMap({ kontakty, properties = [], height = '560px
       const kWithC = kontRef.current.filter(k => k.lat && k.lng)
       const pWithC = propRef.current.filter(p => p.lat && p.lng)
       const first  = kWithC[0] ?? pWithC[0]
-      const center: [number, number] = first ? [first.lat!, first.lng!] : [52.1, 19.4]
+      const center: [number, number] = defaultCenter
+        ? [defaultCenter.lat, defaultCenter.lng]
+        : first ? [first.lat!, first.lng!] : [52.1, 19.4]
 
       const map = L.map(mapRef.current!, {
         center,
-        zoom: first ? 11 : 6,
+        zoom: defaultCenter ? 11 : first ? 11 : 6,
         zoomControl: true,
       })
       mapObj.current = map
@@ -217,8 +221,10 @@ export default function KontaktyMap({ kontakty, properties = [], height = '560px
       // fitBounds only on the first load with actual markers.
       // Never on subsequent updates (polling refresh, tour toggle, etc.)
       // — otherwise the map would fight the user's manual zoom every 30s.
+      // Skipped entirely when defaultCenter (rejon użytkownika) is set —
+      // mapa ma się otworzyć na rejonie, nie skakać do fit-all-pinów.
       const allWithC = [...kWithC.map(k => [k.lat!, k.lng!] as [number, number]), ...pWithC.map(p => [p.lat!, p.lng!] as [number, number])]
-      if (allWithC.length > 1 && !fittedRef.current) {
+      if (allWithC.length > 1 && !fittedRef.current && !defaultCenter) {
         const bounds = L.latLngBounds(allWithC)
         map.fitBounds(bounds, { padding: [48, 48] })
         fittedRef.current = true

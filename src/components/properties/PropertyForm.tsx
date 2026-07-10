@@ -6,6 +6,7 @@ import type { Property, PropertyType, DealType, PropertyLineItem } from '@/types
 import { DEAL_TYPE_LABELS } from '@/lib/stages'
 import { sumLineItems } from '@/lib/calculator'
 import { formatMoney } from '@/lib/utils'
+import { useAuth } from '@/hooks/useAuth'
 
 interface KontaktOption {
   id: string
@@ -39,10 +40,12 @@ const dealTypes: { value: DealType; label: string }[] = [
 ]
 
 export function PropertyForm({ initial = {}, onSubmit, onCancel, submitLabel = 'Zapisz' }: PropertyFormProps) {
+  const { profile } = useAuth()
+  // Nowa nieruchomość (brak initial.id) domyślnie w rejonie użytkownika
   const [form, setForm] = useState({
     adres: initial.adres || '',
     kod_pocztowy: initial.kod_pocztowy || '',
-    miasto: initial.miasto || '',
+    miasto: initial.miasto || (!initial.id ? profile?.rejon || '' : ''),
     phone: initial.phone || '',
     property_type: initial.property_type || '',
     area_sqm: initial.area_sqm?.toString() || '',

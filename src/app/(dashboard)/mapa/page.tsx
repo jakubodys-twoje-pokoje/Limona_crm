@@ -66,7 +66,7 @@ function gmapsNav(k: Kontakt): string {
 // ─── Page ──────────────────────────────────────────────────────────────────
 
 export default function MapaPage() {
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
   const { kontakty, loading } = useKontakty()
   const { properties, loading: propertiesLoading } = useProperties()
 
@@ -361,6 +361,7 @@ export default function MapaPage() {
             height="100%"
             tourOrder={tourOrderMap}
             onAddToTour={addToTour}
+            defaultCenter={profile?.rejon_lat && profile?.rejon_lng ? { lat: profile.rejon_lat, lng: profile.rejon_lng } : null}
           />
         )}
 

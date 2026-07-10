@@ -9,6 +9,9 @@ interface Profile {
   avatar_url: string | null
   role: string
   email: string
+  rejon: string | null
+  rejon_lat: number | null
+  rejon_lng: number | null
 }
 
 interface AuthContextType {

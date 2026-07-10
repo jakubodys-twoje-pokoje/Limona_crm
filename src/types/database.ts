@@ -45,6 +45,9 @@ export interface Profile {
   full_name: string
   avatar_url: string | null
   role: UserRole
+  rejon: string | null
+  rejon_lat: number | null
+  rejon_lng: number | null
   created_at: string
 }
 

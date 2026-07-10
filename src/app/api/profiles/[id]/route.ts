@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getSessionUser, unauthorized, forbidden } from '@/lib/api-auth'
+import { geocodeAddress } from '@/lib/geocode'
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getSessionUser()
@@ -19,12 +20,20 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   // Zmiana roli tylko dla admina (RLS pilnuje tego samego w bazie)
   if (body.role !== undefined && user.role !== 'admin') return forbidden()
 
+  // Rejon zmienił się — dogeokoduj
+  if (typeof body.rejon === 'string') {
+    const coords = body.rejon.trim() ? await geocodeAddress(null, body.rejon.trim(), null) : null
+    body.rejon = body.rejon.trim() || null
+    body.rejon_lat = coords?.lat ?? null
+    body.rejon_lng = coords?.lng ?? null
+  }
+
   const supabase = await createClient()
   const { data: profile, error } = await supabase
     .from('profiles')
     .update(body)
     .eq('id', id)
-    .select('id, full_name, avatar_url, role, email, created_at, updated_at')
+    .select('id, full_name, avatar_url, role, email, rejon, rejon_lat, rejon_lng, created_at, updated_at')
     .single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 

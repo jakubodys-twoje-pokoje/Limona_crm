@@ -3,13 +3,14 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getSessionUser, unauthorized, forbidden } from '@/lib/api-auth'
+import { geocodeAddress } from '@/lib/geocode'
 
 export async function POST(req: NextRequest) {
   const user = await getSessionUser()
   if (!user) return unauthorized()
   if (user.role !== 'admin') return forbidden()
 
-  const { email, password, fullName, role } = await req.json()
+  const { email, password, fullName, role, rejon } = await req.json()
   if (!email || !password || !fullName) {
     return NextResponse.json({ error: 'Wymagane: email, hasło, imię' }, { status: 400 })
   }
@@ -36,6 +37,17 @@ export async function POST(req: NextRequest) {
   if (error) {
     const status = error.message.toLowerCase().includes('already') ? 409 : 500
     return NextResponse.json({ error: error.message }, { status })
+  }
+
+  // Rejon (miasto działania) — profil już istnieje (trigger on_auth_user_created),
+  // dokładamy rejon + geokodowanie osobnym update'em przez service role.
+  if (rejon?.trim()) {
+    const coords = await geocodeAddress(null, rejon.trim(), null)
+    await admin.from('profiles').update({
+      rejon: rejon.trim(),
+      rejon_lat: coords?.lat ?? null,
+      rejon_lng: coords?.lng ?? null,
+    }).eq('id', data.user.id)
   }
 
   return NextResponse.json(

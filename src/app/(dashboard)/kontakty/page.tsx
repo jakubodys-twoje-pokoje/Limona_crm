@@ -88,7 +88,11 @@ export default function KontaktyPage() {
       ) : (
         /* Full-bleed map — escapes the p-4 lg:p-8 dashboard padding */
         <div className="-mx-4 lg:-mx-8 -mb-4 lg:-mb-8">
-          <KontaktyMap kontakty={kontakty} height="calc(100vh - 220px)" />
+          <KontaktyMap
+            kontakty={kontakty}
+            height="calc(100vh - 220px)"
+            defaultCenter={profile?.rejon_lat && profile?.rejon_lng ? { lat: profile.rejon_lat, lng: profile.rejon_lng } : null}
+          />
         </div>
       )}
 

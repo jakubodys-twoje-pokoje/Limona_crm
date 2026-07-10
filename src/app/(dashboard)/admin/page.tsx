@@ -22,7 +22,7 @@ export default function AdminPage() {
   const { rules, profiles, loading, addRule, removeRule, refetch } = useTeamVisibility()
   const canManageGroups = canManageTeams(myProfile?.role)
   const [editingUser, setEditingUser] = useState<Profile | null>(null)
-  const [editForm, setEditForm] = useState({ full_name: '', role: 'user' as UserRole, avatar_url: '' })
+  const [editForm, setEditForm] = useState({ full_name: '', role: 'user' as UserRole, avatar_url: '', rejon: '' })
   const [deleteConfirm, setDeleteConfirm] = useState<Profile | null>(null)
   const [saving, setSaving] = useState(false)
 
@@ -33,7 +33,7 @@ export default function AdminPage() {
 
   // Create user form
   const [showCreateModal, setShowCreateModal] = useState(false)
-  const [createForm, setCreateForm] = useState({ email: '', password: '', fullName: '', role: 'user' as UserRole })
+  const [createForm, setCreateForm] = useState({ email: '', password: '', fullName: '', role: 'user' as UserRole, rejon: '' })
   const [creating, setCreating] = useState(false)
 
   // DB cleanup
@@ -74,7 +74,7 @@ export default function AdminPage() {
 
   function startEdit(p: Profile) {
     setEditingUser(p)
-    setEditForm({ full_name: p.full_name, role: p.role, avatar_url: p.avatar_url || '' })
+    setEditForm({ full_name: p.full_name, role: p.role, avatar_url: p.avatar_url || '', rejon: p.rejon || '' })
   }
 
   async function handleSave() {
@@ -83,7 +83,7 @@ export default function AdminPage() {
     const res = await fetch(`/api/profiles/${editingUser.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ full_name: editForm.full_name, role: editForm.role, avatar_url: editForm.avatar_url || null }),
+      body: JSON.stringify({ full_name: editForm.full_name, role: editForm.role, avatar_url: editForm.avatar_url || null, rejon: editForm.rejon }),
     })
 
     if (!res.ok) showToast((await res.json()).error || 'Błąd', 'error')
@@ -132,7 +132,7 @@ export default function AdminPage() {
     else {
       showToast('Użytkownik utworzony', 'success')
       setShowCreateModal(false)
-      setCreateForm({ email: '', password: '', fullName: '', role: 'user' })
+      setCreateForm({ email: '', password: '', fullName: '', role: 'user', rejon: '' })
       refetch()
     }
     setCreating(false)
@@ -306,6 +306,11 @@ export default function AdminPage() {
               <option value="viewer">Viewer</option>
             </select>
           </div>
+          <div>
+            <label className="limona-label block mb-2">Rejon (miasto)</label>
+            <input className="limona-input" value={createForm.rejon} onChange={e => setCreateForm(f => ({ ...f, rejon: e.target.value }))} placeholder="np. Kraków" />
+            <p className="text-xs text-limona-text-dim mt-1">Domyślne miasto przy dodawaniu nieruchomości i środek mapy dla tego użytkownika.</p>
+          </div>
           <div className="flex gap-3 justify-end pt-2">
             <button type="button" onClick={() => setShowCreateModal(false)} className="limona-btn-outline">Anuluj</button>
             <button type="submit" disabled={creating} className="limona-btn disabled:opacity-50">
@@ -339,6 +344,11 @@ export default function AdminPage() {
           <div>
             <label className="limona-label block mb-2">Avatar URL</label>
             <input className="limona-input" value={editForm.avatar_url} onChange={e => setEditForm(f => ({ ...f, avatar_url: e.target.value }))} placeholder="https://... lub pozostaw puste dla inicjałów" />
+          </div>
+          <div>
+            <label className="limona-label block mb-2">Rejon (miasto)</label>
+            <input className="limona-input" value={editForm.rejon} onChange={e => setEditForm(f => ({ ...f, rejon: e.target.value }))} placeholder="np. Kraków" />
+            <p className="text-xs text-limona-text-dim mt-1">Domyślne miasto przy dodawaniu nieruchomości i środek mapy dla tego użytkownika.</p>
           </div>
           <div className="flex gap-3 justify-end pt-2">
             <button onClick={() => setEditingUser(null)} className="limona-btn-outline">Anuluj</button>
