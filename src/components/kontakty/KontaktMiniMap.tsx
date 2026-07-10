@@ -11,7 +11,7 @@ interface Props {
   onGeocode?: (lat: number, lng: number) => void
 }
 
-export default function KontaktMiniMap({ lat, lng, nazwa, kontaktId, onGeocode }: Props) {
+export default function KontaktMiniMap({ lat, lng, kontaktId, onGeocode }: Props) {
   const mapRef  = useRef<HTMLDivElement>(null)
   const mapObj  = useRef<unknown>(null)
   const [geocoding, setGeocoding] = useState(false)
@@ -44,12 +44,10 @@ export default function KontaktMiniMap({ lat, lng, nazwa, kontaktId, onGeocode }
         iconAnchor: [8, 8],
       })
       L.marker([lat, lng], { icon }).addTo(map)
-        .bindPopup(nazwa, { autoPan: false })
-        .openPopup()
 
       // Kontener bywa zainicjowany, zanim otaczająca karta ustabilizuje swój
       // rozmiar (np. w trakcie ładowania danych powyżej) — bez tego Leaflet
-      // liczy zły rozmiar i popup/zoom renderują się w złym miejscu.
+      // liczy zły rozmiar i renderuje się w złym miejscu.
       requestAnimationFrame(() => map.invalidateSize())
     })
 
@@ -60,7 +58,7 @@ export default function KontaktMiniMap({ lat, lng, nazwa, kontaktId, onGeocode }
         mapObj.current = null
       }
     }
-  }, [lat, lng, nazwa])
+  }, [lat, lng])
 
   async function handleGeocode() {
     setGeocoding(true)

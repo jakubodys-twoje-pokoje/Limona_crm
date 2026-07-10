@@ -61,10 +61,13 @@ function Field({ label, children, className }: { label: string; children: React.
 export function KontaktForm({ initial, profiles, onSubmit, onCancel, submitLabel = 'Zapisz' }: Props) {
   const { user, profile } = useAuth()
   const canAssign = canManageTeams(profile?.role)
+  // initial bywa całym rekordem z API (z dołączonymi assignee/creator/komentarze) —
+  // te pola nie istnieją jako kolumny, więc nie mogą trafić do form state ani do payloadu.
+  const { assignee: _assignee, creator: _creator, komentarze: _komentarze, ...initialFields } = initial ?? {}
   const [form, setForm] = useState<Partial<Kontakt>>({
     ...DEFAULTS,
     assigned_to: canAssign ? null : (user?.id ?? null),
-    ...initial,
+    ...initialFields,
   })
   const [submitting, setSubmitting] = useState(false)
 

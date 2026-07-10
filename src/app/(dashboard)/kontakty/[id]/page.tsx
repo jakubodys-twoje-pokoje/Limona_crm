@@ -6,7 +6,8 @@ import Link from 'next/link'
 import dynamic from 'next/dynamic'
 import {
   ArrowLeft, Phone, Mail, MapPin, Clock, User,
-  CheckSquare, Square, Edit, Trash2, ExternalLink, Plus, Circle, CheckCircle, Users, X, ListTodo, Hash, Ruler, ImagePlus
+  CheckSquare, Square, Edit, Trash2, ExternalLink, Plus, Circle, CheckCircle, Users, X, ListTodo, Hash, Ruler, ImagePlus,
+  ChevronLeft, ChevronRight
 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { useTasks } from '@/hooks/useTasks'
@@ -20,6 +21,7 @@ import { KontaktKomentarze } from '@/components/kontakty/KontaktKomentarze'
 import { StatusChangeCommentModal } from '@/components/shared/StatusChangeCommentModal'
 import { cn } from '@/lib/utils'
 import { formatWeeklyHours } from '@/lib/godziny'
+import { compressImage } from '@/lib/imageCompress'
 import type { Kontakt, KontaktTyp, KontaktShare, Profile, Task } from '@/types/database'
 
 const KontaktMiniMap = dynamic(() => import('@/components/kontakty/KontaktMiniMap'), { ssr: false })
@@ -103,6 +105,7 @@ export default function KontaktDetailPage() {
   const MAX_PHOTOS = 5
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
   const photoInputRef = useRef<HTMLInputElement>(null)
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
 
   async function loadKontakt() {
     const res = await fetch(`/api/kontakty/${kontaktId}`)
@@ -165,8 +168,9 @@ export default function KontaktDetailPage() {
       return
     }
     setUploadingPhoto(true)
+    const compressed = await compressImage(file)
     const formData = new FormData()
-    formData.append('file', file)
+    formData.append('file', compressed)
     const res = await fetch(`/api/kontakty/${kontaktId}/photos`, { method: 'POST', body: formData })
     if (res.ok) {
       const { zdjecia } = await res.json()
@@ -208,6 +212,19 @@ export default function KontaktDetailPage() {
     return () => window.removeEventListener('paste', handlePaste)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [kontakt?.zdjecia?.length, kontaktId])
+
+  // Nawigacja w lightboksie ze zdjęciami klawiaturą
+  useEffect(() => {
+    if (lightboxIndex === null) return
+    function handleKey(e: KeyboardEvent) {
+      const total = kontakt?.zdjecia?.length || 0
+      if (e.key === 'Escape') setLightboxIndex(null)
+      else if (e.key === 'ArrowRight') setLightboxIndex(i => i === null ? null : (i + 1) % total)
+      else if (e.key === 'ArrowLeft') setLightboxIndex(i => i === null ? null : (i - 1 + total) % total)
+    }
+    window.addEventListener('keydown', handleKey)
+    return () => window.removeEventListener('keydown', handleKey)
+  }, [lightboxIndex, kontakt?.zdjecia?.length])
 
   async function patchField(updates: Partial<Kontakt> & { statusComment?: string }) {
     if (!kontakt) return
@@ -311,12 +328,14 @@ export default function KontaktDetailPage() {
           >
             <Edit size={13} /> Edytuj
           </button>
-          <button
-            onClick={() => setShowDeleteModal(true)}
-            className="p-2 rounded border border-limona-border text-limona-text-muted hover:border-limona-red hover:text-limona-red transition-colors"
-          >
-            <Trash2 size={14} />
-          </button>
+          {profile?.role === 'admin' && (
+            <button
+              onClick={() => setShowDeleteModal(true)}
+              className="p-2 rounded border border-limona-border text-limona-text-muted hover:border-limona-red hover:text-limona-red transition-colors"
+            >
+              <Trash2 size={14} />
+            </button>
+          )}
         </div>
       </div>
 
@@ -375,10 +394,17 @@ export default function KontaktDetailPage() {
               <ImagePlus size={14} /> Zdjęcia ({(kontakt.zdjecia?.length || 0)}/{MAX_PHOTOS})
             </p>
             <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
-              {(kontakt.zdjecia || []).map(url => (
+              {(kontakt.zdjecia || []).map((url, i) => (
                 <div key={url} className="relative group aspect-square rounded overflow-hidden border border-limona-border">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={url} alt="Zdjęcie kontaktu" className="w-full h-full object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => setLightboxIndex(i)}
+                    className="w-full h-full block"
+                    title="Powiększ"
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={url} alt="Zdjęcie kontaktu" className="w-full h-full object-cover" />
+                  </button>
                   <button
                     type="button"
                     onClick={() => handleRemovePhoto(url)}
@@ -614,6 +640,52 @@ export default function KontaktDetailPage() {
         newStatusLabel={pendingFlag ? `${pendingFlag.label}: ${pendingFlag.newValue ? 'tak' : 'nie'}` : ''}
         entityLabel="kontaktu"
       />
+
+      {/* Lightbox zdjęć */}
+      {lightboxIndex !== null && kontakt.zdjecia?.[lightboxIndex] && (
+        <div
+          className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center p-4"
+          onClick={() => setLightboxIndex(null)}
+        >
+          <button
+            type="button"
+            onClick={() => setLightboxIndex(null)}
+            className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/10 text-white flex items-center justify-center hover:bg-white/20 transition-colors"
+          >
+            <X size={18} />
+          </button>
+          {kontakt.zdjecia.length > 1 && (
+            <>
+              <button
+                type="button"
+                onClick={e => { e.stopPropagation(); setLightboxIndex(i => i === null ? null : (i - 1 + kontakt.zdjecia.length) % kontakt.zdjecia.length) }}
+                className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/10 text-white flex items-center justify-center hover:bg-white/20 transition-colors"
+              >
+                <ChevronLeft size={20} />
+              </button>
+              <button
+                type="button"
+                onClick={e => { e.stopPropagation(); setLightboxIndex(i => i === null ? null : (i + 1) % kontakt.zdjecia.length) }}
+                className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/10 text-white flex items-center justify-center hover:bg-white/20 transition-colors"
+              >
+                <ChevronRight size={20} />
+              </button>
+            </>
+          )}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={kontakt.zdjecia[lightboxIndex]}
+            alt="Zdjęcie kontaktu — podgląd"
+            className="max-w-full max-h-full object-contain rounded"
+            onClick={e => e.stopPropagation()}
+          />
+          {kontakt.zdjecia.length > 1 && (
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-white/70 text-xs">
+              {lightboxIndex + 1} / {kontakt.zdjecia.length}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }

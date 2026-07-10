@@ -10,6 +10,7 @@ import { Avatar } from '@/components/ui/Avatar'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { calculateBelow, calculateAbove } from '@/lib/calculator'
 import { formatMoney, formatPercent, formatPropertyAddress, cn } from '@/lib/utils'
+import { useAuth } from '@/hooks/useAuth'
 
 type SortKey = 'location' | 'value_per_sqm' | 'rw' | 'total_debt' | 'profit' | 'roi' | 'status' | 'created_at'
 type SortDir = 'asc' | 'desc'
@@ -82,6 +83,8 @@ function getOfferMinus30(p: Property): number | null {
 }
 
 export function PropertiesTable({ properties, loading, onAdd, onEdit, onDelete }: PropertiesTableProps) {
+  const { profile } = useAuth()
+  const isAdmin = profile?.role === 'admin'
   const [search, setSearch] = useState('')
   const [statusDluznikaFilter, setStatusDluznikaFilter] = useState<string>('')
   const [statusInwestoraFilter, setStatusInwestoraFilter] = useState<string>('')
@@ -361,13 +364,15 @@ export function PropertiesTable({ properties, loading, onAdd, onEdit, onDelete }
                         >
                           <Edit size={14} />
                         </button>
-                        <button
-                          onClick={() => onDelete(p)}
-                          className="p-1.5 text-limona-text-muted hover:text-limona-red transition-colors"
-                          title="Usuń"
-                        >
-                          <Trash2 size={14} />
-                        </button>
+                        {isAdmin && (
+                          <button
+                            onClick={() => onDelete(p)}
+                            className="p-1.5 text-limona-text-muted hover:text-limona-red transition-colors"
+                            title="Usuń"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
