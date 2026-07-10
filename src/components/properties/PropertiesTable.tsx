@@ -2,14 +2,14 @@
 
 import { useState, useMemo } from 'react'
 import Link from 'next/link'
-import { ArrowUpDown, ArrowUp, ArrowDown, Search, Filter, Plus, ExternalLink, Edit, Trash2 } from 'lucide-react'
-import type { Property, PropertyStatus, PropertyType, DealType } from '@/types/database'
-import { DEAL_TYPE_SHORT } from '@/lib/stages'
+import { ArrowUpDown, ArrowUp, ArrowDown, Search, Plus, ExternalLink, Edit, Trash2 } from 'lucide-react'
+import type { Property, DealType } from '@/types/database'
+import { DEAL_TYPE_SHORT, STATUS_DLUZNIKA_OPTIONS, STATUS_DLUZNIKA_LABELS, STATUS_INWESTORA_OPTIONS, STATUS_INWESTORA_LABELS } from '@/lib/stages'
 import { Badge } from '@/components/ui/Badge'
 import { Avatar } from '@/components/ui/Avatar'
 import { Skeleton } from '@/components/ui/Skeleton'
-import { calculateBelow, calculateAbove } from '@/lib/calculator'
-import { formatMoney, formatPercent, cn } from '@/lib/utils'
+import { calculateBelow, calculateAbove, sumCosts } from '@/lib/calculator'
+import { formatMoney, formatPercent, formatPropertyAddress, cn } from '@/lib/utils'
 
 type SortKey = 'location' | 'value_per_sqm' | 'rw' | 'total_debt' | 'profit' | 'roi' | 'status' | 'created_at'
 type SortDir = 'asc' | 'desc'
@@ -25,28 +25,23 @@ interface PropertiesTableProps {
 function calcProfit(p: Property): number | null {
   if (!p.value_per_sqm) return null
   try {
+    const additionalCosts = sumCosts(p.koszty_dodatkowe)
     if (p.debt_type === 'above_value') {
-      const r = calculateAbove({
+      return calculateAbove({
         valuePerSqm: p.value_per_sqm,
         totalDebt: p.total_debt || 0,
         creditor1: p.creditor1_amount || 0,
         creditor2: p.creditor2_amount || 0,
         creditor3: p.creditor3_amount || 0,
         ownerCoefficient: p.owner_coefficient || 0.025,
-        commissionPct: (p.commission_pct || 0) / 100,
-        notaryFee: p.notary_fee || 1000,
-        manualOffer: p.manual_offer,
-      })
-      return p.manual_offer ? r.manual?.profit ?? r.profit : r.profit
+        additionalCosts,
+      }).profit
     } else {
-      const r = calculateBelow({
+      return calculateBelow({
         valuePerSqm: p.value_per_sqm,
         totalDebt: p.total_debt || 0,
-        commissionPct: (p.commission_pct || 0) / 100,
-        notaryFee: p.notary_fee || 1000,
-        manualOffer: p.manual_offer,
-      })
-      return p.manual_offer ? r.manual?.profit ?? r.profit : r.profit
+        additionalCosts,
+      }).profit
     }
   } catch { return null }
 }
@@ -54,28 +49,23 @@ function calcProfit(p: Property): number | null {
 function calcROI(p: Property): number | null {
   if (!p.value_per_sqm) return null
   try {
+    const additionalCosts = sumCosts(p.koszty_dodatkowe)
     if (p.debt_type === 'above_value') {
-      const r = calculateAbove({
+      return calculateAbove({
         valuePerSqm: p.value_per_sqm,
         totalDebt: p.total_debt || 0,
         creditor1: p.creditor1_amount || 0,
         creditor2: p.creditor2_amount || 0,
         creditor3: p.creditor3_amount || 0,
         ownerCoefficient: p.owner_coefficient || 0.025,
-        commissionPct: (p.commission_pct || 0) / 100,
-        notaryFee: p.notary_fee || 1000,
-        manualOffer: p.manual_offer,
-      })
-      return p.manual_offer ? r.manual?.roi ?? r.roi : r.roi
+        additionalCosts,
+      }).roi
     } else {
-      const r = calculateBelow({
+      return calculateBelow({
         valuePerSqm: p.value_per_sqm,
         totalDebt: p.total_debt || 0,
-        commissionPct: (p.commission_pct || 0) / 100,
-        notaryFee: p.notary_fee || 1000,
-        manualOffer: p.manual_offer,
-      })
-      return p.manual_offer ? r.manual?.roi ?? r.roi : r.roi
+        additionalCosts,
+      }).roi
     }
   } catch { return null }
 }
@@ -95,7 +85,8 @@ function getOfferMinus30(p: Property): number | null {
 
 export function PropertiesTable({ properties, loading, onAdd, onEdit, onDelete }: PropertiesTableProps) {
   const [search, setSearch] = useState('')
-  const [statusFilter, setStatusFilter] = useState<string>('')
+  const [statusDluznikaFilter, setStatusDluznikaFilter] = useState<string>('')
+  const [statusInwestoraFilter, setStatusInwestoraFilter] = useState<string>('')
   const [typeFilter, setTypeFilter] = useState<string>('')
   const [decisionFilter, setDecisionFilter] = useState<string>('')
   const [dealTypeFilter, setDealTypeFilter] = useState<string>('')
@@ -105,8 +96,9 @@ export function PropertiesTable({ properties, loading, onAdd, onEdit, onDelete }
   const filtered = useMemo(() => {
     return properties
       .filter(p => {
-        if (search && !p.location.toLowerCase().includes(search.toLowerCase())) return false
-        if (statusFilter && p.status !== statusFilter) return false
+        if (search && !formatPropertyAddress(p).toLowerCase().includes(search.toLowerCase())) return false
+        if (statusDluznikaFilter && p.status_dluznika !== statusDluznikaFilter) return false
+        if (statusInwestoraFilter && p.status_inwestora !== statusInwestoraFilter) return false
         if (typeFilter && p.property_type !== typeFilter) return false
         if (dealTypeFilter && p.deal_type !== dealTypeFilter) return false
         if (decisionFilter) {
@@ -119,20 +111,20 @@ export function PropertiesTable({ properties, loading, onAdd, onEdit, onDelete }
         let aVal: number | string = 0
         let bVal: number | string = 0
         switch (sortKey) {
-          case 'location': aVal = a.location; bVal = b.location; break
+          case 'location': aVal = formatPropertyAddress(a); bVal = formatPropertyAddress(b); break
           case 'value_per_sqm': aVal = a.value_per_sqm || 0; bVal = b.value_per_sqm || 0; break
-          case 'rw': aVal = a.rw || 0; bVal = b.rw || 0; break
+          case 'rw': aVal = a.value_per_sqm ? a.value_per_sqm * 0.9 : 0; bVal = b.value_per_sqm ? b.value_per_sqm * 0.9 : 0; break
           case 'total_debt': aVal = a.total_debt || 0; bVal = b.total_debt || 0; break
           case 'profit': aVal = calcProfit(a) ?? -Infinity; bVal = calcProfit(b) ?? -Infinity; break
           case 'roi': aVal = calcROI(a) ?? -Infinity; bVal = calcROI(b) ?? -Infinity; break
-          case 'status': aVal = a.status; bVal = b.status; break
+          case 'status': aVal = a.status_dluznika; bVal = b.status_dluznika; break
           case 'created_at': aVal = a.created_at; bVal = b.created_at; break
         }
         if (aVal < bVal) return sortDir === 'asc' ? -1 : 1
         if (aVal > bVal) return sortDir === 'asc' ? 1 : -1
         return 0
       })
-  }, [properties, search, statusFilter, typeFilter, decisionFilter, sortKey, sortDir])
+  }, [properties, search, statusDluznikaFilter, statusInwestoraFilter, typeFilter, dealTypeFilter, decisionFilter, sortKey, sortDir])
 
   function toggleSort(key: SortKey) {
     if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
@@ -181,52 +173,28 @@ export function PropertiesTable({ properties, loading, onAdd, onEdit, onDelete }
             <option value="">Wszystkie typy deal</option>
             <option value="zadluzony_ponizej">Poniżej wartości</option>
             <option value="zadluzony_powyzej">Powyżej wartości</option>
-            <option value="savedeal">SaveDeal</option>
           </select>
 
           <select
             className="bg-limona-surface-2 border border-limona-border text-limona-text text-xs px-3 py-2 rounded focus:outline-none focus:border-limona-lime"
-            value={statusFilter}
-            onChange={e => setStatusFilter(e.target.value)}
+            value={statusDluznikaFilter}
+            onChange={e => setStatusDluznikaFilter(e.target.value)}
           >
-            <option value="">Wszystkie statusy</option>
-            <optgroup label="Poniżej wartości">
-              <option value="nowa">Nowa</option>
-              <option value="analiza">Analiza</option>
-              <option value="oferta">Oferta wysłana</option>
-              <option value="umowa_przedwstepna_kupna">Umowa przedw. kupna</option>
-              <option value="umowa_kupna">Umowa kupna</option>
-              <option value="zaplata_ceny">Zapłata ceny</option>
-              <option value="odebranie_posiadania">Odebranie posiadania</option>
-              <option value="odswiezenie">Odświeżenie</option>
-              <option value="reklama_sprzedazy">Reklama sprzedaży</option>
-              <option value="pokazywanie">Pokazywanie</option>
-              <option value="umowa_przedwstepna_sprzedazy">Umowa przedw. sprzedaży</option>
-              <option value="sprzedaz">Sprzedaż</option>
-            </optgroup>
-            <optgroup label="Powyżej wartości (extra)">
-              <option value="negocjacje_wierzyciele">Negocjacje wierzyciele</option>
-              <option value="akt_nabycia">Akt nabycia</option>
-              <option value="wynajem">Wynajem</option>
-            </optgroup>
-            <optgroup label="SaveDeal (extra)">
-              <option value="umowa_savedeal">Umowa SaveDeal</option>
-              <option value="wycena">Wycena</option>
-            </optgroup>
-            <optgroup label="Końcowe">
-              <option value="zakonczona">Zakończona</option>
-              <option value="rejected">Odrzucona</option>
-            </optgroup>
-            <optgroup label="Legacy">
-              <option value="new">Nowa (legacy)</option>
-              <option value="analysis">Analiza (legacy)</option>
-              <option value="offer_sent">Oferta (legacy)</option>
-              <option value="negotiation">Negocjacja (legacy)</option>
-              <option value="contract">Umowa (legacy)</option>
-              <option value="legal_cleanup">Regulacja (legacy)</option>
-              <option value="sale">Sprzedaż (legacy)</option>
-              <option value="completed">Zakończona (legacy)</option>
-            </optgroup>
+            <option value="">Status dłużnika: wszystkie</option>
+            {STATUS_DLUZNIKA_OPTIONS.map(s => (
+              <option key={s} value={s}>{STATUS_DLUZNIKA_LABELS[s]}</option>
+            ))}
+          </select>
+
+          <select
+            className="bg-limona-surface-2 border border-limona-border text-limona-text text-xs px-3 py-2 rounded focus:outline-none focus:border-limona-lime"
+            value={statusInwestoraFilter}
+            onChange={e => setStatusInwestoraFilter(e.target.value)}
+          >
+            <option value="">Status inwestora: wszystkie</option>
+            {STATUS_INWESTORA_OPTIONS.map(s => (
+              <option key={s} value={s}>{STATUS_INWESTORA_LABELS[s]}</option>
+            ))}
           </select>
 
           <select
@@ -324,7 +292,7 @@ export function PropertiesTable({ properties, loading, onAdd, onEdit, onDelete }
                   >
                     <td className="py-3 px-3">
                       <Link href={`/nieruchomosci/${p.id}`} className="hover:text-limona-lime transition-colors font-medium">
-                        {p.location}
+                        {formatPropertyAddress(p)}
                       </Link>
                       <div className="flex items-center gap-2 mt-0.5">
                         {p.property_type && (
@@ -333,9 +301,7 @@ export function PropertiesTable({ properties, loading, onAdd, onEdit, onDelete }
                         {p.deal_type && (
                           <span className={cn(
                             'text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded',
-                            p.deal_type === 'zadluzony_ponizej' ? 'bg-limona-blue/15 text-limona-blue' :
-                            p.deal_type === 'zadluzony_powyzej' ? 'bg-limona-yellow/15 text-limona-yellow' :
-                            'bg-limona-lime/15 text-limona-lime'
+                            p.deal_type === 'zadluzony_ponizej' ? 'bg-limona-blue/15 text-limona-blue' : 'bg-limona-yellow/15 text-limona-yellow'
                           )}>
                             {DEAL_TYPE_SHORT[p.deal_type as DealType]}
                           </span>
@@ -366,7 +332,10 @@ export function PropertiesTable({ properties, loading, onAdd, onEdit, onDelete }
                       ) : <span className="text-limona-text-dim">—</span>}
                     </td>
                     <td className="py-3 px-3">
-                      <Badge value={p.status} />
+                      <div className="flex flex-col gap-1">
+                        <Badge value={p.status_dluznika} />
+                        <Badge value={p.status_inwestora} />
+                      </div>
                     </td>
                     <td className="py-3 px-3">
                       {p.assignee ? (
@@ -428,14 +397,14 @@ export function PropertiesTable({ properties, loading, onAdd, onEdit, onDelete }
                 <div className="limona-card-hover border-l-[3px] border-l-limona-border hover:border-l-limona-lime p-4 space-y-3">
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <p className="font-medium text-limona-white">{p.location}</p>
+                      <p className="font-medium text-limona-white">{formatPropertyAddress(p)}</p>
                       {p.property_type && (
                         <span className="text-xs text-limona-text-dim capitalize">{p.property_type}</span>
                       )}
                     </div>
-                    <div className="flex gap-1 flex-shrink-0">
+                    <div className="flex gap-1 flex-shrink-0 flex-wrap justify-end">
                       {decision && <Badge value={decision} />}
-                      <Badge value={p.status} />
+                      <Badge value={p.status_dluznika} />
                     </div>
                   </div>
 

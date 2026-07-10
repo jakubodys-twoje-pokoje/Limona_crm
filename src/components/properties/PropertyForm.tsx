@@ -1,8 +1,11 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import type { Property, PropertyStatus, PropertyType, ContactType, DealType } from '@/types/database'
-import { getStages, DEAL_TYPE_LABELS } from '@/lib/stages'
+import { Plus, X } from 'lucide-react'
+import type { Property, PropertyType, DealType, PropertyCost } from '@/types/database'
+import { DEAL_TYPE_LABELS } from '@/lib/stages'
+import { sumCosts } from '@/lib/calculator'
+import { formatMoney } from '@/lib/utils'
 
 interface KontaktOption {
   id: string
@@ -30,66 +33,51 @@ const propertyTypes: { value: PropertyType; label: string }[] = [
   { value: 'inne', label: 'Inne' },
 ]
 
-const contactTypes: { value: ContactType; label: string }[] = [
-  { value: 'posrednik', label: 'Pośrednik' },
-  { value: 'prywatne', label: 'Prywatne' },
-]
-
 const dealTypes: { value: DealType; label: string }[] = [
-  { value: 'zadluzony_ponizej', label: 'Zadłużona poniżej wartości' },
-  { value: 'zadluzony_powyzej', label: 'Zadłużona powyżej wartości' },
-  { value: 'savedeal', label: 'SaveDeal' },
-]
-
-const SOURCE_OPTIONS = [
-  'OLX', 'Otodom', 'Morizon', 'Gratka', 'Allegro', 'Polecenie',
-  'Wolne źródło', 'Komornik', 'Licytacja', 'Spis dłużników', 'Inne',
+  { value: 'zadluzony_ponizej', label: DEAL_TYPE_LABELS.zadluzony_ponizej },
+  { value: 'zadluzony_powyzej', label: DEAL_TYPE_LABELS.zadluzony_powyzej },
 ]
 
 export function PropertyForm({ initial = {}, onSubmit, onCancel, submitLabel = 'Zapisz' }: PropertyFormProps) {
   const [form, setForm] = useState({
-    location: initial.location || '',
+    adres: initial.adres || '',
+    kod_pocztowy: initial.kod_pocztowy || '',
+    miasto: initial.miasto || '',
     phone: initial.phone || '',
-    contact_type: initial.contact_type || '',
     property_type: initial.property_type || '',
     area_sqm: initial.area_sqm?.toString() || '',
     value_per_sqm: initial.value_per_sqm?.toString() || '',
+    wartosc_realna: initial.wartosc_realna?.toString() || '',
     total_debt: initial.total_debt?.toString() || '0',
     debt_type: initial.debt_type || 'below_value',
     creditor1_amount: initial.creditor1_amount?.toString() || '0',
     creditor2_amount: initial.creditor2_amount?.toString() || '0',
     creditor3_amount: initial.creditor3_amount?.toString() || '0',
     owner_coefficient: initial.owner_coefficient?.toString() || '0.025',
-    commission_pct: initial.commission_pct?.toString() || '0',
-    notary_fee: initial.notary_fee?.toString() || '1000',
-    manual_offer: initial.manual_offer?.toString() || '',
-    status: initial.status || 'new',
-    lead_temperature: initial.lead_temperature || '',
     deal_type: initial.deal_type || '',
     owner_name: initial.owner_name || '',
     kw_number: initial.kw_number || '',
-    kw_opis: initial.kw_opis || '',
-    source: initial.source || '',
+    kw_dzial1_komentarz: initial.kw_dzial1_komentarz || '',
+    kw_dzial2_komentarz: initial.kw_dzial2_komentarz || '',
+    kw_dzial3_komentarz: initial.kw_dzial3_komentarz || '',
+    kw_dzial4_komentarz: initial.kw_dzial4_komentarz || '',
     czynsz_miesieczny: initial.czynsz_miesieczny?.toString() || '',
-    trello_link: initial.trello_link || '',
     notes: initial.notes || '',
     kontakt_id: initial.kontakt_id || '',
     uklad: initial.uklad || '',
     pietro: initial.pietro?.toString() || '',
+    pietro_z_ilu: initial.pietro_z_ilu?.toString() || '',
     rok_budowy: initial.rok_budowy?.toString() || '',
     balkon_metraz: initial.balkon_metraz?.toString() || '',
     strony_swiata: initial.strony_swiata || '',
-    operat_szacunkowy: initial.operat_szacunkowy?.toString() || '',
+    wycena_szacunkowa: initial.wycena_szacunkowa?.toString() || '',
   })
+  const [koszty, setKoszty] = useState<PropertyCost[]>(initial.koszty_dodatkowe || [])
   const [loading, setLoading] = useState(false)
   const [kontakty, setKontakty] = useState<KontaktOption[]>([])
   const [kontaktSearch, setKontaktSearch] = useState('')
   const [users, setUsers] = useState<UserOption[]>([])
   const [coAssignees, setCoAssignees] = useState<string[]>(initial.co_assignees || [])
-  const [statusComment, setStatusComment] = useState('')
-  // Wymóg komentarza dotyczy tylko edycji (jest poprzedni status do porównania)
-  const isEditingStatus = !!initial.status
-  const statusChanged = isEditingStatus && form.status !== initial.status
 
   useEffect(() => {
     fetch('/api/kontakty?limit=500')
@@ -107,58 +95,65 @@ export function PropertyForm({ initial = {}, onSubmit, onCancel, submitLabel = '
   const set = (key: string, value: string) => setForm(f => ({ ...f, [key]: value }))
 
   function handleDealTypeChange(newDealType: string) {
-    const stages = getStages(newDealType as DealType || null)
-    const currentStatusValid = stages.some(s => s.value === form.status)
     setForm(f => ({
       ...f,
       deal_type: newDealType,
-      status: currentStatusValid ? f.status : stages[0].value,
       debt_type: newDealType === 'zadluzony_powyzej' ? 'above_value' : 'below_value',
     }))
   }
 
+  function updateKoszt(i: number, patch: Partial<PropertyCost>) {
+    setKoszty(prev => prev.map((k, idx) => idx === i ? { ...k, ...patch } : k))
+  }
+
+  function removeKoszt(i: number) {
+    setKoszty(prev => prev.filter((_, idx) => idx !== i))
+  }
+
+  function addKoszt() {
+    setKoszty(prev => [...prev, { label: '', value: 0 }])
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (statusChanged && !statusComment.trim()) return
     setLoading(true)
     try {
       const dealType = (form.deal_type as DealType) || null
       const data: Partial<Property> = {
-        location: form.location,
+        adres: form.adres,
+        kod_pocztowy: form.kod_pocztowy || null,
+        miasto: form.miasto || null,
         phone: form.phone || null,
-        contact_type: (form.contact_type as ContactType) || null,
         property_type: (form.property_type as PropertyType) || null,
         area_sqm: form.area_sqm ? parseFloat(form.area_sqm) : null,
         value_per_sqm: form.value_per_sqm ? parseFloat(form.value_per_sqm) : null,
+        wartosc_realna: form.wartosc_realna ? parseFloat(form.wartosc_realna) : null,
         total_debt: parseFloat(form.total_debt) || 0,
         debt_type: dealType === 'zadluzony_powyzej' ? 'above_value' : 'below_value',
         creditor1_amount: parseFloat(form.creditor1_amount) || 0,
         creditor2_amount: parseFloat(form.creditor2_amount) || 0,
         creditor3_amount: parseFloat(form.creditor3_amount) || 0,
         owner_coefficient: parseFloat(form.owner_coefficient) || 0.025,
-        commission_pct: parseFloat(form.commission_pct) || 0,
-        notary_fee: parseFloat(form.notary_fee) || 1000,
-        manual_offer: form.manual_offer ? parseFloat(form.manual_offer) : null,
-        status: form.status as PropertyStatus,
-        lead_temperature: (form.lead_temperature as Property['lead_temperature']) || null,
+        koszty_dodatkowe: koszty.filter(k => k.label.trim()).map(k => ({ label: k.label.trim(), value: Number(k.value) || 0 })),
         deal_type: dealType,
         owner_name: form.owner_name || null,
         kw_number: form.kw_number || null,
-        kw_opis: form.kw_opis || null,
-        source: form.source || null,
+        kw_dzial1_komentarz: form.kw_dzial1_komentarz || null,
+        kw_dzial2_komentarz: form.kw_dzial2_komentarz || null,
+        kw_dzial3_komentarz: form.kw_dzial3_komentarz || null,
+        kw_dzial4_komentarz: form.kw_dzial4_komentarz || null,
         czynsz_miesieczny: form.czynsz_miesieczny ? parseFloat(form.czynsz_miesieczny) : null,
-        trello_link: form.trello_link || null,
         notes: form.notes || null,
         kontakt_id: form.kontakt_id || null,
         uklad: form.uklad || null,
         pietro: form.pietro ? parseInt(form.pietro) : null,
+        pietro_z_ilu: form.pietro_z_ilu ? parseInt(form.pietro_z_ilu) : null,
         rok_budowy: form.rok_budowy ? parseInt(form.rok_budowy) : null,
         balkon_metraz: form.balkon_metraz ? parseFloat(form.balkon_metraz) : null,
         strony_swiata: form.strony_swiata || null,
-        operat_szacunkowy: form.operat_szacunkowy ? parseFloat(form.operat_szacunkowy) : null,
+        wycena_szacunkowa: form.wycena_szacunkowa ? parseFloat(form.wycena_szacunkowa) : null,
         co_assignees: coAssignees,
       }
-      if (statusChanged) (data as Partial<Property> & { statusComment?: string }).statusComment = statusComment.trim()
       await onSubmit(data)
     } finally {
       setLoading(false)
@@ -166,64 +161,30 @@ export function PropertyForm({ initial = {}, onSubmit, onCancel, submitLabel = '
   }
 
   const dealType = (form.deal_type as DealType) || null
-  const stages = getStages(dealType)
   const isAboveValue = dealType === 'zadluzony_powyzej'
+  const kosztyTotal = sumCosts(koszty)
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       {/* Typ transakcji */}
       <div>
         <h3 className="limona-eyebrow mb-4">Typ transakcji</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="limona-label block mb-2">Typ deal</label>
-            <select
-              className="limona-select"
-              value={form.deal_type}
-              onChange={e => handleDealTypeChange(e.target.value)}
-            >
-              <option value="">— Nie ustawiono (legacy) —</option>
-              {dealTypes.map(d => (
-                <option key={d.value} value={d.value}>{d.label}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="limona-label block mb-2">Etap / Status</label>
-            <select
-              className="limona-select"
-              value={form.status}
-              onChange={e => set('status', e.target.value)}
-            >
-              {stages.map(s => (
-                <option key={s.value} value={s.value}>{s.label}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="limona-label block mb-2">Temperatura leada</label>
-            <select className="limona-select" value={form.lead_temperature} onChange={e => set('lead_temperature', e.target.value)}>
-              <option value="">—</option>
-              <option value="goracy">Gorący</option>
-              <option value="sredni">Średni</option>
-              <option value="zimny">Zimny</option>
-            </select>
-          </div>
+        <div>
+          <label className="limona-label block mb-2">Powyżej / poniżej wartości</label>
+          <select
+            className="limona-select"
+            value={form.deal_type}
+            onChange={e => handleDealTypeChange(e.target.value)}
+          >
+            <option value="">— Nie ustawiono —</option>
+            {dealTypes.map(d => (
+              <option key={d.value} value={d.value}>{d.label}</option>
+            ))}
+          </select>
+          <p className="text-xs text-limona-text-dim mt-1">
+            Status dłużnika i status inwestora ustawia się później, w zakładce „Checklista i status&rdquo; nieruchomości.
+          </p>
         </div>
-        {statusChanged && (
-          <div className="mt-4 p-3 rounded-lg border border-limona-yellow/40 bg-limona-yellow/5">
-            <label className="limona-label block mb-2 text-limona-yellow">
-              Dlaczego zmieniasz status? *
-            </label>
-            <textarea
-              required
-              className="limona-input w-full min-h-[70px] resize-y text-sm"
-              value={statusComment}
-              onChange={e => setStatusComment(e.target.value)}
-              placeholder="Krótkie uzasadnienie — trafi do historii nieruchomości..."
-            />
-          </div>
-        )}
       </div>
 
       {/* Dane podstawowe */}
@@ -231,13 +192,31 @@ export function PropertyForm({ initial = {}, onSubmit, onCancel, submitLabel = '
         <h3 className="limona-eyebrow mb-4">Dane podstawowe</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="md:col-span-2">
-            <label className="limona-label block mb-2">Lokalizacja *</label>
+            <label className="limona-label block mb-2">Adres *</label>
             <input
               required
               className="limona-input"
-              value={form.location}
-              onChange={e => set('location', e.target.value)}
-              placeholder="np. Kraków, Mazowiecka 117/71"
+              value={form.adres}
+              onChange={e => set('adres', e.target.value)}
+              placeholder="np. Mazowiecka 117/71"
+            />
+          </div>
+          <div>
+            <label className="limona-label block mb-2">Kod pocztowy</label>
+            <input
+              className="limona-input"
+              value={form.kod_pocztowy}
+              onChange={e => set('kod_pocztowy', e.target.value)}
+              placeholder="30-001"
+            />
+          </div>
+          <div>
+            <label className="limona-label block mb-2">Miasto</label>
+            <input
+              className="limona-input"
+              value={form.miasto}
+              onChange={e => set('miasto', e.target.value)}
+              placeholder="Kraków"
             />
           </div>
           <div>
@@ -259,13 +238,6 @@ export function PropertyForm({ initial = {}, onSubmit, onCancel, submitLabel = '
             />
           </div>
           <div>
-            <label className="limona-label block mb-2">Typ kontaktu</label>
-            <select className="limona-select" value={form.contact_type} onChange={e => set('contact_type', e.target.value)}>
-              <option value="">Wybierz...</option>
-              {contactTypes.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
-            </select>
-          </div>
-          <div>
             <label className="limona-label block mb-2">Typ nieruchomości</label>
             <select className="limona-select" value={form.property_type} onChange={e => set('property_type', e.target.value)}>
               <option value="">Wybierz...</option>
@@ -282,28 +254,6 @@ export function PropertyForm({ initial = {}, onSubmit, onCancel, submitLabel = '
               placeholder="65.5"
               min="0"
               step="0.01"
-            />
-          </div>
-          <div>
-            <label className="limona-label block mb-2">Źródło leada</label>
-            <input
-              list="source-options"
-              className="limona-input"
-              value={form.source}
-              onChange={e => set('source', e.target.value)}
-              placeholder="np. OLX, Polecenie..."
-            />
-            <datalist id="source-options">
-              {SOURCE_OPTIONS.map(s => <option key={s} value={s} />)}
-            </datalist>
-          </div>
-          <div>
-            <label className="limona-label block mb-2">Link Trello</label>
-            <input
-              className="limona-input"
-              value={form.trello_link}
-              onChange={e => set('trello_link', e.target.value)}
-              placeholder="https://trello.com/..."
             />
           </div>
           {users.length > 0 && (
@@ -392,6 +342,18 @@ export function PropertyForm({ initial = {}, onSubmit, onCancel, submitLabel = '
             />
           </div>
           <div>
+            <label className="limona-label block mb-2">Liczba pięter w budynku</label>
+            <input
+              type="number"
+              className="limona-input"
+              value={form.pietro_z_ilu}
+              onChange={e => set('pietro_z_ilu', e.target.value)}
+              placeholder="np. 5"
+              min="0"
+              max="99"
+            />
+          </div>
+          <div>
             <label className="limona-label block mb-2">Rok budowy</label>
             <input
               type="number"
@@ -425,12 +387,12 @@ export function PropertyForm({ initial = {}, onSubmit, onCancel, submitLabel = '
             />
           </div>
           <div>
-            <label className="limona-label block mb-2">Operat szacunkowy [zł]</label>
+            <label className="limona-label block mb-2">Wycena szacunkowa [zł]</label>
             <input
               type="number"
               className="limona-input"
-              value={form.operat_szacunkowy}
-              onChange={e => set('operat_szacunkowy', e.target.value)}
+              value={form.wycena_szacunkowa}
+              onChange={e => set('wycena_szacunkowa', e.target.value)}
               placeholder="np. 520000"
               min="0"
               step="1000"
@@ -443,7 +405,7 @@ export function PropertyForm({ initial = {}, onSubmit, onCancel, submitLabel = '
       <div>
         <h3 className="limona-eyebrow mb-4">Księga Wieczysta</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
+          <div className="md:col-span-2">
             <label className="limona-label block mb-2">Numer KW</label>
             <input
               className="limona-input"
@@ -452,15 +414,22 @@ export function PropertyForm({ initial = {}, onSubmit, onCancel, submitLabel = '
               placeholder="np. KR1P/00123456/7"
             />
           </div>
-          <div>
-            <label className="limona-label block mb-2">Opis KW</label>
-            <input
-              className="limona-input"
-              value={form.kw_opis}
-              onChange={e => set('kw_opis', e.target.value)}
-              placeholder="Uwagi do KW..."
-            />
-          </div>
+          {([
+            ['kw_dzial1_komentarz', 'Dział I — oznaczenie nieruchomości'],
+            ['kw_dzial2_komentarz', 'Dział II — własność'],
+            ['kw_dzial3_komentarz', 'Dział III — ciężary i ograniczenia'],
+            ['kw_dzial4_komentarz', 'Dział IV — hipoteki'],
+          ] as const).map(([key, label]) => (
+            <div key={key}>
+              <label className="limona-label block mb-2">{label}</label>
+              <textarea
+                className="limona-input min-h-[60px] resize-y text-sm"
+                value={form[key]}
+                onChange={e => set(key, e.target.value)}
+                placeholder="Komentarz..."
+              />
+            </div>
+          ))}
         </div>
       </div>
 
@@ -481,6 +450,18 @@ export function PropertyForm({ initial = {}, onSubmit, onCancel, submitLabel = '
             />
           </div>
           <div>
+            <label className="limona-label block mb-2">Wartość realna [zł]</label>
+            <input
+              type="number"
+              className="limona-input"
+              value={form.wartosc_realna}
+              onChange={e => set('wartosc_realna', e.target.value)}
+              placeholder="700000"
+              min="0"
+              step="1000"
+            />
+          </div>
+          <div>
             <label className="limona-label block mb-2">Suma zadłużenia (K) [zł]</label>
             <input
               type="number"
@@ -488,44 +469,6 @@ export function PropertyForm({ initial = {}, onSubmit, onCancel, submitLabel = '
               value={form.total_debt}
               onChange={e => set('total_debt', e.target.value)}
               placeholder="0"
-              min="0"
-              step="1000"
-            />
-          </div>
-          <div>
-            <label className="limona-label block mb-2">Prowizja pośrednika (%)</label>
-            <input
-              type="text"
-              inputMode="decimal"
-              className="limona-input"
-              value={form.commission_pct}
-              onChange={e => {
-                const v = e.target.value.replace(',', '.')
-                if (v === '' || /^\d*\.?\d*$/.test(v)) set('commission_pct', v)
-              }}
-              placeholder="2.46"
-            />
-            <span className="text-xs text-limona-text-dim">Wpisz jako %, np. 2.46</span>
-          </div>
-          <div>
-            <label className="limona-label block mb-2">Taksa notarialna [zł]</label>
-            <input
-              type="number"
-              className="limona-input"
-              value={form.notary_fee}
-              onChange={e => set('notary_fee', e.target.value)}
-              placeholder="1000"
-              min="0"
-            />
-          </div>
-          <div>
-            <label className="limona-label block mb-2">Ręczna oferta (opcjonalnie) [zł]</label>
-            <input
-              type="number"
-              className="limona-input"
-              value={form.manual_offer}
-              onChange={e => set('manual_offer', e.target.value)}
-              placeholder="445000"
               min="0"
               step="1000"
             />
@@ -541,6 +484,43 @@ export function PropertyForm({ initial = {}, onSubmit, onCancel, submitLabel = '
               min="0"
               step="100"
             />
+          </div>
+        </div>
+
+        {/* Suma kosztów — dynamiczna lista */}
+        <div className="mt-4">
+          <label className="limona-label block mb-2">Suma kosztów</label>
+          <div className="space-y-2">
+            {koszty.map((k, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <input
+                  className="limona-input flex-1"
+                  value={k.label}
+                  onChange={e => updateKoszt(i, { label: e.target.value })}
+                  placeholder="np. Taksa notarialna"
+                />
+                <input
+                  type="number"
+                  className="limona-input w-32"
+                  value={k.value || ''}
+                  onChange={e => updateKoszt(i, { value: parseFloat(e.target.value) || 0 })}
+                  placeholder="0"
+                  min="0"
+                  step="100"
+                />
+                <button type="button" onClick={() => removeKoszt(i)} className="p-2 text-limona-text-dim hover:text-limona-red transition-colors">
+                  <X size={14} />
+                </button>
+              </div>
+            ))}
+            <button type="button" onClick={addKoszt}
+              className="text-xs text-limona-text-dim hover:text-limona-lime flex items-center gap-1 transition-colors">
+              <Plus size={12} /> Dodaj koszt
+            </button>
+          </div>
+          <div className="border-t border-limona-border mt-3 pt-3 flex items-center justify-between">
+            <span className="text-sm text-limona-text-muted">Suma kosztów</span>
+            <span className="font-mono font-bold text-limona-white">{formatMoney(kosztyTotal)}</span>
           </div>
         </div>
       </div>
@@ -587,7 +567,7 @@ export function PropertyForm({ initial = {}, onSubmit, onCancel, submitLabel = '
         <button type="button" onClick={onCancel} className="limona-btn-outline">
           Anuluj
         </button>
-        <button type="submit" disabled={loading || (statusChanged && !statusComment.trim())} className="limona-btn disabled:opacity-50">
+        <button type="submit" disabled={loading} className="limona-btn disabled:opacity-50">
           {loading ? 'Zapisywanie...' : submitLabel}
         </button>
       </div>

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { cn } from '@/lib/utils'
+import { cn, formatPropertyAddress } from '@/lib/utils'
 import type { Kontakt, KontaktTyp, Property } from '@/types/database'
 import { KONTAKT_TYP_LABELS, TOUR_PIN_COLOR } from '@/types/database'
 import {
@@ -43,7 +43,7 @@ function kontaktGmapsNav(k: Kontakt): string {
 
 function propertyGmapsNav(p: Property): string {
   if (p.lat && p.lng) return `https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}`
-  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.location)}`
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(formatPropertyAddress(p))}`
 }
 
 const MAP_CSS = `
@@ -201,7 +201,7 @@ export default function KontaktyMap({ kontakty, properties = [], height = '560px
 
         const popupHtml = `
           <div class="lm-p">
-            <div class="lm-name">${p.location}</div>
+            <div class="lm-name">${formatPropertyAddress(p)}</div>
             <div class="lm-sub">Nieruchomość${p.property_type ? ` · ${PROPERTY_TYPE_MAP_LABELS[p.property_type]}` : ''}</div>
             <div class="lm-actions">
               <a href="/nieruchomosci/${p.id}" class="lm-btn lm-open">Otwórz →</a>

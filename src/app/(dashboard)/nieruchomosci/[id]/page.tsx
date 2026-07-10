@@ -5,30 +5,34 @@ export const dynamic = 'force-dynamic'
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Edit, Clock, User, Phone, Plus, CheckCircle, Circle, Trash2, Tag, Home, BookOpen, Layers, FileText, ExternalLink, Square, CheckSquare, Building2, Compass, BarChart2 } from 'lucide-react'
+import { ArrowLeft, Edit, Clock, User, Phone, Plus, CheckCircle, Circle, Trash2, Layers, FileText, ExternalLink, Square, CheckSquare, Building2, Compass, MessageSquare, Users, X, Save } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { useProperties } from '@/hooks/useProperties'
 import { useTasks } from '@/hooks/useTasks'
 import { useActivityLog } from '@/hooks/useActivityLog'
 import { useToast } from '@/components/ui/Toast'
-import { Calculator1 } from '@/components/calculator/Calculator1'
-import { Calculator2 } from '@/components/calculator/Calculator2'
 import { PropertyForm } from '@/components/properties/PropertyForm'
+import { StatusChangeCommentModal } from '@/components/shared/StatusChangeCommentModal'
 import { Badge } from '@/components/ui/Badge'
 import { Avatar } from '@/components/ui/Avatar'
 import { Modal } from '@/components/ui/Modal'
 import { Skeleton } from '@/components/ui/Skeleton'
-import { formatMoney, cn } from '@/lib/utils'
-import type { Property, Task, Document } from '@/types/database'
-import type { Calc1Input, Calc2Input } from '@/lib/calculator'
-import { STAGE_TASK_TEMPLATES, getStageLabel, DEAL_TYPE_LABELS } from '@/lib/stages'
+import { formatMoney, formatPropertyAddress, cn } from '@/lib/utils'
+import { sumCosts } from '@/lib/calculator'
+import type { Property, Task, Document, PropertyNegotiationNote, PropertyInvestor, StatusDluznika, StatusInwestora, InvestorPropertyStatus } from '@/types/database'
+import {
+  STAGE_TASK_TEMPLATES, DEAL_TYPE_LABELS,
+  STATUS_DLUZNIKA_OPTIONS, STATUS_DLUZNIKA_LABELS, STATUS_INWESTORA_OPTIONS, STATUS_INWESTORA_LABELS,
+  INVESTOR_PROPERTY_STATUS_OPTIONS, INVESTOR_PROPERTY_STATUS_LABELS,
+  getStatusDluznikaLabel,
+} from '@/lib/stages'
 import type { DealType } from '@/types/database'
 import { AgentReport } from '@/components/properties/AgentReport'
 
 const CHECKLIST_INFO = [
   'Zweryfikowana KW', 'Kontakt z właścicielem', 'Rzut planu / metraż',
   'Rok budowy potwierdzony', 'Piętro i układ', 'Stan techniczny oceniony',
-  'Zadłużenie potwierdzone', 'Czynsz miesięczny ustalony', 'Operat szacunkowy',
+  'Zadłużenie potwierdzone', 'Czynsz miesięczny ustalony', 'Wycena szacunkowa',
   'Zdjęcia wykonane',
 ]
 const CHECKLIST_DOCS = [
@@ -38,6 +42,13 @@ const CHECKLIST_DOCS = [
   'Umowa przedwstępna kupna', 'Umowa przedwstępna sprzedaży',
   'Protokół zdania nieruchomości',
 ]
+
+const KW_DZIALY = [
+  ['kw_dzial1_komentarz', 'Dział I — oznaczenie nieruchomości'],
+  ['kw_dzial2_komentarz', 'Dział II — własność'],
+  ['kw_dzial3_komentarz', 'Dział III — ciężary i ograniczenia'],
+  ['kw_dzial4_komentarz', 'Dział IV — hipoteki'],
+] as const
 
 function actionLabel(action: string): string {
   const map: Record<string, string> = {
@@ -49,6 +60,8 @@ function actionLabel(action: string): string {
   }
   return map[action] || action
 }
+
+interface KontaktOption { id: string; nazwa: string; typ: string; telefon: string | null; email: string | null }
 
 export default function PropertyDetailPage() {
   const { id } = useParams()
@@ -62,7 +75,7 @@ export default function PropertyDetailPage() {
 
   const [property, setProperty] = useState<Property | null>(null)
   const [loadingProp, setLoadingProp] = useState(true)
-  const [activeTab, setActiveTab] = useState<'calc' | 'tasks' | 'docs' | 'checklist' | 'log' | 'report'>('tasks')
+  const [activeTab, setActiveTab] = useState<'tasks' | 'docs' | 'checklist' | 'negocjacja' | 'inwestorzy' | 'pietro' | 'log' | 'report'>('tasks')
   const [showEditModal, setShowEditModal] = useState(false)
   const [newTaskTitle, setNewTaskTitle] = useState('')
   const [showTemplates, setShowTemplates] = useState(false)
@@ -75,9 +88,32 @@ export default function PropertyDetailPage() {
   const [newDocUrl, setNewDocUrl] = useState('')
   const [newDocType, setNewDocType] = useState('')
   const [addingDoc, setAddingDoc] = useState(false)
+  const [kwForm, setKwForm] = useState<Record<string, string>>({})
+  const [savingKw, setSavingKw] = useState(false)
 
   // Checklist state (stored in localStorage per property)
   const [checkedItems, setCheckedItems] = useState<Set<string>>(new Set())
+
+  // Status change (dłużnik/inwestor)
+  const [statusChange, setStatusChange] = useState<{ field: 'status_dluznika' | 'status_inwestora'; value: string; label: string } | null>(null)
+
+  // Negocjacja
+  const [negNotes, setNegNotes] = useState<PropertyNegotiationNote[]>([])
+  const [negLoading, setNegLoading] = useState(false)
+  const [newNegNote, setNewNegNote] = useState('')
+
+  // Inwestorzy
+  const [investors, setInvestors] = useState<PropertyInvestor[]>([])
+  const [investorsLoading, setInvestorsLoading] = useState(false)
+  const [investorKontakty, setInvestorKontakty] = useState<KontaktOption[]>([])
+  const [investorSearch, setInvestorSearch] = useState('')
+  const [showNewInvestor, setShowNewInvestor] = useState(false)
+  const [newInvestorName, setNewInvestorName] = useState('')
+  const [newInvestorPhone, setNewInvestorPhone] = useState('')
+
+  // Piętro
+  const [pietroForm, setPietroForm] = useState({ pietro: '', pietro_z_ilu: '' })
+  const [savingPietro, setSavingPietro] = useState(false)
 
   useEffect(() => {
     if (!propertyId) return
@@ -109,6 +145,37 @@ export default function PropertyDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, propertyId])
 
+  async function fetchNegotiation() {
+    setNegLoading(true)
+    const res = await fetch(`/api/properties/${propertyId}/negotiation`)
+    if (res.ok) setNegNotes(await res.json())
+    setNegLoading(false)
+  }
+
+  useEffect(() => {
+    if (activeTab === 'negocjacja') fetchNegotiation()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, propertyId])
+
+  async function fetchInvestors() {
+    setInvestorsLoading(true)
+    const [invRes, kontaktyRes] = await Promise.all([
+      fetch(`/api/properties/${propertyId}/investors`),
+      fetch('/api/kontakty?limit=500'),
+    ])
+    if (invRes.ok) setInvestors(await invRes.json())
+    if (kontaktyRes.ok) {
+      const data: KontaktOption[] = await kontaktyRes.json()
+      setInvestorKontakty(data.filter(k => k.typ === 'inwestor'))
+    }
+    setInvestorsLoading(false)
+  }
+
+  useEffect(() => {
+    if (activeTab === 'inwestorzy') fetchInvestors()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, propertyId])
+
   async function handleAddDoc(e: React.FormEvent) {
     e.preventDefault()
     if (!newDocName.trim() || !newDocUrl.trim()) return
@@ -121,7 +188,7 @@ export default function PropertyDetailPage() {
         name: newDocName.trim(),
         file_url: newDocUrl.trim(),
         file_type: newDocType || null,
-        stage: property?.status || null,
+        stage: property?.status_dluznika || null,
       }),
     })
     if (res.ok) {
@@ -136,13 +203,88 @@ export default function PropertyDetailPage() {
     setDocuments(prev => prev.filter(d => d.id !== id))
   }
 
-  const [calc1Input, setCalc1Input] = useState<Calc1Input>({
-    valuePerSqm: 0, totalDebt: 0, commissionPct: 0, notaryFee: 1000, manualOffer: null,
-  })
-  const [calc2Input, setCalc2Input] = useState<Calc2Input>({
-    valuePerSqm: 0, totalDebt: 0, creditor1: 0, creditor2: 0, creditor3: 0,
-    ownerCoefficient: 0.025, commissionPct: 0, notaryFee: 1000, manualOffer: null,
-  })
+  async function handleSaveKw() {
+    if (!user) return
+    setSavingKw(true)
+    const { error } = await updateProperty(currentPropertyId, kwForm, user.id)
+    if (error) showToast(error, 'error')
+    else {
+      showToast('Zapisano komentarze KW', 'success')
+      const res = await fetch(`/api/properties/${currentPropertyId}`)
+      if (res.ok) setProperty(await res.json())
+    }
+    setSavingKw(false)
+  }
+
+  async function handleAddNegNote(e: React.FormEvent) {
+    e.preventDefault()
+    if (!newNegNote.trim()) return
+    const res = await fetch(`/api/properties/${propertyId}/negotiation`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: newNegNote.trim() }),
+    })
+    if (res.ok) { setNewNegNote(''); fetchNegotiation() }
+  }
+
+  async function handleDeleteNegNote(noteId: string) {
+    await fetch(`/api/properties/${propertyId}/negotiation/${noteId}`, { method: 'DELETE' })
+    setNegNotes(prev => prev.filter(n => n.id !== noteId))
+  }
+
+  async function linkInvestor(kontaktId: string) {
+    const res = await fetch(`/api/properties/${propertyId}/investors`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kontaktId }),
+    })
+    if (res.ok) { setInvestorSearch(''); fetchInvestors() }
+  }
+
+  async function handleAddNewInvestor(e: React.FormEvent) {
+    e.preventDefault()
+    if (!newInvestorName.trim()) return
+    const res = await fetch('/api/kontakty', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ typ: 'inwestor', nazwa: newInvestorName.trim(), telefon: newInvestorPhone || null }),
+    })
+    if (res.ok) {
+      const kontakt = await res.json()
+      await linkInvestor(kontakt.id)
+      setNewInvestorName(''); setNewInvestorPhone(''); setShowNewInvestor(false)
+    }
+  }
+
+  async function handleInvestorStatus(investorId: string, status: InvestorPropertyStatus) {
+    const res = await fetch(`/api/properties/${propertyId}/investors/${investorId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status }),
+    })
+    if (res.ok) setInvestors(prev => prev.map(i => i.id === investorId ? { ...i, status } : i))
+  }
+
+  async function handleRemoveInvestor(investorId: string) {
+    await fetch(`/api/properties/${propertyId}/investors/${investorId}`, { method: 'DELETE' })
+    setInvestors(prev => prev.filter(i => i.id !== investorId))
+  }
+
+  async function handleSavePietro() {
+    if (!user) return
+    setSavingPietro(true)
+    const { error } = await updateProperty(currentPropertyId, {
+      pietro: pietroForm.pietro ? parseInt(pietroForm.pietro) : null,
+      pietro_z_ilu: pietroForm.pietro_z_ilu ? parseInt(pietroForm.pietro_z_ilu) : null,
+    }, user.id)
+    if (error) showToast(error, 'error')
+    else {
+      showToast('Zapisano', 'success')
+      const res = await fetch(`/api/properties/${currentPropertyId}`)
+      if (res.ok) setProperty(await res.json())
+    }
+    setSavingPietro(false)
+  }
 
   useEffect(() => {
     async function load() {
@@ -150,28 +292,16 @@ export default function PropertyDetailPage() {
       if (!res.ok) { router.push('/nieruchomosci'); return }
       const p: Property = await res.json()
       setProperty(p)
-
-      if (p.deal_type === 'zadluzony_powyzej' || p.debt_type === 'above_value') {
-        setCalc2Input({
-          valuePerSqm: p.value_per_sqm || 0,
-          totalDebt: p.total_debt || 0,
-          creditor1: p.creditor1_amount || 0,
-          creditor2: p.creditor2_amount || 0,
-          creditor3: p.creditor3_amount || 0,
-          ownerCoefficient: p.owner_coefficient || 0.025,
-          commissionPct: (p.commission_pct || 0) / 100,
-          notaryFee: p.notary_fee || 1000,
-          manualOffer: p.manual_offer,
-        })
-      } else {
-        setCalc1Input({
-          valuePerSqm: p.value_per_sqm || 0,
-          totalDebt: p.total_debt || 0,
-          commissionPct: (p.commission_pct || 0) / 100,
-          notaryFee: p.notary_fee || 1000,
-          manualOffer: p.manual_offer,
-        })
-      }
+      setKwForm({
+        kw_dzial1_komentarz: p.kw_dzial1_komentarz || '',
+        kw_dzial2_komentarz: p.kw_dzial2_komentarz || '',
+        kw_dzial3_komentarz: p.kw_dzial3_komentarz || '',
+        kw_dzial4_komentarz: p.kw_dzial4_komentarz || '',
+      })
+      setPietroForm({
+        pietro: p.pietro?.toString() || '',
+        pietro_z_ilu: p.pietro_z_ilu?.toString() || '',
+      })
       setLoadingProp(false)
     }
     load()
@@ -220,8 +350,7 @@ export default function PropertyDetailPage() {
     setNewTaskTitle('')
   }
 
-  const isAbove = property.deal_type === 'zadluzony_powyzej' || property.debt_type === 'above_value'
-  const stageTemplates = STAGE_TASK_TEMPLATES[property.status] ?? []
+  const stageTemplates = property ? (STAGE_TASK_TEMPLATES[property.status_dluznika] ?? []) : []
 
   async function applyTemplates() {
     if (!user || selectedTemplates.length === 0) return
@@ -234,6 +363,22 @@ export default function PropertyDetailPage() {
     setSelectedTemplates([])
   }
 
+  async function confirmStatusChange(comment: string) {
+    if (!statusChange || !user || !property) return
+    const { error } = await updateProperty(currentPropertyId, {
+      [statusChange.field]: statusChange.value,
+      // @ts-expect-error statusComment is stripped server-side, not part of Property
+      statusComment: comment,
+    }, user.id)
+    if (error) { showToast(error, 'error'); return }
+    showToast('Status zaktualizowany', 'success')
+    setStatusChange(null)
+    const res = await fetch(`/api/properties/${currentPropertyId}`)
+    if (res.ok) setProperty(await res.json())
+  }
+
+  const kosztyTotal = sumCosts(property.koszty_dodatkowe)
+
   return (
     <div className="space-y-6 max-w-5xl">
       <div className="flex items-start justify-between gap-4">
@@ -242,15 +387,14 @@ export default function PropertyDetailPage() {
             <ArrowLeft size={16} />
             Powrót do listy
           </Link>
-          <h1 className="limona-heading text-2xl lg:text-3xl">{property.location}</h1>
+          <h1 className="limona-heading text-2xl lg:text-3xl">{formatPropertyAddress(property)}</h1>
           <div className="flex items-center gap-2 mt-2 flex-wrap">
-            <Badge value={property.status} />
+            <Badge value={property.status_dluznika} />
+            <Badge value={property.status_inwestora} />
             {property.deal_type && (
               <span className={cn(
                 'text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded',
-                property.deal_type === 'zadluzony_ponizej' ? 'bg-limona-blue/15 text-limona-blue' :
-                property.deal_type === 'zadluzony_powyzej' ? 'bg-limona-yellow/15 text-limona-yellow' :
-                'bg-limona-lime/15 text-limona-lime'
+                property.deal_type === 'zadluzony_ponizej' ? 'bg-limona-blue/15 text-limona-blue' : 'bg-limona-yellow/15 text-limona-yellow'
               )}>
                 {DEAL_TYPE_LABELS[property.deal_type as DealType]}
               </span>
@@ -274,8 +418,8 @@ export default function PropertyDetailPage() {
           <p className="font-mono font-bold text-limona-white">{formatMoney(property.value_per_sqm)}</p>
         </div>
         <div className="limona-card p-4">
-          <p className="text-xs text-limona-text-muted mb-1">RW (J)</p>
-          <p className="font-mono font-bold text-limona-text-muted">{formatMoney(property.rw)}</p>
+          <p className="text-xs text-limona-text-muted mb-1">Wartość realna</p>
+          <p className="font-mono font-bold text-limona-text-muted">{formatMoney(property.wartosc_realna)}</p>
         </div>
         <div className="limona-card p-4">
           <p className="text-xs text-limona-text-muted mb-1">Zadłużenie</p>
@@ -292,9 +436,6 @@ export default function PropertyDetailPage() {
           <div className="flex items-center gap-2">
             <Phone size={14} className="text-limona-text-muted" />
             <span className="text-limona-text">{property.phone}</span>
-            {property.contact_type && (
-              <span className="text-xs text-limona-text-dim">({property.contact_type})</span>
-            )}
           </div>
         )}
         {property.assignee && (
@@ -316,50 +457,31 @@ export default function PropertyDetailPage() {
       </div>
 
       {/* Extended property info */}
-      {(property.owner_name || property.kw_number || property.source || property.czynsz_miesieczny) && (
-        <div className="limona-card p-4 grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
+      {(property.owner_name || property.kw_number || property.czynsz_miesieczny) && (
+        <div className="limona-card p-4 grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm">
           {property.owner_name && (
-            <div className="flex items-start gap-2">
-              <Home size={14} className="text-limona-text-muted mt-0.5 flex-shrink-0" />
-              <div>
-                <p className="text-[10px] text-limona-text-dim uppercase tracking-wider">Właściciel</p>
-                <p className="text-limona-text">{property.owner_name}</p>
-              </div>
+            <div>
+              <p className="text-[10px] text-limona-text-dim uppercase tracking-wider">Właściciel</p>
+              <p className="text-limona-text">{property.owner_name}</p>
             </div>
           )}
           {property.kw_number && (
-            <div className="flex items-start gap-2">
-              <BookOpen size={14} className="text-limona-text-muted mt-0.5 flex-shrink-0" />
-              <div>
-                <p className="text-[10px] text-limona-text-dim uppercase tracking-wider">Numer KW</p>
-                <p className="text-limona-text font-mono text-xs">{property.kw_number}</p>
-                {property.kw_opis && <p className="text-limona-text-dim text-xs mt-0.5">{property.kw_opis}</p>}
-              </div>
-            </div>
-          )}
-          {property.source && (
-            <div className="flex items-start gap-2">
-              <Tag size={14} className="text-limona-text-muted mt-0.5 flex-shrink-0" />
-              <div>
-                <p className="text-[10px] text-limona-text-dim uppercase tracking-wider">Źródło</p>
-                <p className="text-limona-text">{property.source}</p>
-              </div>
+            <div>
+              <p className="text-[10px] text-limona-text-dim uppercase tracking-wider">Numer KW</p>
+              <p className="text-limona-text font-mono text-xs">{property.kw_number}</p>
             </div>
           )}
           {property.czynsz_miesieczny && (
-            <div className="flex items-start gap-2">
-              <Layers size={14} className="text-limona-text-muted mt-0.5 flex-shrink-0" />
-              <div>
-                <p className="text-[10px] text-limona-text-dim uppercase tracking-wider">Czynsz / mies.</p>
-                <p className="text-limona-text font-mono">{formatMoney(property.czynsz_miesieczny)}</p>
-              </div>
+            <div>
+              <p className="text-[10px] text-limona-text-dim uppercase tracking-wider">Czynsz / mies.</p>
+              <p className="text-limona-text font-mono">{formatMoney(property.czynsz_miesieczny)}</p>
             </div>
           )}
         </div>
       )}
 
       {/* Physical info */}
-      {(property.uklad || property.pietro != null || property.rok_budowy || property.balkon_metraz || property.strony_swiata || property.operat_szacunkowy) && (
+      {(property.uklad || property.pietro != null || property.rok_budowy || property.balkon_metraz || property.strony_swiata || property.wycena_szacunkowa) && (
         <div className="limona-card p-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 text-sm">
           {property.uklad && (
             <div>
@@ -370,7 +492,7 @@ export default function PropertyDetailPage() {
           {property.pietro != null && (
             <div>
               <p className="text-[10px] text-limona-text-dim uppercase tracking-wider mb-0.5">Piętro</p>
-              <p className="text-limona-text font-mono">{property.pietro}</p>
+              <p className="text-limona-text font-mono">{property.pietro}{property.pietro_z_ilu ? ` / ${property.pietro_z_ilu}` : ''}</p>
             </div>
           )}
           {property.rok_budowy && (
@@ -394,12 +516,31 @@ export default function PropertyDetailPage() {
               </div>
             </div>
           )}
-          {property.operat_szacunkowy && (
+          {property.wycena_szacunkowa && (
             <div>
-              <p className="text-[10px] text-limona-text-dim uppercase tracking-wider mb-0.5">Operat szac.</p>
-              <p className="text-limona-text font-mono">{formatMoney(property.operat_szacunkowy)}</p>
+              <p className="text-[10px] text-limona-text-dim uppercase tracking-wider mb-0.5">Wycena szac.</p>
+              <p className="text-limona-text font-mono">{formatMoney(property.wycena_szacunkowa)}</p>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Suma kosztów */}
+      {property.koszty_dodatkowe && property.koszty_dodatkowe.length > 0 && (
+        <div className="limona-card p-4 text-sm">
+          <p className="text-[10px] text-limona-text-dim uppercase tracking-wider mb-2">Suma kosztów</p>
+          <div className="space-y-1">
+            {property.koszty_dodatkowe.map((k, i) => (
+              <div key={i} className="flex items-center justify-between">
+                <span className="text-limona-text-muted">{k.label}</span>
+                <span className="font-mono text-limona-text">{formatMoney(k.value)}</span>
+              </div>
+            ))}
+          </div>
+          <div className="border-t border-limona-border mt-2 pt-2 flex items-center justify-between font-bold">
+            <span className="text-limona-text">Razem</span>
+            <span className="font-mono text-limona-white">{formatMoney(kosztyTotal)}</span>
+          </div>
         </div>
       )}
 
@@ -414,7 +555,10 @@ export default function PropertyDetailPage() {
         {([
           { key: 'tasks', label: `Zadania (${tasks.length})` },
           { key: 'docs', label: `Dokumenty (${documents.length})` },
-          { key: 'checklist', label: `Checklista (${checkedItems.size}/${CHECKLIST_INFO.length + CHECKLIST_DOCS.length})` },
+          { key: 'checklist', label: `Checklista i status (${checkedItems.size}/${CHECKLIST_INFO.length + CHECKLIST_DOCS.length})` },
+          { key: 'negocjacja', label: 'Negocjacja' },
+          { key: 'inwestorzy', label: `Inwestorzy (${investors.length || ''})` },
+          { key: 'pietro', label: 'Piętro' },
           { key: 'report', label: 'Raport agenta' },
           { key: 'log', label: 'Historia' },
         ] as const).map(tab => (
@@ -422,7 +566,7 @@ export default function PropertyDetailPage() {
             key={tab.key}
             onClick={() => setActiveTab(tab.key)}
             className={cn(
-              'px-4 py-3 text-sm font-medium uppercase tracking-wider transition-colors border-b-2 -mb-px',
+              'px-4 py-3 text-sm font-medium uppercase tracking-wider transition-colors border-b-2 -mb-px whitespace-nowrap',
               activeTab === tab.key
                 ? 'border-limona-lime text-limona-lime'
                 : 'border-transparent text-limona-text-muted hover:text-limona-text'
@@ -432,24 +576,6 @@ export default function PropertyDetailPage() {
           </button>
         ))}
       </div>
-
-      {activeTab === 'calc' && (
-        <div className="limona-card p-4 lg:p-6">
-          {isAbove ? (
-            <Calculator2
-              input={calc2Input}
-              onChange={(key, val) => setCalc2Input(prev => ({ ...prev, [key]: val ?? 0 }))}
-              showInputs
-            />
-          ) : (
-            <Calculator1
-              input={calc1Input}
-              onChange={(key, val) => setCalc1Input(prev => ({ ...prev, [key]: val ?? 0 }))}
-              showInputs
-            />
-          )}
-        </div>
-      )}
 
       {activeTab === 'tasks' && (
         <div className="space-y-3">
@@ -481,7 +607,7 @@ export default function PropertyDetailPage() {
             <div className="limona-card-accent p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <p className="text-xs text-limona-lime uppercase tracking-wider font-bold">
-                  Szablony zadań — {getStageLabel(property.status)}
+                  Szablony zadań — {getStatusDluznikaLabel(property.status_dluznika)}
                 </p>
                 <button onClick={() => setShowTemplates(false)} className="text-limona-text-dim hover:text-limona-text text-xs">✕</button>
               </div>
@@ -548,6 +674,26 @@ export default function PropertyDetailPage() {
 
       {activeTab === 'docs' && (
         <div className="space-y-4">
+          {/* Komentarze do działów KW */}
+          <div className="limona-card p-4 space-y-3">
+            <p className="text-xs text-limona-lime uppercase tracking-wider font-bold">Komentarze do działów KW</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {KW_DZIALY.map(([key, label]) => (
+                <div key={key}>
+                  <label className="text-[10px] text-limona-text-dim uppercase tracking-wider block mb-1">{label}</label>
+                  <textarea
+                    className="limona-input min-h-[60px] resize-y text-sm w-full"
+                    value={kwForm[key] ?? ''}
+                    onChange={e => setKwForm(f => ({ ...f, [key]: e.target.value }))}
+                  />
+                </div>
+              ))}
+            </div>
+            <button onClick={handleSaveKw} disabled={savingKw} className="limona-btn-sm flex items-center gap-1.5 disabled:opacity-50">
+              <Save size={12} /> {savingKw ? 'Zapisywanie...' : 'Zapisz komentarze KW'}
+            </button>
+          </div>
+
           {/* PDF / Cloud storage guide */}
           <div className="limona-card p-4 border-l-[3px] border-l-limona-blue text-sm">
             <p className="text-xs font-bold text-limona-blue uppercase tracking-wider mb-2">Pliki PDF — Google Drive</p>
@@ -585,7 +731,7 @@ export default function PropertyDetailPage() {
                 <option value="akt_wlasnosci">Akt własności</option>
                 <option value="zaswiadczenie">Zaświadczenie</option>
                 <option value="umowa">Umowa</option>
-                <option value="operat">Operat szacunkowy</option>
+                <option value="operat">Wycena szacunkowa</option>
                 <option value="zdjecia">Zdjęcia</option>
                 <option value="inne">Inne</option>
               </select>
@@ -613,9 +759,6 @@ export default function PropertyDetailPage() {
                     <div className="flex items-center gap-2 mt-0.5">
                       {doc.file_type && (
                         <span className="text-[10px] uppercase tracking-wider text-limona-text-dim border border-limona-border rounded px-1">{doc.file_type}</span>
-                      )}
-                      {doc.stage && (
-                        <span className="text-[10px] text-limona-text-dim">etap: {doc.stage}</span>
                       )}
                       {doc.uploader && (
                         <span className="text-[10px] text-limona-text-dim">{doc.uploader.full_name}</span>
@@ -646,6 +789,42 @@ export default function PropertyDetailPage() {
 
       {activeTab === 'checklist' && (
         <div className="space-y-6">
+          {/* Status dłużnika / inwestora — łatwo edytowalne */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="limona-label block mb-2">Status dłużnika</label>
+              <select
+                className="limona-select"
+                value={property.status_dluznika}
+                onChange={e => {
+                  const value = e.target.value
+                  if (value === property.status_dluznika) return
+                  setStatusChange({ field: 'status_dluznika', value, label: STATUS_DLUZNIKA_LABELS[value as StatusDluznika] })
+                }}
+              >
+                {STATUS_DLUZNIKA_OPTIONS.map(s => (
+                  <option key={s} value={s}>{STATUS_DLUZNIKA_LABELS[s]}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="limona-label block mb-2">Status inwestora</label>
+              <select
+                className="limona-select"
+                value={property.status_inwestora}
+                onChange={e => {
+                  const value = e.target.value
+                  if (value === property.status_inwestora) return
+                  setStatusChange({ field: 'status_inwestora', value, label: STATUS_INWESTORA_LABELS[value as StatusInwestora] })
+                }}
+              >
+                {STATUS_INWESTORA_OPTIONS.map(s => (
+                  <option key={s} value={s}>{STATUS_INWESTORA_LABELS[s]}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
           <div>
             <p className="text-xs text-limona-lime uppercase tracking-wider font-bold mb-3 flex items-center gap-2">
               <Building2 size={14} />
@@ -715,6 +894,150 @@ export default function PropertyDetailPage() {
         </div>
       )}
 
+      {activeTab === 'negocjacja' && (
+        <div className="space-y-4">
+          <form onSubmit={handleAddNegNote} className="limona-card-accent p-4 space-y-3">
+            <p className="text-xs text-limona-lime uppercase tracking-wider font-bold">Nowa notatka negocjacyjna</p>
+            <textarea
+              className="limona-input w-full min-h-[70px] resize-y text-sm"
+              placeholder="Przebieg negocjacji, ustalenia, kontrpropozycje..."
+              value={newNegNote}
+              onChange={e => setNewNegNote(e.target.value)}
+            />
+            <button type="submit" disabled={!newNegNote.trim()} className="limona-btn-sm disabled:opacity-40">Dodaj notatkę</button>
+          </form>
+
+          {negLoading ? (
+            <div className="space-y-2">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-16" />)}</div>
+          ) : negNotes.length === 0 ? (
+            <div className="text-center py-12">
+              <MessageSquare size={32} className="text-limona-text-dim mx-auto mb-3" />
+              <p className="text-limona-text-muted">Brak notatek negocjacyjnych</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {negNotes.map(note => (
+                <div key={note.id} className="limona-card p-3 flex items-start gap-3">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-limona-text whitespace-pre-wrap">{note.content}</p>
+                    <p className="text-[10px] text-limona-text-dim mt-1">
+                      {note.user?.full_name || 'Użytkownik'} · {new Date(note.created_at).toLocaleString('pl-PL')}
+                    </p>
+                  </div>
+                  <button onClick={() => handleDeleteNegNote(note.id)} className="p-1 text-limona-text-dim hover:text-limona-red transition-colors flex-shrink-0">
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'inwestorzy' && (
+        <div className="space-y-4">
+          <div className="limona-card-accent p-4 space-y-3">
+            <p className="text-xs text-limona-lime uppercase tracking-wider font-bold">Dodaj inwestora</p>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <div className="flex-1">
+                <input
+                  list="investor-options"
+                  className="limona-input w-full"
+                  placeholder="Wyszukaj istniejącego inwestora..."
+                  value={investorSearch}
+                  onChange={e => {
+                    setInvestorSearch(e.target.value)
+                    const match = investorKontakty.find(k => k.nazwa === e.target.value)
+                    if (match) linkInvestor(match.id)
+                  }}
+                />
+                <datalist id="investor-options">
+                  {investorKontakty
+                    .filter(k => !investors.some(i => i.kontakt_id === k.id))
+                    .map(k => <option key={k.id} value={k.nazwa} />)}
+                </datalist>
+              </div>
+              <button type="button" onClick={() => setShowNewInvestor(v => !v)} className="limona-btn-outline text-xs flex items-center gap-1.5 whitespace-nowrap">
+                <Users size={12} /> Nowy inwestor
+              </button>
+            </div>
+            {showNewInvestor && (
+              <form onSubmit={handleAddNewInvestor} className="flex flex-col sm:flex-row gap-2 pt-2 border-t border-limona-border">
+                <input className="limona-input flex-1" placeholder="Imię i nazwisko / nazwa" value={newInvestorName} onChange={e => setNewInvestorName(e.target.value)} required />
+                <input className="limona-input flex-1" placeholder="Telefon (opcjonalnie)" value={newInvestorPhone} onChange={e => setNewInvestorPhone(e.target.value)} />
+                <button type="submit" className="limona-btn-sm whitespace-nowrap">Dodaj i przypisz</button>
+              </form>
+            )}
+          </div>
+
+          {investorsLoading ? (
+            <div className="space-y-2">{[...Array(2)].map((_, i) => <Skeleton key={i} className="h-14" />)}</div>
+          ) : investors.length === 0 ? (
+            <div className="text-center py-12">
+              <Users size={32} className="text-limona-text-dim mx-auto mb-3" />
+              <p className="text-limona-text-muted">Brak inwestorów przypisanych do tej nieruchomości</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {investors.map(inv => (
+                <div key={inv.id} className="limona-card p-3 flex items-center gap-3">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-limona-text">{inv.kontakt?.nazwa || '—'}</p>
+                    {inv.kontakt?.telefon && <p className="text-xs text-limona-text-dim">{inv.kontakt.telefon}</p>}
+                  </div>
+                  <select
+                    className="limona-select w-auto text-xs py-1.5"
+                    value={inv.status}
+                    onChange={e => handleInvestorStatus(inv.id, e.target.value as InvestorPropertyStatus)}
+                  >
+                    {INVESTOR_PROPERTY_STATUS_OPTIONS.map(s => (
+                      <option key={s} value={s}>{INVESTOR_PROPERTY_STATUS_LABELS[s]}</option>
+                    ))}
+                  </select>
+                  <button onClick={() => handleRemoveInvestor(inv.id)} className="p-1 text-limona-text-dim hover:text-limona-red transition-colors flex-shrink-0">
+                    <X size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'pietro' && (
+        <div className="limona-card p-4 space-y-4 max-w-md">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="limona-label block mb-2">Piętro</label>
+              <input
+                type="number"
+                className="limona-input"
+                value={pietroForm.pietro}
+                onChange={e => setPietroForm(f => ({ ...f, pietro: e.target.value }))}
+                placeholder="np. 3"
+                min="0"
+                max="99"
+              />
+            </div>
+            <div>
+              <label className="limona-label block mb-2">Z ilu pięter</label>
+              <input
+                type="number"
+                className="limona-input"
+                value={pietroForm.pietro_z_ilu}
+                onChange={e => setPietroForm(f => ({ ...f, pietro_z_ilu: e.target.value }))}
+                placeholder="np. 5"
+                min="0"
+                max="99"
+              />
+            </div>
+          </div>
+          <button onClick={handleSavePietro} disabled={savingPietro} className="limona-btn-sm flex items-center gap-1.5 disabled:opacity-50">
+            <Save size={12} /> {savingPietro ? 'Zapisywanie...' : 'Zapisz'}
+          </button>
+        </div>
+      )}
+
       {activeTab === 'report' && (
         <AgentReport property={property} />
       )}
@@ -754,6 +1077,14 @@ export default function PropertyDetailPage() {
           submitLabel="Zapisz zmiany"
         />
       </Modal>
+
+      <StatusChangeCommentModal
+        isOpen={!!statusChange}
+        onClose={() => setStatusChange(null)}
+        onConfirm={confirmStatusChange}
+        newStatusLabel={statusChange?.label || ''}
+        entityLabel="nieruchomości"
+      />
     </div>
   )
 }

@@ -22,3 +22,8 @@ export function formatPercentRaw(value: number | null | undefined): string {
   if (value == null) return '—'
   return value.toFixed(1) + '%'
 }
+
+export function formatPropertyAddress(p: { adres: string; kod_pocztowy?: string | null; miasto?: string | null }): string {
+  const cityLine = [p.kod_pocztowy, p.miasto].filter(Boolean).join(' ')
+  return [p.adres, cityLine].filter(Boolean).join(', ')
+}

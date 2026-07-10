@@ -54,51 +54,18 @@ export function Calculator1({ input, onChange, showInputs = true }: Calculator1P
               />
               <p className="text-[11px] text-limona-text-dim mt-1">Łączna kwota wszystkich zobowiązań: hipoteki, zaległości, komornik.</p>
             </div>
-            <div>
-              <label className="limona-label block mb-2">Prowizja pośrednika (L) [%]</label>
-              <input
-                type="text"
-                inputMode="decimal"
-                className="limona-input"
-                value={input.commissionPct ? (input.commissionPct * 100).toString() : ''}
-                onChange={e => {
-                  const raw = e.target.value.replace(',', '.')
-                  if (raw === '' || /^\d*\.?\d*$/.test(raw)) {
-                    const v = parseFloat(raw)
-                    onChange('commissionPct', isNaN(v) ? 0 : v / 100)
-                  }
-                }}
-                placeholder="2.46"
-              />
-              <p className="text-[11px] text-limona-text-dim mt-1">Prowizja agencji nieruchomości pośredniczącej przy sprzedaży. Wpisz 0 jeśli bez pośrednika.</p>
-            </div>
-            <div>
-              <label className="limona-label block mb-2">Taksa notarialna (O) [zł]</label>
-              <input
-                type="number"
-                className="limona-input"
-                value={input.notaryFee || ''}
-                onChange={e => handleNum('notaryFee', e.target.value)}
-                placeholder="1000"
-                min="0"
-              />
-              <p className="text-[11px] text-limona-text-dim mt-1">Koszty notarialne przy podpisaniu umowy kupna. Domyślnie 1 000 zł.</p>
-            </div>
             <div className="sm:col-span-2">
-              <label className="limona-label block mb-2">Ręczna oferta (U) [zł] — opcjonalnie</label>
+              <label className="limona-label block mb-2">Suma kosztów dodatkowych [zł]</label>
               <input
                 type="number"
                 className="limona-input"
-                value={input.manualOffer || ''}
-                onChange={e => {
-                  const v = parseFloat(e.target.value)
-                  onChange('manualOffer', isNaN(v) ? null : v)
-                }}
-                placeholder="445000"
+                value={input.additionalCosts || ''}
+                onChange={e => handleNum('additionalCosts', e.target.value)}
+                placeholder="np. 20000"
                 min="0"
-                step="1000"
+                step="100"
               />
-              <p className="text-[11px] text-limona-text-dim mt-1">Wpisz jeśli chcesz obliczyć dla konkretnej kwoty oferty zamiast standardowego M = RW − 30%. Zobaczysz oba warianty.</p>
+              <p className="text-[11px] text-limona-text-dim mt-1">Suma wszystkich kosztów dodatkowych: taksa notarialna, prowizja pośrednika, itd.</p>
             </div>
           </div>
         </div>
@@ -113,36 +80,14 @@ export function Calculator1({ input, onChange, showInputs = true }: Calculator1P
               <CalcResultCard label="RW (J)" value={formatMoney(result.rw)} sublabel="= I × 0.9" variant="neutral" />
               <CalcResultCard label="Oferta −30% (M)" value={formatMoney(result.offerMinus30)} sublabel="= J × 0.7" variant="neutral" />
               <CalcResultCard label="PCC (N)" value={formatMoney(result.pcc)} sublabel="= (M+K) × 2%" variant="neutral" />
-              <CalcResultCard label="Koszty (P)" value={formatMoney(result.costs)} sublabel="= M + prow. + PCC + taksa" variant="neutral" />
+              <CalcResultCard label="Koszty (P)" value={formatMoney(result.costs)} sublabel="= M + PCC + koszty dod." variant="neutral" />
               <CalcResultCard label="Wkład (Q)" value={formatMoney(result.investment)} variant="neutral" />
             </div>
 
             <div className="mt-4">
-              <SummaryDecision profit={result.profit} roi={result.roi} decision={result.decision} label="Decyzja — wariant standardowy" />
+              <SummaryDecision profit={result.profit} roi={result.roi} decision={result.decision} label="Decyzja" />
             </div>
           </div>
-
-          {result.manual && (
-            <div>
-              <h3 className="limona-eyebrow mb-4">Wariant z ręczną ofertą (U = {formatMoney(result.manual.maxOffer)})</h3>
-              <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
-                <CalcResultCard label="Pierwsza oferta (C)" value={formatMoney(result.manual.firstOffer)} sublabel="= U × 0.85" variant="neutral" />
-                <CalcResultCard label="Max oferta (D)" value={formatMoney(result.manual.maxOffer)} variant="neutral" />
-                <CalcResultCard label="PCC (V)" value={formatMoney(result.manual.pcc)} sublabel="= U × 2%" variant="neutral" />
-                <CalcResultCard label="Koszty (X)" value={formatMoney(result.manual.costs)} sublabel="= U + prow. + PCC + taksa" variant="neutral" />
-                <CalcResultCard label="Wkład (Y)" value={formatMoney(result.manual.investment)} variant="neutral" />
-              </div>
-
-              <div className="mt-4">
-                <SummaryDecision
-                  profit={result.manual.profit}
-                  roi={result.manual.roi}
-                  decision={result.manual.decision}
-                  label="Decyzja — ręczna oferta"
-                />
-              </div>
-            </div>
-          )}
         </div>
       ) : (
         <div className="limona-card p-8 text-center">

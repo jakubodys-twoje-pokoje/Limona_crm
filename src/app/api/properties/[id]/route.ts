@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getSessionUser, unauthorized } from '@/lib/api-auth'
 import { geocodeAddress } from '@/lib/geocode'
-import { getStageLabel } from '@/lib/stages'
+import { getStatusDluznikaLabel, getStatusInwestoraLabel } from '@/lib/stages'
 import { formatStatusChangeComment } from '@/lib/status-comments'
 
 const SELECT_WITH_RELATIONS = `*,
@@ -38,21 +38,26 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const { data: existing } = await supabase
     .from('properties')
-    .select('status, deal_type')
+    .select('status_dluznika, status_inwestora')
     .eq('id', id)
     .maybeSingle()
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  // Każda zmiana statusu wymaga komentarza uzasadniającego (dlaczego?)
-  const statusChanging = typeof body.status === 'string' && body.status !== existing.status
+  // Każda zmiana statusu (dłużnika lub inwestora) wymaga komentarza uzasadniającego
+  const dluznikChanging = typeof body.status_dluznika === 'string' && body.status_dluznika !== existing.status_dluznika
+  const inwestorChanging = typeof body.status_inwestora === 'string' && body.status_inwestora !== existing.status_inwestora
+  const statusChanging = dluznikChanging || inwestorChanging
   if (statusChanging && !statusComment?.trim()) {
     return NextResponse.json({ error: 'Zmiana statusu wymaga komentarza — uzasadnij, dlaczego' }, { status: 400 })
   }
 
   // Re-geokodowanie, gdy zmienił się adres
   let coordPatch = {}
-  if (typeof body.location === 'string') {
-    const coords = await geocodeAddress(body.location, null, null)
+  if (typeof body.adres === 'string' || typeof body.miasto === 'string') {
+    const { data: current } = await supabase.from('properties').select('adres, miasto').eq('id', id).maybeSingle()
+    const adres = typeof body.adres === 'string' ? body.adres : current?.adres
+    const miasto = typeof body.miasto === 'string' ? body.miasto : current?.miasto
+    const coords = await geocodeAddress(adres, miasto ?? null, null)
     if (coords) coordPatch = coords
   }
 
@@ -72,11 +77,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   })
 
   if (statusChanging && statusComment) {
-    const dealType = body.deal_type ?? existing.deal_type
+    const label = dluznikChanging ? getStatusDluznikaLabel(body.status_dluznika) : getStatusInwestoraLabel(body.status_inwestora)
     await supabase.from('property_comments').insert({
       property_id: id,
       user_id: user.id,
-      content: formatStatusChangeComment(getStageLabel(body.status, dealType), statusComment),
+      content: formatStatusChangeComment(label, statusComment),
     })
   }
 

@@ -12,12 +12,12 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
 
   const { data: property } = await supabase
     .from('properties')
-    .select('location')
+    .select('adres, miasto')
     .eq('id', id)
     .maybeSingle()
   if (!property) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  const coords = await geocodeAddress(property.location, null, null)
+  const coords = await geocodeAddress(property.adres, property.miasto ?? null, null)
   if (!coords) {
     return NextResponse.json({ error: 'Nie udało się znaleźć adresu' }, { status: 422 })
   }

@@ -17,7 +17,7 @@ import { Skeleton } from '@/components/ui/Skeleton'
 import { TaskDetailModal } from '@/components/tasks/TaskDetailModal'
 import { BoardView, BOARD_COLORS } from '@/components/tasks/BoardView'
 import { TASK_TYPE_LABELS, CONTACT_CATEGORY_LABELS } from '@/lib/reports'
-import { cn } from '@/lib/utils'
+import { cn, formatPropertyAddress } from '@/lib/utils'
 import type { Task, TaskStatus, TaskPriority, TaskType, ContactCategory, Profile } from '@/types/database'
 
 const columns: { status: TaskStatus; label: string; icon: React.ReactNode; color: string }[] = [
@@ -387,7 +387,7 @@ export default function ZadaniaPage() {
                       {task.property ? (
                         <span className="text-xs text-limona-blue flex items-center gap-1">
                           <LinkIcon size={11} />
-                          {task.property.location}
+                          {formatPropertyAddress(task.property)}
                         </span>
                       ) : <span className="text-limona-text-dim">—</span>}
                     </td>
@@ -658,7 +658,7 @@ function TaskCard({ task, isOverdue, onMove, onDelete, onOpen }: {
       {task.property && (
         <div className="flex items-center gap-1 text-[10px] text-limona-blue truncate">
           <LinkIcon size={9} />
-          {task.property.location}
+          {formatPropertyAddress(task.property)}
         </div>
       )}
 

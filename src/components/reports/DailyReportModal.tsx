@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
-import { CheckCircle, Copy, Send, Flame, ThermometerSun, Snowflake, HelpCircle } from 'lucide-react'
+import { CheckCircle, Copy, Send } from 'lucide-react'
 import { Modal } from '@/components/ui/Modal'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { useToast } from '@/components/ui/Toast'
@@ -11,7 +11,6 @@ import {
   buildReportText, OUTCOME_LABELS, REPORT_CATEGORIES, REPORT_CATEGORY_HEADERS,
 } from '@/lib/reports'
 import type { DailyReportData } from '@/lib/reports'
-import type { LeadTemperature } from '@/types/database'
 import { cn } from '@/lib/utils'
 
 interface DailyReportModalProps {
@@ -19,12 +18,6 @@ interface DailyReportModalProps {
   onClose: () => void
   onSubmitted?: () => void
 }
-
-const TEMP_META: { value: LeadTemperature; label: string; icon: React.ReactNode; color: string }[] = [
-  { value: 'goracy', label: 'Gorące', icon: <Flame size={12} />, color: 'text-limona-red' },
-  { value: 'sredni', label: 'Średnie', icon: <ThermometerSun size={12} />, color: 'text-limona-yellow' },
-  { value: 'zimny', label: 'Zimne', icon: <Snowflake size={12} />, color: 'text-limona-blue' },
-]
 
 export function DailyReportModal({ isOpen, onClose, onSubmitted }: DailyReportModalProps) {
   const { showToast } = useToast()
@@ -191,35 +184,12 @@ export function DailyReportModal({ isOpen, onClose, onSubmitted }: DailyReportMo
             {data.newProperties.length === 0 ? (
               <p className="text-sm text-limona-text-dim">Brak nowych nieruchomości tego dnia</p>
             ) : (
-              <div className="space-y-1.5">
-                {TEMP_META.map(temp => {
-                  const items = data.newProperties.filter(p => p.lead_temperature === temp.value)
-                  if (!items.length) return null
-                  return (
-                    <div key={temp.value} className="flex items-baseline gap-2 text-sm flex-wrap">
-                      <span className={cn('flex items-center gap-1 text-xs font-bold uppercase tracking-wider', temp.color)}>
-                        {temp.icon}{temp.label}
-                      </span>
-                      {items.map(p => (
-                        <Link key={p.id} href={`/nieruchomosci/${p.id}`} className="text-limona-blue hover:underline text-xs">
-                          {p.location}
-                        </Link>
-                      ))}
-                    </div>
-                  )
-                })}
-                {data.newProperties.filter(p => !p.lead_temperature).length > 0 && (
-                  <div className="flex items-baseline gap-2 text-sm flex-wrap">
-                    <span className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider text-limona-text-dim">
-                      <HelpCircle size={12} />Bez oceny
-                    </span>
-                    {data.newProperties.filter(p => !p.lead_temperature).map(p => (
-                      <Link key={p.id} href={`/nieruchomosci/${p.id}`} className="text-limona-blue hover:underline text-xs">
-                        {p.location}
-                      </Link>
-                    ))}
-                  </div>
-                )}
+              <div className="flex items-baseline gap-2 text-sm flex-wrap">
+                {data.newProperties.map(p => (
+                  <Link key={p.id} href={`/nieruchomosci/${p.id}`} className="text-limona-blue hover:underline text-xs">
+                    {p.location}
+                  </Link>
+                ))}
               </div>
             )}
           </section>

@@ -6,7 +6,7 @@ import { Search, X, Route, Navigation, Trash2, CheckSquare, Square, MapPin, Chev
 import { useKontakty } from '@/hooks/useKontakty'
 import { useProperties } from '@/hooks/useProperties'
 import { useAuth } from '@/hooks/useAuth'
-import { cn } from '@/lib/utils'
+import { cn, formatPropertyAddress } from '@/lib/utils'
 import type { Kontakt, KontaktTyp } from '@/types/database'
 import { KONTAKT_TYP_LABELS, KONTAKT_TYPY, TOUR_PIN_COLOR } from '@/types/database'
 import { MAP_STATUS_HEX, MAP_STATUS_LABELS } from '@/lib/mapStatus'
@@ -136,7 +136,7 @@ export default function MapaPage() {
     if (!showProperties || tourMode) return []
     if (!search) return properties
     const q = search.toLowerCase()
-    return properties.filter(p => p.location.toLowerCase().includes(q))
+    return properties.filter(p => formatPropertyAddress(p).toLowerCase().includes(q))
   }, [properties, showProperties, tourMode, search])
 
   // Numbered pins for tour items

@@ -2,6 +2,8 @@
 // LIMONA CRM — Calculator Business Logic
 // =============================================
 
+import type { PropertyCost } from '@/types/database'
+
 export interface CreditorWeights {
   largest: number
   middle: number
@@ -14,91 +16,45 @@ export const DEFAULT_WEIGHTS: CreditorWeights = {
   smallest: 0.7,
 }
 
+export function sumCosts(costs: PropertyCost[] | null | undefined): number {
+  if (!costs) return 0
+  return costs.reduce((sum, c) => sum + (Number(c.value) || 0), 0)
+}
+
 // =============================================
 // CALCULATOR 1: Debt below property value
 // =============================================
 
 export interface Calc1Input {
-  valuePerSqm: number        // I - Value per lowest sqm
-  totalDebt: number           // K - Total debt
-  commissionPct: number       // L - Broker commission %  (as decimal, e.g. 0.0246)
-  notaryFee: number           // O - Notary fee (default 1000)
-  manualOffer?: number | null // U - Manual offer (optional)
+  valuePerSqm: number      // I - Value per lowest sqm
+  totalDebt: number         // K - Total debt
+  additionalCosts: number   // suma kosztów dodatkowych (taksa, prowizja, itp. — wpisane ręcznie)
 }
 
 export interface Calc1Result {
   rw: number                  // J = I * 0.9
   offerMinus30: number        // M = J * 0.7
-  pcc: number                 // N = (M + K) * 0.02 — but spec says (M + K) for below_value
-  costs: number               // P = M + (M * L) + N + O
-  investment: number          // Q = P
-  profit: number              // R = J - Q
-  roi: number                 // S = R / Q
-  decision: 'OK' | 'NIE'     // T
-  // Manual offer variant
-  manual?: {
-    firstOffer: number        // C = D * 0.85
-    maxOffer: number          // D = U
-    pcc: number               // V = U * 0.02
-    notaryFee: number         // W = 1000
-    costs: number             // X = U + (U * L) + V + W
-    investment: number        // Y = X
-    profit: number            // Z = J - Y
-    roi: number               // AA = Z / Y
-    decision: 'OK' | 'NIE'   // AB
-  }
+  pcc: number                 // N = (M + K) * 0.02
+  costs: number                // P = M + N + additionalCosts
+  investment: number           // Q = P
+  profit: number                // R = J - Q
+  roi: number                    // S = R / Q
+  decision: 'OK' | 'NIE'        // T
 }
 
 export function calculateBelow(input: Calc1Input): Calc1Result {
-  const { valuePerSqm, totalDebt, commissionPct, notaryFee, manualOffer } = input
+  const { valuePerSqm, totalDebt, additionalCosts } = input
 
-  // Core calculations
-  const rw = valuePerSqm * 0.9                           // J
-  const offerMinus30 = rw * 0.7                           // M
-  const pcc = (offerMinus30 + totalDebt) * 0.02           // N
-  const costs = offerMinus30 + (offerMinus30 * commissionPct) + pcc + notaryFee  // P
-  const investment = costs                                 // Q
-  const profit = rw - investment                           // R
-  const roi = investment > 0 ? profit / investment : 0     // S
+  const rw = valuePerSqm * 0.9                              // J
+  const offerMinus30 = rw * 0.7                              // M
+  const pcc = (offerMinus30 + totalDebt) * 0.02              // N
+  const costs = offerMinus30 + pcc + additionalCosts          // P
+  const investment = costs                                    // Q
+  const profit = rw - investment                              // R
+  const roi = investment > 0 ? profit / investment : 0        // S
   const decision: 'OK' | 'NIE' = (profit >= 120000 || roi >= 0.36) ? 'OK' : 'NIE'  // T
 
-  const result: Calc1Result = {
-    rw,
-    offerMinus30,
-    pcc,
-    costs,
-    investment,
-    profit,
-    roi,
-    decision,
-  }
-
-  // Manual offer variant
-  if (manualOffer != null && manualOffer > 0) {
-    const maxOffer = manualOffer                            // D
-    const firstOffer = maxOffer * 0.85                      // C
-    const pcc2 = manualOffer * 0.02                         // V
-    const notaryFee2 = 1000                                 // W
-    const costs2 = manualOffer + (manualOffer * commissionPct) + pcc2 + notaryFee2  // X
-    const investment2 = costs2                              // Y
-    const profit2 = rw - investment2                        // Z
-    const roi2 = investment2 > 0 ? profit2 / investment2 : 0  // AA
-    const decision2: 'OK' | 'NIE' = (profit2 >= 120000 || roi2 >= 0.36) ? 'OK' : 'NIE'  // AB
-
-    result.manual = {
-      firstOffer,
-      maxOffer,
-      pcc: pcc2,
-      notaryFee: notaryFee2,
-      costs: costs2,
-      investment: investment2,
-      profit: profit2,
-      roi: roi2,
-      decision: decision2,
-    }
-  }
-
-  return result
+  return { rw, offerMinus30, pcc, costs, investment, profit, roi, decision }
 }
 
 // =============================================
@@ -112,9 +68,7 @@ export interface Calc2Input {
   creditor2: number           // M
   creditor3: number           // N
   ownerCoefficient: number    // R (default 0.025)
-  commissionPct: number       // W (as decimal)
-  notaryFee: number           // Z (default 1000)
-  manualOffer?: number | null // AF
+  additionalCosts: number     // suma kosztów dodatkowych
   weights?: CreditorWeights   // Configurable weights
 }
 
@@ -143,21 +97,6 @@ export interface Calc2Result {
   profit: number                      // AC
   roi: number                         // AD
   decision: 'OK' | 'NIE'             // AE
-  // Manual offer variant
-  manual?: {
-    maxOffer: number                  // AF
-    ownerOffer: number                // AJ
-    creditor1Offer: number            // AG
-    creditor2Offer: number            // AH
-    creditor3Offer: number            // AI
-    creditorBreakdown: CreditorBreakdown[]
-    pcc: number                       // AK
-    costs: number                     // AM
-    investment: number                // AN
-    profit: number                    // AO
-    roi: number                       // AP
-    decision: 'OK' | 'NIE'           // AQ
-  }
 }
 
 function computeWeightedSplit(
@@ -230,9 +169,7 @@ export function calculateAbove(input: Calc2Input): Calc2Result {
     creditor2,
     creditor3,
     ownerCoefficient,
-    commissionPct,
-    notaryFee,
-    manualOffer,
+    additionalCosts,
     weights = DEFAULT_WEIGHTS,
   } = input
 
@@ -254,13 +191,13 @@ export function calculateAbove(input: Calc2Input): Calc2Result {
   const creditor3Offer = creditorBreakdown[2].offerAmount   // U
 
   const pcc = offerMinus30 * 0.02                           // Y
-  const costs = offerMinus30 + (offerMinus30 * commissionPct) + pcc + notaryFee  // AA
+  const costs = offerMinus30 + pcc + additionalCosts         // AA
   const investment = costs                                   // AB
   const profit = rw - investment                             // AC
   const roi = investment > 0 ? profit / investment : 0       // AD
   const decision: 'OK' | 'NIE' = (profit >= 120000 || roi >= 0.36) ? 'OK' : 'NIE'  // AE
 
-  const result: Calc2Result = {
+  return {
     rw,
     creditor1Share,
     creditor2Share,
@@ -278,37 +215,4 @@ export function calculateAbove(input: Calc2Input): Calc2Result {
     roi,
     decision,
   }
-
-  // Manual offer variant
-  if (manualOffer != null && manualOffer > 0) {
-    const maxOffer = manualOffer                             // AF
-    const ownerOfferManual = maxOffer * ownerCoefficient     // AJ
-    const manualPool = maxOffer - ownerOfferManual
-
-    const manualBreakdown = computeWeightedSplit(amounts, totalDebt, manualPool, weights)
-
-    const pccManual = maxOffer * 0.02                        // AK
-    const costsManual = maxOffer + (maxOffer * commissionPct) + pccManual + notaryFee  // AM
-    const investmentManual = costsManual                     // AN
-    const profitManual = rw - investmentManual               // AO
-    const roiManual = investmentManual > 0 ? profitManual / investmentManual : 0  // AP
-    const decisionManual: 'OK' | 'NIE' = (profitManual >= 120000 || roiManual >= 0.36) ? 'OK' : 'NIE'
-
-    result.manual = {
-      maxOffer,
-      ownerOffer: ownerOfferManual,
-      creditor1Offer: manualBreakdown[0].offerAmount,        // AG
-      creditor2Offer: manualBreakdown[1].offerAmount,        // AH
-      creditor3Offer: manualBreakdown[2].offerAmount,        // AI
-      creditorBreakdown: manualBreakdown,
-      pcc: pccManual,
-      costs: costsManual,
-      investment: investmentManual,
-      profit: profitManual,
-      roi: roiManual,
-      decision: decisionManual,
-    }
-  }
-
-  return result
 }

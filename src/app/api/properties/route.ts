@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json()
 
   // Auto-geokodowanie przy tworzeniu (nieblokujące — brak współrzędnych to null)
-  const coords = await geocodeAddress(body.location, null, null)
+  const coords = await geocodeAddress(body.adres, body.miasto ?? null, null)
 
   const { data: property, error } = await supabase
     .from('properties')
@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
     property_id: property.id,
     user_id: user.id,
     action: 'created',
-    details: { location: property.location },
+    details: { adres: property.adres, miasto: property.miasto },
   })
 
   return NextResponse.json(property, { status: 201 })

@@ -16,7 +16,7 @@ import {
 } from '@/lib/reports'
 import { TASK_STATUS_LABELS } from '@/lib/status-comments'
 import { StatusChangeCommentModal } from '@/components/shared/StatusChangeCommentModal'
-import { cn } from '@/lib/utils'
+import { cn, formatPropertyAddress } from '@/lib/utils'
 import type {
   Task, TaskStatus, TaskPriority, Profile,
   TaskType, ContactCategory, TaskOutcome, RejectionReason,
@@ -317,7 +317,7 @@ export function TaskDetailModal({
               <a href={`/nieruchomosci/${task.property_id}`}
                 className="flex items-center gap-1 text-xs text-limona-blue hover:text-limona-blue/80 mt-1">
                 <LinkIcon size={10} />
-                {task.property.location}
+                {formatPropertyAddress(task.property)}
               </a>
             )}
           </div>

@@ -15,35 +15,32 @@ import { useNotifications } from '@/hooks/useNotifications'
 import { Avatar } from '@/components/ui/Avatar'
 import { Badge } from '@/components/ui/Badge'
 import { Skeleton } from '@/components/ui/Skeleton'
-import { calculateBelow, calculateAbove } from '@/lib/calculator'
-import { formatMoney, formatPercent, cn } from '@/lib/utils'
-import type { Property, PropertyStatus } from '@/types/database'
+import { calculateBelow, calculateAbove, sumCosts } from '@/lib/calculator'
+import { formatMoney, formatPercent, formatPropertyAddress, cn } from '@/lib/utils'
+import { STATUS_DLUZNIKA_OPTIONS, STATUS_DLUZNIKA_LABELS } from '@/lib/stages'
+import type { Property, StatusDluznika } from '@/types/database'
 
 function calcProfit(p: Property): number | null {
   if (!p.value_per_sqm) return null
   try {
+    const additionalCosts = sumCosts(p.koszty_dodatkowe)
     if (p.debt_type === 'above_value') {
       return calculateAbove({
         valuePerSqm: p.value_per_sqm, totalDebt: p.total_debt || 0,
         creditor1: p.creditor1_amount || 0, creditor2: p.creditor2_amount || 0, creditor3: p.creditor3_amount || 0,
-        ownerCoefficient: p.owner_coefficient || 0.025, commissionPct: (p.commission_pct || 0) / 100,
-        notaryFee: p.notary_fee || 1000,
+        ownerCoefficient: p.owner_coefficient || 0.025, additionalCosts,
       }).profit
     } else {
       return calculateBelow({
-        valuePerSqm: p.value_per_sqm, totalDebt: p.total_debt || 0,
-        commissionPct: (p.commission_pct || 0) / 100, notaryFee: p.notary_fee || 1000,
+        valuePerSqm: p.value_per_sqm, totalDebt: p.total_debt || 0, additionalCosts,
       }).profit
     }
   } catch { return null }
 }
 
-const statusPipeline: PropertyStatus[] = ['new', 'analysis', 'offer_sent', 'negotiation', 'contract', 'legal_cleanup', 'sale', 'completed']
+const statusPipeline: StatusDluznika[] = STATUS_DLUZNIKA_OPTIONS
 
-const statusLabels: Record<string, string> = {
-  new: 'Nowa', analysis: 'Analiza', offer_sent: 'Oferta', negotiation: 'Negocjacja',
-  contract: 'Umowa', legal_cleanup: 'Regulacja', sale: 'Sprzedaż', completed: 'Zakończona', rejected: 'Odrzucona',
-}
+const statusLabels: Record<string, string> = STATUS_DLUZNIKA_LABELS
 
 export default function DashboardPage() {
   const { user, profile } = useAuth()
@@ -58,7 +55,7 @@ export default function DashboardPage() {
   const recentWall = wallMessages.slice(0, 6)
 
   const stats = useMemo(() => {
-    const active = properties.filter(p => p.status !== 'rejected')
+    const active = properties.filter(p => p.status_dluznika !== 'sprzedaz')
     const okProps = properties.filter(p => {
       const profit = calcProfit(p)
       return profit != null && profit >= 120000
@@ -70,18 +67,17 @@ export default function DashboardPage() {
       // Simple average: calc each and mean
       return withRoi.reduce((sum, p) => {
         try {
+          const additionalCosts = sumCosts(p.koszty_dodatkowe)
           if (p.debt_type === 'above_value') {
             const r = calculateAbove({
               valuePerSqm: p.value_per_sqm!, totalDebt: p.total_debt || 0,
               creditor1: p.creditor1_amount || 0, creditor2: p.creditor2_amount || 0, creditor3: p.creditor3_amount || 0,
-              ownerCoefficient: p.owner_coefficient || 0.025, commissionPct: (p.commission_pct || 0) / 100,
-              notaryFee: p.notary_fee || 1000,
+              ownerCoefficient: p.owner_coefficient || 0.025, additionalCosts,
             })
             return sum + r.roi
           } else {
             const r = calculateBelow({
-              valuePerSqm: p.value_per_sqm!, totalDebt: p.total_debt || 0,
-              commissionPct: (p.commission_pct || 0) / 100, notaryFee: p.notary_fee || 1000,
+              valuePerSqm: p.value_per_sqm!, totalDebt: p.total_debt || 0, additionalCosts,
             })
             return sum + r.roi
           }
@@ -122,13 +118,13 @@ export default function DashboardPage() {
     converted: leads.filter(l => l.status === 'converted').length,
   }
 
-  const ownProps = properties.filter(p => p.deal_type !== 'savedeal').slice(0, 4)
-  const saveDeals = properties.filter(p => p.deal_type === 'savedeal').slice(0, 4)
+  const belowValue = properties.filter(p => p.deal_type === 'zadluzony_ponizej').slice(0, 4)
+  const aboveValue = properties.filter(p => p.deal_type === 'zadluzony_powyzej').slice(0, 4)
   const recentLeads = leads.slice(0, 5)
 
   const pipelineStats = statusPipeline.map(s => ({
     status: s,
-    count: properties.filter(p => p.status === s).length,
+    count: properties.filter(p => p.status_dluznika === s).length,
   }))
 
   return (
@@ -221,7 +217,7 @@ export default function DashboardPage() {
         <h2 className="limona-heading text-lg mb-4">Pipeline statusów</h2>
         <div className="grid grid-cols-4 lg:grid-cols-8 gap-2">
           {pipelineStats.map(({ status, count }) => (
-            <Link key={status} href={`/nieruchomosci?status=${status}`}
+            <Link key={status} href={`/nieruchomosci?status_dluznika=${status}`}
               className="text-center group">
               <div className={cn(
                 'limona-card p-3 mb-2 group-hover:border-limona-lime transition-colors',
@@ -238,12 +234,12 @@ export default function DashboardPage() {
       {/* Property split + tasks/communication grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
-        {/* Własne nabycie properties */}
+        {/* Zadłużone poniżej wartości */}
         <div className="limona-card p-4 lg:p-6">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h2 className="limona-heading text-lg">Własne nabycie</h2>
-              <p className="text-[10px] text-limona-text-dim uppercase tracking-wider">zadłużone poniżej / powyżej wartości</p>
+              <h2 className="limona-heading text-lg">Poniżej wartości</h2>
+              <p className="text-[10px] text-limona-text-dim uppercase tracking-wider">zadłużone poniżej wartości</p>
             </div>
             <Link href="/nieruchomosci" className="text-xs text-limona-lime hover:text-limona-lime-hover transition-colors uppercase tracking-wider">
               Wszystkie
@@ -251,7 +247,7 @@ export default function DashboardPage() {
           </div>
           {propsLoading ? (
             <div className="space-y-3">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-14" />)}</div>
-          ) : ownProps.length === 0 ? (
+          ) : belowValue.length === 0 ? (
             <div className="text-center py-8">
               <p className="text-limona-text-muted mb-4">Brak nieruchomości</p>
               <Link href="/nieruchomosci" className="limona-btn-sm inline-flex items-center gap-2">
@@ -260,7 +256,7 @@ export default function DashboardPage() {
             </div>
           ) : (
             <div className="space-y-2">
-              {ownProps.map(p => {
+              {belowValue.map(p => {
                 const profit = calcProfit(p)
                 const isOK = profit != null && profit >= 120000
                 return (
@@ -269,9 +265,9 @@ export default function DashboardPage() {
                     <div className={cn('w-1.5 h-8 rounded-full flex-shrink-0', isOK ? 'bg-limona-green' : 'bg-limona-border')} />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-limona-white truncate group-hover:text-limona-lime transition-colors">
-                        {p.location}
+                        {formatPropertyAddress(p)}
                       </p>
-                      <p className="text-xs text-limona-text-dim">{statusLabels[p.status] || p.status}</p>
+                      <p className="text-xs text-limona-text-dim">{statusLabels[p.status_dluznika] || p.status_dluznika}</p>
                     </div>
                     <p className={cn('text-xs font-mono font-bold flex-shrink-0', isOK ? 'text-limona-green' : 'text-limona-text-muted')}>
                       {formatMoney(profit)}
@@ -283,26 +279,26 @@ export default function DashboardPage() {
           )}
         </div>
 
-        {/* SaveDeal properties */}
+        {/* Zadłużone powyżej wartości */}
         <div className="limona-card p-4 lg:p-6">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h2 className="limona-heading text-lg">SaveDeal</h2>
-              <p className="text-[10px] text-limona-text-dim uppercase tracking-wider">pośrednictwo sprzedaży</p>
+              <h2 className="limona-heading text-lg">Powyżej wartości</h2>
+              <p className="text-[10px] text-limona-text-dim uppercase tracking-wider">zadłużone powyżej wartości</p>
             </div>
-            <Link href="/nieruchomosci?deal_type=savedeal" className="text-xs text-limona-lime hover:text-limona-lime-hover transition-colors uppercase tracking-wider">
+            <Link href="/nieruchomosci" className="text-xs text-limona-lime hover:text-limona-lime-hover transition-colors uppercase tracking-wider">
               Wszystkie
             </Link>
           </div>
           {propsLoading ? (
             <div className="space-y-3">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-14" />)}</div>
-          ) : saveDeals.length === 0 ? (
+          ) : aboveValue.length === 0 ? (
             <div className="text-center py-8">
-              <p className="text-limona-text-muted">Brak SaveDeal</p>
+              <p className="text-limona-text-muted">Brak nieruchomości</p>
             </div>
           ) : (
             <div className="space-y-2">
-              {saveDeals.map(p => {
+              {aboveValue.map(p => {
                 const profit = calcProfit(p)
                 const isOK = profit != null && profit >= 0
                 return (
@@ -311,9 +307,9 @@ export default function DashboardPage() {
                     <div className="w-1.5 h-8 rounded-full bg-limona-lime/40 flex-shrink-0" />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-limona-white truncate group-hover:text-limona-lime transition-colors">
-                        {p.location}
+                        {formatPropertyAddress(p)}
                       </p>
-                      <p className="text-xs text-limona-text-dim">{statusLabels[p.status] || p.status}</p>
+                      <p className="text-xs text-limona-text-dim">{statusLabels[p.status_dluznika] || p.status_dluznika}</p>
                     </div>
                     <p className={cn('text-xs font-mono font-bold flex-shrink-0', isOK ? 'text-limona-lime' : 'text-limona-text-muted')}>
                       {formatMoney(profit)}
@@ -352,7 +348,7 @@ export default function DashboardPage() {
                         <Clock size={16} className="text-limona-lime flex-shrink-0" />
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-limona-white truncate">{task.title}</p>
-                          {task.property && <p className="text-xs text-limona-text-dim truncate">{task.property.location}</p>}
+                          {task.property && <p className="text-xs text-limona-text-dim truncate">{formatPropertyAddress(task.property)}</p>}
                         </div>
                         <Badge value={task.priority} />
                       </Link>

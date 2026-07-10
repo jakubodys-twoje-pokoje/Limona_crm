@@ -3,10 +3,17 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getSessionUser, unauthorized, forbidden } from '@/lib/api-auth'
 import { warsawDayRange, warsawToday, shiftDate } from '@/lib/reports'
-import type { CategoryCounters, DailyReportData, ReportTask } from '@/lib/reports'
+import type { CategoryCounters, DailyReportData, ReportTask, ReportProperty } from '@/lib/reports'
+import { formatPropertyAddress } from '@/lib/utils'
 import type { ContactCategory, TaskOutcome } from '@/types/database'
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
+
+interface RawPropertyRef { id: string; adres: string; kod_pocztowy: string | null; miasto: string | null }
+
+function withLocation<T extends { property: RawPropertyRef | null }>(row: T): Omit<T, 'property'> & { property: { id: string; location: string } | null } {
+  return { ...row, property: row.property ? { id: row.property.id, location: formatPropertyAddress(row.property) } : null }
+}
 
 export async function GET(req: NextRequest) {
   const user = await getSessionUser()
@@ -48,7 +55,7 @@ export async function GET(req: NextRequest) {
   const [doneRes, newPropsRes, planRes, noteRes] = await Promise.all([
     supabase
       .from('tasks')
-      .select('id, title, task_type, contact_category, outcome, rejection_reason, property:properties!tasks_property_id_fkey(id,location)')
+      .select('id, title, task_type, contact_category, outcome, rejection_reason, property:properties!tasks_property_id_fkey(id,adres,kod_pocztowy,miasto)')
       .eq('status', 'done')
       .gte('completed_at', start)
       .lt('completed_at', end)
@@ -56,14 +63,14 @@ export async function GET(req: NextRequest) {
       .order('completed_at', { ascending: true }),
     supabase
       .from('properties')
-      .select('id, location, lead_temperature')
+      .select('id, adres, kod_pocztowy, miasto')
       .gte('created_at', start)
       .lt('created_at', end)
       .or(`assigned_to.eq.${userId},created_by.eq.${userId}`)
       .order('created_at', { ascending: true }),
     supabase
       .from('tasks')
-      .select('id, title, property:properties!tasks_property_id_fkey(id,location)')
+      .select('id, title, property:properties!tasks_property_id_fkey(id,adres,kod_pocztowy,miasto)')
       .eq('due_date', tomorrow)
       .neq('status', 'done')
       .or(mine)
@@ -79,7 +86,7 @@ export async function GET(req: NextRequest) {
   const firstError = doneRes.error || newPropsRes.error || planRes.error || noteRes.error
   if (firstError) return NextResponse.json({ error: firstError.message }, { status: 500 })
 
-  const doneTasks = (doneRes.data ?? []) as unknown as ReportTask[]
+  const doneTasks = ((doneRes.data ?? []) as unknown as { property: RawPropertyRef | null; [k: string]: unknown }[]).map(withLocation) as unknown as ReportTask[]
 
   // Liczniki kategoria kontaktu × wynik (tylko zadania kontaktowe)
   const categories: Partial<Record<ContactCategory, CategoryCounters>> = {}
@@ -92,14 +99,17 @@ export async function GET(req: NextRequest) {
     if (t.outcome) c[t.outcome as TaskOutcome]++
   }
 
+  const newProperties: ReportProperty[] = ((newPropsRes.data ?? []) as unknown as RawPropertyRef[])
+    .map(p => ({ id: p.id, location: formatPropertyAddress(p) }))
+
   const data: DailyReportData = {
     date,
     userId,
     userName,
     doneTasks,
     categories,
-    newProperties: newPropsRes.data ?? [],
-    planTomorrow: (planRes.data ?? []) as unknown as DailyReportData['planTomorrow'],
+    newProperties,
+    planTomorrow: ((planRes.data ?? []) as unknown as { property: RawPropertyRef | null; [k: string]: unknown }[]).map(withLocation) as unknown as DailyReportData['planTomorrow'],
     note: {
       content: noteRes.data?.content ?? '',
       submitted_at: noteRes.data?.submitted_at ?? null,

@@ -15,9 +15,7 @@ import type { Property } from '@/types/database'
 const DEFAULT_CALC1: Calc1Input = {
   valuePerSqm: 0,
   totalDebt: 0,
-  commissionPct: 0,
-  notaryFee: 1000,
-  manualOffer: null,
+  additionalCosts: 0,
 }
 
 const DEFAULT_CALC2: Calc2Input = {
@@ -27,9 +25,7 @@ const DEFAULT_CALC2: Calc2Input = {
   creditor2: 0,
   creditor3: 0,
   ownerCoefficient: 0.025,
-  commissionPct: 0,
-  notaryFee: 1000,
-  manualOffer: null,
+  additionalCosts: 0,
 }
 
 export default function KalkulatorPage() {
@@ -57,28 +53,24 @@ export default function KalkulatorPage() {
 
     const data: Partial<Property> = mode === 'below'
       ? {
-          location: 'Nowa nieruchomość (z kalkulatora)',
+          adres: 'Nowa nieruchomość (z kalkulatora)',
           value_per_sqm: calc1Input.valuePerSqm,
           total_debt: calc1Input.totalDebt,
           debt_type: 'below_value',
-          commission_pct: calc1Input.commissionPct * 100,
-          notary_fee: calc1Input.notaryFee,
-          manual_offer: calc1Input.manualOffer,
-          status: 'new',
+          deal_type: 'zadluzony_ponizej',
+          koszty_dodatkowe: calc1Input.additionalCosts ? [{ label: 'Koszty dodatkowe', value: calc1Input.additionalCosts }] : [],
         }
       : {
-          location: 'Nowa nieruchomość (z kalkulatora)',
+          adres: 'Nowa nieruchomość (z kalkulatora)',
           value_per_sqm: calc2Input.valuePerSqm,
           total_debt: calc2Input.totalDebt,
           debt_type: 'above_value',
+          deal_type: 'zadluzony_powyzej',
           creditor1_amount: calc2Input.creditor1,
           creditor2_amount: calc2Input.creditor2,
           creditor3_amount: calc2Input.creditor3,
           owner_coefficient: calc2Input.ownerCoefficient,
-          commission_pct: calc2Input.commissionPct * 100,
-          notary_fee: calc2Input.notaryFee,
-          manual_offer: calc2Input.manualOffer,
-          status: 'new',
+          koszty_dodatkowe: calc2Input.additionalCosts ? [{ label: 'Koszty dodatkowe', value: calc2Input.additionalCosts }] : [],
         }
 
     const { data: newProp, error } = await createProperty(data, user.id)

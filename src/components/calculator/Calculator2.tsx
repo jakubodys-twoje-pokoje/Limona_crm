@@ -41,24 +41,10 @@ export function Calculator2({ input, onChange, showInputs = true }: Calculator2P
                 <input type="number" className="limona-input" value={input.totalDebt || ''} onChange={e => handleNum('totalDebt', e.target.value)} placeholder="790000" min="0" step="1000" />
                 <p className="text-[11px] text-limona-text-dim mt-1">Suma wszystkich wierzytelności. Przy powyżej wartości K &gt; I.</p>
               </div>
-              <div>
-                <label className="limona-label block mb-2">Prowizja pośrednika (W) [%]</label>
-                <input type="text" inputMode="decimal" className="limona-input"
-                  value={input.commissionPct ? (input.commissionPct * 100).toString() : ''}
-                  onChange={e => {
-                    const raw = e.target.value.replace(',', '.')
-                    if (raw === '' || /^\d*\.?\d*$/.test(raw)) {
-                      const v = parseFloat(raw); onChange('commissionPct', isNaN(v) ? 0 : v / 100)
-                    }
-                  }}
-                  placeholder="2.46"
-                />
-                <p className="text-[11px] text-limona-text-dim mt-1">Prowizja agencji przy sprzedaży. Wpisz 0 jeśli bez pośrednika.</p>
-              </div>
-              <div>
-                <label className="limona-label block mb-2">Taksa notarialna (Z) [zł]</label>
-                <input type="number" className="limona-input" value={input.notaryFee || ''} onChange={e => handleNum('notaryFee', e.target.value)} placeholder="1000" min="0" />
-                <p className="text-[11px] text-limona-text-dim mt-1">Koszty notarialne przy umowie kupna. Domyślnie 1 000 zł.</p>
+              <div className="sm:col-span-2">
+                <label className="limona-label block mb-2">Suma kosztów dodatkowych [zł]</label>
+                <input type="number" className="limona-input" value={input.additionalCosts || ''} onChange={e => handleNum('additionalCosts', e.target.value)} placeholder="np. 20000" min="0" step="100" />
+                <p className="text-[11px] text-limona-text-dim mt-1">Suma wszystkich kosztów dodatkowych: taksa notarialna, prowizja pośrednika, itd.</p>
               </div>
             </div>
           </div>
@@ -98,15 +84,6 @@ export function Calculator2({ input, onChange, showInputs = true }: Calculator2P
                   placeholder="2.5"
                 />
                 <p className="text-[11px] text-limona-text-dim mt-1">Jaki % ceny skupu idzie do właściciela. Wpisz np. 2.5 (= 2.5% = 0.025). Domyślnie 2.5%.</p>
-              </div>
-              <div className="sm:col-span-2">
-                <label className="limona-label block mb-2">Ręczna oferta max (AF) [zł] — opcjonalnie</label>
-                <input type="number" className="limona-input"
-                  value={input.manualOffer || ''}
-                  onChange={e => { const v = parseFloat(e.target.value); onChange('manualOffer', isNaN(v) ? null : v) }}
-                  placeholder="500000" min="0" step="1000"
-                />
-                <p className="text-[11px] text-limona-text-dim mt-1">Wpisz jeśli uzgodniłeś konkretną maksymalną kwotę z wierzycielami. Zobaczysz oba warianty.</p>
               </div>
             </div>
           </div>
@@ -160,7 +137,7 @@ export function Calculator2({ input, onChange, showInputs = true }: Calculator2P
               <CalcResultCard label="Pula oferty (X)" value={formatMoney(result.offerMinus30)} sublabel="= J × 0.7" variant="neutral" />
               <CalcResultCard label="Oferta właściciela (V)" value={formatMoney(result.ownerOffer)} sublabel={`= X × ${((input.ownerCoefficient || 0.025) * 100).toFixed(1)}%`} variant="neutral" />
               <CalcResultCard label="PCC (Y)" value={formatMoney(result.pcc)} sublabel="= X × 2%" variant="neutral" />
-              <CalcResultCard label="Koszty (AA)" value={formatMoney(result.costs)} sublabel="= X + prow. + PCC + taksa" variant="neutral" />
+              <CalcResultCard label="Koszty (AA)" value={formatMoney(result.costs)} sublabel="= X + PCC + koszty dod." variant="neutral" />
               <CalcResultCard label="Wkład (AB)" value={formatMoney(result.investment)} variant="neutral" />
             </div>
 
@@ -201,33 +178,9 @@ export function Calculator2({ input, onChange, showInputs = true }: Calculator2P
             )}
 
             <div className="mt-4">
-              <SummaryDecision profit={result.profit} roi={result.roi} decision={result.decision} label="Decyzja — wariant standardowy" />
+              <SummaryDecision profit={result.profit} roi={result.roi} decision={result.decision} label="Decyzja" />
             </div>
           </div>
-
-          {/* Manual offer variant */}
-          {result.manual && (
-            <div>
-              <h3 className="limona-eyebrow mb-4">Wariant z ręczną ofertą max (AF = {formatMoney(result.manual.maxOffer)})</h3>
-              <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
-                <CalcResultCard label="Oferta właściciela (AJ)" value={formatMoney(result.manual.ownerOffer)} sublabel={`= AF × ${((input.ownerCoefficient || 0.025) * 100).toFixed(1)}%`} variant="neutral" />
-                <CalcResultCard label="Wierzyciel 1 (AG)" value={formatMoney(result.manual.creditor1Offer)} variant="neutral" />
-                <CalcResultCard label="Wierzyciel 2 (AH)" value={formatMoney(result.manual.creditor2Offer)} variant="neutral" />
-                <CalcResultCard label="Wierzyciel 3 (AI)" value={formatMoney(result.manual.creditor3Offer)} variant="neutral" />
-                <CalcResultCard label="PCC (AK)" value={formatMoney(result.manual.pcc)} variant="neutral" />
-                <CalcResultCard label="Koszty (AM)" value={formatMoney(result.manual.costs)} variant="neutral" />
-              </div>
-
-              <div className="mt-4">
-                <SummaryDecision
-                  profit={result.manual.profit}
-                  roi={result.manual.roi}
-                  decision={result.manual.decision}
-                  label="Decyzja — ręczna oferta max"
-                />
-              </div>
-            </div>
-          )}
         </div>
       ) : (
         <div className="limona-card p-8 text-center">

@@ -1,4 +1,4 @@
-import type { Kontakt, KontaktTyp, Property, PropertyStatus, PropertyType } from '@/types/database'
+import type { Kontakt, KontaktTyp, Property, PropertyType } from '@/types/database'
 
 export type MapStatusColor = 'green' | 'yellow' | 'red'
 
@@ -15,14 +15,10 @@ export const MAP_STATUS_LABELS: Record<MapStatusColor, string> = {
   red: 'Odrzucone / niezainteresowani',
 }
 
-const PROPERTY_STATUS_GREEN = new Set<PropertyStatus>([
-  'sale', 'completed', 'sprzedaz', 'zakonczona', 'wynajem', 'akt_nabycia',
-])
-const PROPERTY_STATUS_RED = new Set<PropertyStatus>(['rejected'])
+type PropertyStatusFlags = Pick<Property, 'status_dluznika' | 'status_inwestora'>
 
-export function getPropertyMapStatus(status: PropertyStatus): MapStatusColor {
-  if (PROPERTY_STATUS_RED.has(status)) return 'red'
-  if (PROPERTY_STATUS_GREEN.has(status)) return 'green'
+export function getPropertyMapStatus(p: PropertyStatusFlags): MapStatusColor {
+  if (p.status_dluznika === 'sprzedaz' || p.status_inwestora === 'zakup') return 'green'
   return 'yellow'
 }
 
@@ -34,8 +30,8 @@ export function getKontaktMapStatus(k: KontaktStatusFlags): MapStatusColor {
   return 'yellow'
 }
 
-export function getPropertyMapStatusColor(p: Pick<Property, 'status'>): string {
-  return MAP_STATUS_HEX[getPropertyMapStatus(p.status)]
+export function getPropertyMapStatusColor(p: PropertyStatusFlags): string {
+  return MAP_STATUS_HEX[getPropertyMapStatus(p)]
 }
 
 export function getKontaktMapStatusColor(k: KontaktStatusFlags): string {
@@ -55,6 +51,7 @@ export const KONTAKT_TYP_SHORT: Record<KontaktTyp, string> = {
   rzeczoznawca: 'RZ',
   komornik: 'KM',
   fundusz: 'FN',
+  inwestor: 'IN',
 }
 
 export const PROPERTY_TYPE_SHORT: Record<PropertyType, string> = {

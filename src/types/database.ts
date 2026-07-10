@@ -1,25 +1,20 @@
-export type PropertyStatus =
-  // Legacy values (backwards compat)
-  | 'new' | 'analysis' | 'offer_sent' | 'negotiation' | 'contract'
-  | 'legal_cleanup' | 'sale' | 'completed' | 'rejected'
-  // Zadłużona poniżej wartości
-  | 'nowa' | 'analiza' | 'oferta'
-  | 'umowa_przedwstepna_kupna' | 'negocjacje_wierzyciele'
-  | 'umowa_kupna' | 'zaplata_ceny' | 'odebranie_posiadania'
-  | 'odswiezenie' | 'reklama_sprzedazy' | 'pokazywanie'
-  | 'umowa_przedwstepna_sprzedazy' | 'sprzedaz'
-  // Zadłużona powyżej wartości (extra stages)
-  | 'akt_nabycia' | 'wynajem'
-  // SaveDeal (extra stages)
-  | 'umowa_savedeal' | 'wycena'
-  // Terminal
-  | 'zakonczona'
+// Status dłużnika — niezależny tor statusu strony sprzedającej/zadłużonej
+export type StatusDluznika = 'brak' | 'analiza' | 'umowa' | 'dokumenty' | 'oferta_od_inwestora' | 'sprzedaz'
 
-export type DealType = 'zadluzony_ponizej' | 'zadluzony_powyzej' | 'savedeal'
+// Status inwestora — niezależny tor statusu strony kupującej/inwestora
+export type StatusInwestora = 'brak' | 'oferta_zakupu' | 'aneks_akceptacja' | 'oferta_dla_klienta' | 'zakup'
 
-export type ContactType = 'posrednik' | 'prywatne'
+// Status danego inwestora (kontaktu) względem KONKRETNEJ nieruchomości
+export type InvestorPropertyStatus = 'zainteresowany' | 'nie_zainteresowany' | 'problematyczny' | 'sukces'
+
+export type DealType = 'zadluzony_ponizej' | 'zadluzony_powyzej'
 
 export type PropertyType = 'mieszkanie' | 'dom' | 'grunt' | 'hala' | 'inne'
+
+export interface PropertyCost {
+  label: string
+  value: number
+}
 
 export type TaskStatus = 'todo' | 'in_progress' | 'done' | 'blocked'
 
@@ -45,8 +40,6 @@ export type TaskOutcome =
 
 export type RejectionReason = 'cena' | 'timing' | 'konkurencja' | 'brak_decyzyjnosci' | 'inny'
 
-export type LeadTemperature = 'goracy' | 'sredni' | 'zimny'
-
 export interface Profile {
   id: string
   full_name: string
@@ -57,31 +50,31 @@ export interface Profile {
 
 export interface Property {
   id: string
-  location: string
-  trello_link: string | null
+  adres: string
+  kod_pocztowy: string | null
+  miasto: string | null
   phone: string | null
-  contact_type: ContactType | null
   property_type: PropertyType | null
   area_sqm: number | null
   value_per_sqm: number | null
-  rw: number | null
+  wartosc_realna: number | null
   total_debt: number
   debt_type: 'below_value' | 'above_value' | null
   creditor1_amount: number
   creditor2_amount: number
   creditor3_amount: number
   owner_coefficient: number
-  commission_pct: number
-  notary_fee: number
-  manual_offer: number | null
-  status: PropertyStatus
-  lead_temperature: LeadTemperature | null
+  koszty_dodatkowe: PropertyCost[]
+  status_dluznika: StatusDluznika
+  status_inwestora: StatusInwestora
   status_changed_at: string
   deal_type: DealType | null
   owner_name: string | null
   kw_number: string | null
-  kw_opis: string | null
-  source: string | null
+  kw_dzial1_komentarz: string | null
+  kw_dzial2_komentarz: string | null
+  kw_dzial3_komentarz: string | null
+  kw_dzial4_komentarz: string | null
   czynsz_miesieczny: number | null
   pokazywania_count: number
   decision: string | null
@@ -91,10 +84,11 @@ export interface Property {
   kontakt_id: string | null
   uklad: string | null
   pietro: number | null
+  pietro_z_ilu: number | null
   rok_budowy: number | null
   balkon_metraz: number | null
   strony_swiata: string | null
-  operat_szacunkowy: number | null
+  wycena_szacunkowa: number | null
   co_assignees: string[]
   lat: number | null
   lng: number | null
@@ -104,6 +98,25 @@ export interface Property {
   creator?: Profile
   assignee?: Profile
   co_assignee_profiles?: Profile[]
+  kontakt?: Kontakt
+}
+
+export interface PropertyNegotiationNote {
+  id: string
+  property_id: string
+  user_id: string | null
+  content: string
+  created_at: string
+  user?: { id: string; full_name: string; avatar_url: string | null }
+}
+
+export interface PropertyInvestor {
+  id: string
+  property_id: string
+  kontakt_id: string
+  status: InvestorPropertyStatus
+  created_by: string | null
+  created_at: string
   kontakt?: Kontakt
 }
 
@@ -215,6 +228,7 @@ export type KontaktTyp =
   | 'rzeczoznawca'
   | 'komornik'
   | 'fundusz'
+  | 'inwestor'
 
 export const KONTAKT_TYP_LABELS: Record<KontaktTyp, string> = {
   spoldzielnia: 'Spółdzielnia',
@@ -227,6 +241,7 @@ export const KONTAKT_TYP_LABELS: Record<KontaktTyp, string> = {
   rzeczoznawca: 'Rzeczoznawca',
   komornik: 'Komornik',
   fundusz: 'Fundusz',
+  inwestor: 'Inwestor',
 }
 
 export const KONTAKT_TYPY: KontaktTyp[] = [
@@ -240,6 +255,7 @@ export const KONTAKT_TYPY: KontaktTyp[] = [
   'rzeczoznawca',
   'komornik',
   'fundusz',
+  'inwestor',
 ]
 
 // Map pin colors — one distinct color per contact type
@@ -254,6 +270,7 @@ export const KONTAKT_TYP_COLORS: Record<KontaktTyp, string> = {
   rzeczoznawca:             '#65a30d', // lime-green
   komornik:                 '#dc2626', // red
   fundusz:                  '#7c3aed', // purple
+  inwestor:                 '#0d9488', // teal
 }
 
 // Color used for numbered tour pins (overrides type color)
@@ -357,8 +374,18 @@ export interface Database {
       }
       properties: {
         Row: Property
-        Insert: Omit<Property, 'id' | 'rw' | 'created_at' | 'updated_at' | 'creator' | 'assignee'>
-        Update: Partial<Omit<Property, 'id' | 'rw' | 'created_at' | 'updated_at' | 'creator' | 'assignee'>>
+        Insert: Omit<Property, 'id' | 'created_at' | 'updated_at' | 'creator' | 'assignee'>
+        Update: Partial<Omit<Property, 'id' | 'created_at' | 'updated_at' | 'creator' | 'assignee'>>
+      }
+      property_negotiation_notes: {
+        Row: PropertyNegotiationNote
+        Insert: Omit<PropertyNegotiationNote, 'id' | 'created_at' | 'user'>
+        Update: Partial<Omit<PropertyNegotiationNote, 'id' | 'created_at' | 'user'>>
+      }
+      property_investors: {
+        Row: PropertyInvestor
+        Insert: Omit<PropertyInvestor, 'id' | 'created_at' | 'kontakt'>
+        Update: Partial<Omit<PropertyInvestor, 'id' | 'created_at' | 'kontakt'>>
       }
       tasks: {
         Row: Task

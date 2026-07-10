@@ -1,5 +1,5 @@
 import type {
-  ContactCategory, LeadTemperature, RejectionReason, TaskOutcome, TaskType,
+  ContactCategory, RejectionReason, TaskOutcome, TaskType,
 } from '@/types/database'
 
 // ---------------------------------------------------------------
@@ -32,12 +32,6 @@ export const REJECTION_REASON_LABELS: Record<RejectionReason, string> = {
   konkurencja: 'Ma konkurencję',
   brak_decyzyjnosci: 'Brak decyzyjności',
   inny: 'Inny',
-}
-
-export const LEAD_TEMPERATURE_LABELS: Record<LeadTemperature, string> = {
-  goracy: 'Gorący',
-  sredni: 'Średni',
-  zimny: 'Zimny',
 }
 
 // Sekcje liczników w raporcie — kolejność jak we wzorze Patryka
@@ -77,7 +71,6 @@ export interface CategoryCounters {
 export interface ReportProperty {
   id: string
   location: string
-  lead_temperature: LeadTemperature | null
 }
 
 export interface DailyReportData {
@@ -160,14 +153,7 @@ export function buildReportText(data: DailyReportData): string {
   }
 
   lines.push('NOWE TEMATY')
-  const byTemp = (t: LeadTemperature | null) => data.newProperties.filter(p => p.lead_temperature === t)
-  const tempLine = (label: string, items: ReportProperty[]) =>
-    `${label}: ${items.length ? items.map(p => p.location).join(', ') : '—'}`
-  lines.push(tempLine('Gorące', byTemp('goracy')))
-  lines.push(tempLine('Średnie', byTemp('sredni')))
-  lines.push(tempLine('Zimne', byTemp('zimny')))
-  const noTemp = byTemp(null)
-  if (noTemp.length) lines.push(tempLine('Bez oceny', noTemp))
+  lines.push(data.newProperties.length ? data.newProperties.map(p => p.location).join(', ') : '—')
   lines.push('')
 
   lines.push('PLAN NA JUTRO')

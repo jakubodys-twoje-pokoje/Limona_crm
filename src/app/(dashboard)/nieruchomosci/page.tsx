@@ -10,6 +10,7 @@ import { PropertiesTable } from '@/components/properties/PropertiesTable'
 import { PropertyForm } from '@/components/properties/PropertyForm'
 import { Modal } from '@/components/ui/Modal'
 import { useToast } from '@/components/ui/Toast'
+import { formatPropertyAddress } from '@/lib/utils'
 import type { Property } from '@/types/database'
 
 export default function NieruchomosciPage() {
@@ -119,7 +120,7 @@ export default function NieruchomosciPage() {
           <div className="space-y-4">
             <p className="text-limona-text">
               Czy na pewno usunąć{' '}
-              <span className="text-limona-white font-medium">{deleteConfirm.location}</span>?
+              <span className="text-limona-white font-medium">{formatPropertyAddress(deleteConfirm)}</span>?
               Tej operacji nie można cofnąć.
             </p>
             <div className="flex gap-3 justify-end">

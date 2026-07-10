@@ -100,11 +100,9 @@ function ResultRow({ label, sub, value, valueClass = 'text-limona-text' }: Resul
 
 export function AgentReport({ property }: AgentReportProps) {
   const marketValue = property.value_per_sqm || 0
-  const operatDefault = property.operat_szacunkowy ? Number(property.operat_szacunkowy) : marketValue
+  const operatDefault = property.wycena_szacunkowa ? Number(property.wycena_szacunkowa) : marketValue
   const totalDebt = property.total_debt || 0
-  const defaultLimona = property.manual_offer
-    ? Number(property.manual_offer)
-    : Math.round(marketValue * 0.8)
+  const defaultLimona = Math.round(marketValue * 0.8)
 
   const [wartoscRynkowa, setWartoscRynkowa] = useState(marketValue)
   const [cenaLimona, setCenaLimona] = useState(defaultLimona)
@@ -147,7 +145,7 @@ export function AgentReport({ property }: AgentReportProps) {
           <NumInput
             label="Wartość rynkowa"
             value={wartoscRynkowa}
-            onChange={v => { setWartoscRynkowa(v); if (!property.manual_offer) setCenaLimona(Math.round(v * 0.8)) }}
+            onChange={v => { setWartoscRynkowa(v); setCenaLimona(Math.round(v * 0.8)) }}
             hint={`Podpowiedź Limona (80%): ${Math.round(wartoscRynkowa * 0.8).toLocaleString('pl-PL')} zł`}
           />
           <NumInput

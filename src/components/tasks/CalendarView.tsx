@@ -8,7 +8,7 @@ import {
 } from 'lucide-react'
 import { Avatar } from '@/components/ui/Avatar'
 import { Badge } from '@/components/ui/Badge'
-import { cn } from '@/lib/utils'
+import { cn, formatPropertyAddress } from '@/lib/utils'
 import type { Task, TaskPriority, Profile } from '@/types/database'
 
 const DAYS_PL = ['Pon', 'Wt', 'Śr', 'Czw', 'Pt', 'Sob', 'Nie']
@@ -419,7 +419,7 @@ function CalendarTaskRow({ task, onOpen, overdue }: { task: Task; onOpen: () => 
         <div className="flex items-center gap-2 flex-wrap mt-0.5">
           {task.property && (
             <span className="flex items-center gap-1 text-[10px] text-limona-blue">
-              <LinkIcon size={9} />{task.property.location}
+              <LinkIcon size={9} />{formatPropertyAddress(task.property)}
             </span>
           )}
           {task.property?.kontakt && (
