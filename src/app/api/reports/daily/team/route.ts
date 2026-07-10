@@ -21,16 +21,23 @@ export async function GET(req: NextRequest) {
   }
   const { start, end } = warsawDayRange(date)
 
-  const [profilesRes, reportsRes, tasksRes] = await Promise.all([
+  // Zakres miesiąca (dla licznika potwierdzonych braków raportu — statystyka
+  // przeniesiona tutaj z panelu Użytkownicy, gdzie była nie na miejscu)
+  const [y, m] = date.slice(0, 7).split('-').map(Number)
+  const monthFrom = `${date.slice(0, 7)}-01`
+  const monthTo = `${m === 12 ? y + 1 : y}-${String(m === 12 ? 1 : m + 1).padStart(2, '0')}-01`
+
+  const [profilesRes, reportsRes, tasksRes, missedRes] = await Promise.all([
     supabase.from('profiles').select('id, full_name, avatar_url').eq('role', 'user').order('full_name', { ascending: true }),
     supabase.from('daily_reports').select('user_id, content, submitted_at').eq('date', date),
     supabase
       .from('tasks')
       .select('assigned_to, created_by, status')
       .or(`due_date.eq.${date},and(completed_at.gte.${start},completed_at.lt.${end})`),
+    supabase.from('missed_report_acks').select('user_id').gte('report_date', monthFrom).lt('report_date', monthTo),
   ])
 
-  const firstError = profilesRes.error || reportsRes.error || tasksRes.error
+  const firstError = profilesRes.error || reportsRes.error || tasksRes.error || missedRes.error
   if (firstError) return NextResponse.json({ error: firstError.message }, { status: 500 })
 
   const reportByUser = new Map((reportsRes.data ?? []).map(r => [r.user_id, r]))
@@ -41,6 +48,10 @@ export async function GET(req: NextRequest) {
     const c = (counts[uid] ??= { total: 0, done: 0 })
     c.total++
     if (t.status === 'done') c.done++
+  }
+  const missedCounts: Record<string, number> = {}
+  for (const row of missedRes.data ?? []) {
+    missedCounts[row.user_id] = (missedCounts[row.user_id] ?? 0) + 1
   }
 
   const rows = (profilesRes.data ?? []).map(p => {
@@ -53,6 +64,7 @@ export async function GET(req: NextRequest) {
       submitted_at: report?.submitted_at ?? null,
       hasDraft: !!report?.content?.trim() && !report?.submitted_at,
       taskCounts: counts[p.id] ?? { total: 0, done: 0 },
+      missedThisMonth: missedCounts[p.id] ?? 0,
     }
   })
 

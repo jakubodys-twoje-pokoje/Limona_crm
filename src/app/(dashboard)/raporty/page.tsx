@@ -3,7 +3,7 @@
 export const dynamic = 'force-dynamic'
 
 import { useEffect, useState } from 'react'
-import { ChevronLeft, ChevronRight, CheckCircle, Clock, XCircle } from 'lucide-react'
+import { ChevronLeft, ChevronRight, CheckCircle, Clock, XCircle, AlertTriangle } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { canManageTeams } from '@/lib/roles'
 import { Avatar } from '@/components/ui/Avatar'
@@ -19,6 +19,7 @@ interface TeamReportRow {
   submitted_at: string | null
   hasDraft: boolean
   taskCounts: { total: number; done: number }
+  missedThisMonth: number
 }
 
 function toDateKey(d: Date): string {
@@ -109,6 +110,15 @@ export default function RaportyPage() {
               >
                 <Avatar name={r.full_name} url={r.avatar_url} size="sm" />
                 <span className="flex-1 text-sm font-medium text-limona-text">{r.full_name}</span>
+                {r.missedThisMonth > 0 && (
+                  <span
+                    className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wider font-bold bg-limona-red/15 text-limona-red whitespace-nowrap"
+                    title="Potwierdzone braki raportu dziennego w tym miesiącu"
+                  >
+                    <AlertTriangle size={10} />
+                    {r.missedThisMonth} {r.missedThisMonth === 1 ? 'brak' : 'braki'} w miesiącu
+                  </span>
+                )}
                 <span className="text-xs text-limona-text-dim font-mono hidden sm:inline">
                   {r.taskCounts.done}/{r.taskCounts.total} zadań
                 </span>
