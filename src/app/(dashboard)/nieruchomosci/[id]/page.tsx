@@ -30,17 +30,20 @@ import type { DealType } from '@/types/database'
 import { AgentReport } from '@/components/properties/AgentReport'
 
 const CHECKLIST_INFO = [
-  'Zweryfikowana KW', 'Kontakt z właścicielem', 'Rzut planu / metraż',
-  'Rok budowy potwierdzony', 'Piętro i układ', 'Stan techniczny oceniony',
-  'Zadłużenie potwierdzone', 'Czynsz miesięczny ustalony', 'Wycena szacunkowa',
-  'Zdjęcia wykonane',
+  'Zweryfikowana księga wieczysta', 'Kontakt z właścicielem', 'Umowa podpisana',
+  'Pełnomocnictwo do zbierania dokumentów o saldzie zadłużenia', 'Pełnomocnictwo do negocjacji',
+  'Rzut / metraż', 'Rok budowy', 'Piętro i układ', 'Stan techniczny oceniony',
+  'Czynsz miesięczny', 'Wycena szacunkowa', 'Zdjęcia wykonane', 'Zadłużenie potwierdzone',
 ]
 const CHECKLIST_DOCS = [
-  'Akt własności / odpis z KW', 'Zaświadczenie o niezaleganiu w czynszu',
-  'Zaświadczenie ze spółdzielni / wspólnoty', 'Zaświadczenie z urzędu skarbowego',
-  'Poprzedni akt notarialny', 'Pełnomocnictwo (jeśli dotyczy)',
-  'Umowa przedwstępna kupna', 'Umowa przedwstępna sprzedaży',
-  'Protokół zdania nieruchomości',
+  'Akt własności / odpis KW', 'Zaświadczenie salda od komornika',
+  'Zaświadczenie ze spółdzielni o stanie zaległości lub niezaleganiu',
+  'Zaświadczenie o stanie zaległości US (jeśli dotyczy)',
+  'Zaświadczenie o stanie zaległości ZUS (jeśli dotyczy)',
+  'Zaświadczenie o stanie zaległości Urząd Miasta (jeśli dotyczy)',
+  'Zaświadczenie z urzędu skarbowego (jeśli nabyte darowizną lub spadek)',
+  'Poprzedni akt notarialny nabycia nieruchomości', 'Pełnomocnictwo (jeśli dotyczy)',
+  'Umowa przedwstępna sprzedaży (jeśli dotyczy)', 'Protokół zdawczo-odbiorczy',
 ]
 
 const KW_DZIALY = [
