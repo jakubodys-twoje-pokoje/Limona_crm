@@ -52,5 +52,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ use
     .single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
+  if (peerId !== user.id) {
+    await supabase.from('notifications').insert({
+      user_id: peerId,
+      from_user_id: user.id,
+      type: 'dm_message',
+      title: `${user.name} wysłał/a Ci wiadomość`,
+      body: content.trim().slice(0, 100),
+      link: '/komunikacja',
+      reference_id: msg.id,
+    })
+  }
+
   return NextResponse.json(msg, { status: 201 })
 }

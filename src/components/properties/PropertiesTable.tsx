@@ -8,7 +8,7 @@ import { DEAL_TYPE_SHORT, STATUS_DLUZNIKA_OPTIONS, STATUS_DLUZNIKA_LABELS, STATU
 import { Badge } from '@/components/ui/Badge'
 import { Avatar } from '@/components/ui/Avatar'
 import { Skeleton } from '@/components/ui/Skeleton'
-import { calculateBelow, calculateAbove, sumCosts } from '@/lib/calculator'
+import { calculateBelow, calculateAbove } from '@/lib/calculator'
 import { formatMoney, formatPercent, formatPropertyAddress, cn } from '@/lib/utils'
 
 type SortKey = 'location' | 'value_per_sqm' | 'rw' | 'total_debt' | 'profit' | 'roi' | 'status' | 'created_at'
@@ -25,7 +25,6 @@ interface PropertiesTableProps {
 function calcProfit(p: Property): number | null {
   if (!p.value_per_sqm) return null
   try {
-    const additionalCosts = sumCosts(p.koszty_dodatkowe)
     if (p.debt_type === 'above_value') {
       return calculateAbove({
         valuePerSqm: p.value_per_sqm,
@@ -34,13 +33,13 @@ function calcProfit(p: Property): number | null {
         creditor2: p.creditor2_amount || 0,
         creditor3: p.creditor3_amount || 0,
         ownerCoefficient: p.owner_coefficient || 0.025,
-        additionalCosts,
+        additionalCosts: 0,
       }).profit
     } else {
       return calculateBelow({
         valuePerSqm: p.value_per_sqm,
         totalDebt: p.total_debt || 0,
-        additionalCosts,
+        additionalCosts: 0,
       }).profit
     }
   } catch { return null }
@@ -49,7 +48,6 @@ function calcProfit(p: Property): number | null {
 function calcROI(p: Property): number | null {
   if (!p.value_per_sqm) return null
   try {
-    const additionalCosts = sumCosts(p.koszty_dodatkowe)
     if (p.debt_type === 'above_value') {
       return calculateAbove({
         valuePerSqm: p.value_per_sqm,
@@ -58,13 +56,13 @@ function calcROI(p: Property): number | null {
         creditor2: p.creditor2_amount || 0,
         creditor3: p.creditor3_amount || 0,
         ownerCoefficient: p.owner_coefficient || 0.025,
-        additionalCosts,
+        additionalCosts: 0,
       }).roi
     } else {
       return calculateBelow({
         valuePerSqm: p.value_per_sqm,
         totalDebt: p.total_debt || 0,
-        additionalCosts,
+        additionalCosts: 0,
       }).roi
     }
   } catch { return null }

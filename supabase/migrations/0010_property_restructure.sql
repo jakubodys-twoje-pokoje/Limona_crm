@@ -4,11 +4,15 @@
 -- Zamienia jeden ogólny status na dwa niezależne tory: status
 -- dłużnika i status inwestora. Lokalizacja rozbita na osobne pola
 -- (adres/kod pocztowy/miasto) pod wyszukiwanie. Wartości finansowe:
--- dochodzi wartość realna, taksa notarialna/prowizja/ręczna oferta
--- zastąpione elastyczną listą kosztów (jsonb). Opis KW zastąpiony
--- komentarzami per dział KW. Nowe tabele: negocjacje (notatki) i
--- inwestorzy (per-nieruchomość status inwestora, powiązany z
--- kontaktami — stąd nowy typ kontaktu 'inwestor').
+-- dochodzi wartość realna; suma zadłużenia przestaje być jednym
+-- wpisywanym na raz polem — zamiast tego elastyczna lista pozycji
+-- zadłużenia (jsonb: etykieta + kwota, dowolna liczba pozycji),
+-- z automatyczną sumą. Taksa notarialna/prowizja/ręczna oferta
+-- znikają jako osobne pola (bez zamiennika — kalkulator liczy je
+-- teraz tylko w samodzielnym narzędziu /kalkulator). Opis KW
+-- zastąpiony komentarzami per dział KW. Nowe tabele: negocjacje
+-- (notatki) i inwestorzy (per-nieruchomość status inwestora,
+-- powiązany z kontaktami — stąd nowy typ kontaktu 'inwestor').
 --
 -- UWAGA — utrata danych: kolumny location, trello_link,
 -- lead_temperature, contact_type, commission_pct, notary_fee,
@@ -25,7 +29,7 @@ alter table public.properties
   add column kod_pocztowy          text,
   add column miasto                text,
   add column wartosc_realna        numeric(14,2),
-  add column koszty_dodatkowe      jsonb not null default '[]'::jsonb,
+  add column zadluzenia            jsonb not null default '[]'::jsonb,
   add column status_dluznika       text not null default 'brak',
   add column status_inwestora      text not null default 'brak',
   add column pietro_z_ilu          integer,

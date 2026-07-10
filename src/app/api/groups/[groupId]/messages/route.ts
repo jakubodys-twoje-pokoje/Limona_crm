@@ -67,5 +67,26 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ gro
     .single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
+  // Powiadom pozostałych członków grupy (kierownik + jego zespół z team_visibility)
+  const { data: rules } = await supabase
+    .from('team_visibility')
+    .select('member_id')
+    .eq('manager_id', groupId)
+  const memberIds = new Set<string>([groupId, ...(rules ?? []).map(r => r.member_id)])
+  memberIds.delete(user.id)
+  if (memberIds.size > 0) {
+    await supabase.from('notifications').insert(
+      Array.from(memberIds).map(memberId => ({
+        user_id: memberId,
+        from_user_id: user.id,
+        type: 'group_message' as const,
+        title: `${user.name} napisał/a w grupie`,
+        body: content.trim().slice(0, 100),
+        link: '/komunikacja',
+        reference_id: msg.id,
+      }))
+    )
+  }
+
   return NextResponse.json(msg, { status: 201 })
 }

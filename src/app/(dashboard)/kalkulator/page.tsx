@@ -58,7 +58,6 @@ export default function KalkulatorPage() {
           total_debt: calc1Input.totalDebt,
           debt_type: 'below_value',
           deal_type: 'zadluzony_ponizej',
-          koszty_dodatkowe: calc1Input.additionalCosts ? [{ label: 'Koszty dodatkowe', value: calc1Input.additionalCosts }] : [],
         }
       : {
           adres: 'Nowa nieruchomość (z kalkulatora)',
@@ -70,7 +69,6 @@ export default function KalkulatorPage() {
           creditor2_amount: calc2Input.creditor2,
           creditor3_amount: calc2Input.creditor3,
           owner_coefficient: calc2Input.ownerCoefficient,
-          koszty_dodatkowe: calc2Input.additionalCosts ? [{ label: 'Koszty dodatkowe', value: calc2Input.additionalCosts }] : [],
         }
 
     const { data: newProp, error } = await createProperty(data, user.id)

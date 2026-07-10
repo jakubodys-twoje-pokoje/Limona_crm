@@ -11,7 +11,7 @@ export type DealType = 'zadluzony_ponizej' | 'zadluzony_powyzej'
 
 export type PropertyType = 'mieszkanie' | 'dom' | 'grunt' | 'hala' | 'inne'
 
-export interface PropertyCost {
+export interface PropertyLineItem {
   label: string
   value: number
 }
@@ -64,7 +64,7 @@ export interface Property {
   creditor2_amount: number
   creditor3_amount: number
   owner_coefficient: number
-  koszty_dodatkowe: PropertyCost[]
+  zadluzenia: PropertyLineItem[]
   status_dluznika: StatusDluznika
   status_inwestora: StatusInwestora
   status_changed_at: string

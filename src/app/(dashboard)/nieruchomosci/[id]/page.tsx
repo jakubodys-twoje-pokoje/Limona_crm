@@ -18,7 +18,7 @@ import { Avatar } from '@/components/ui/Avatar'
 import { Modal } from '@/components/ui/Modal'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { formatMoney, formatPropertyAddress, cn } from '@/lib/utils'
-import { sumCosts } from '@/lib/calculator'
+import { sumLineItems } from '@/lib/calculator'
 import type { Property, Task, Document, PropertyNegotiationNote, PropertyInvestor, StatusDluznika, StatusInwestora, InvestorPropertyStatus } from '@/types/database'
 import {
   STAGE_TASK_TEMPLATES, DEAL_TYPE_LABELS,
@@ -75,7 +75,7 @@ export default function PropertyDetailPage() {
 
   const [property, setProperty] = useState<Property | null>(null)
   const [loadingProp, setLoadingProp] = useState(true)
-  const [activeTab, setActiveTab] = useState<'tasks' | 'docs' | 'checklist' | 'negocjacja' | 'inwestorzy' | 'pietro' | 'log' | 'report'>('tasks')
+  const [activeTab, setActiveTab] = useState<'tasks' | 'docs' | 'checklist' | 'negocjacja' | 'inwestorzy' | 'log' | 'report'>('tasks')
   const [showEditModal, setShowEditModal] = useState(false)
   const [newTaskTitle, setNewTaskTitle] = useState('')
   const [showTemplates, setShowTemplates] = useState(false)
@@ -110,10 +110,6 @@ export default function PropertyDetailPage() {
   const [showNewInvestor, setShowNewInvestor] = useState(false)
   const [newInvestorName, setNewInvestorName] = useState('')
   const [newInvestorPhone, setNewInvestorPhone] = useState('')
-
-  // Piętro
-  const [pietroForm, setPietroForm] = useState({ pietro: '', pietro_z_ilu: '' })
-  const [savingPietro, setSavingPietro] = useState(false)
 
   useEffect(() => {
     if (!propertyId) return
@@ -270,22 +266,6 @@ export default function PropertyDetailPage() {
     setInvestors(prev => prev.filter(i => i.id !== investorId))
   }
 
-  async function handleSavePietro() {
-    if (!user) return
-    setSavingPietro(true)
-    const { error } = await updateProperty(currentPropertyId, {
-      pietro: pietroForm.pietro ? parseInt(pietroForm.pietro) : null,
-      pietro_z_ilu: pietroForm.pietro_z_ilu ? parseInt(pietroForm.pietro_z_ilu) : null,
-    }, user.id)
-    if (error) showToast(error, 'error')
-    else {
-      showToast('Zapisano', 'success')
-      const res = await fetch(`/api/properties/${currentPropertyId}`)
-      if (res.ok) setProperty(await res.json())
-    }
-    setSavingPietro(false)
-  }
-
   useEffect(() => {
     async function load() {
       const res = await fetch(`/api/properties/${propertyId}`)
@@ -297,10 +277,6 @@ export default function PropertyDetailPage() {
         kw_dzial2_komentarz: p.kw_dzial2_komentarz || '',
         kw_dzial3_komentarz: p.kw_dzial3_komentarz || '',
         kw_dzial4_komentarz: p.kw_dzial4_komentarz || '',
-      })
-      setPietroForm({
-        pietro: p.pietro?.toString() || '',
-        pietro_z_ilu: p.pietro_z_ilu?.toString() || '',
       })
       setLoadingProp(false)
     }
@@ -377,7 +353,7 @@ export default function PropertyDetailPage() {
     if (res.ok) setProperty(await res.json())
   }
 
-  const kosztyTotal = sumCosts(property.koszty_dodatkowe)
+  const zadluzeniaTotal = sumLineItems(property.zadluzenia)
 
   return (
     <div className="space-y-6 max-w-5xl">
@@ -525,21 +501,21 @@ export default function PropertyDetailPage() {
         </div>
       )}
 
-      {/* Suma kosztów */}
-      {property.koszty_dodatkowe && property.koszty_dodatkowe.length > 0 && (
+      {/* Suma zadłużenia */}
+      {property.zadluzenia && property.zadluzenia.length > 0 && (
         <div className="limona-card p-4 text-sm">
-          <p className="text-[10px] text-limona-text-dim uppercase tracking-wider mb-2">Suma kosztów</p>
+          <p className="text-[10px] text-limona-text-dim uppercase tracking-wider mb-2">Suma zadłużenia</p>
           <div className="space-y-1">
-            {property.koszty_dodatkowe.map((k, i) => (
+            {property.zadluzenia.map((d, i) => (
               <div key={i} className="flex items-center justify-between">
-                <span className="text-limona-text-muted">{k.label}</span>
-                <span className="font-mono text-limona-text">{formatMoney(k.value)}</span>
+                <span className="text-limona-text-muted">{d.label}</span>
+                <span className="font-mono text-limona-text">{formatMoney(d.value)}</span>
               </div>
             ))}
           </div>
           <div className="border-t border-limona-border mt-2 pt-2 flex items-center justify-between font-bold">
             <span className="text-limona-text">Razem</span>
-            <span className="font-mono text-limona-white">{formatMoney(kosztyTotal)}</span>
+            <span className="font-mono text-limona-white">{formatMoney(zadluzeniaTotal)}</span>
           </div>
         </div>
       )}
@@ -558,7 +534,6 @@ export default function PropertyDetailPage() {
           { key: 'checklist', label: `Checklista i status (${checkedItems.size}/${CHECKLIST_INFO.length + CHECKLIST_DOCS.length})` },
           { key: 'negocjacja', label: 'Negocjacja' },
           { key: 'inwestorzy', label: `Inwestorzy (${investors.length || ''})` },
-          { key: 'pietro', label: 'Piętro' },
           { key: 'report', label: 'Raport agenta' },
           { key: 'log', label: 'Historia' },
         ] as const).map(tab => (
@@ -1001,40 +976,6 @@ export default function PropertyDetailPage() {
               ))}
             </div>
           )}
-        </div>
-      )}
-
-      {activeTab === 'pietro' && (
-        <div className="limona-card p-4 space-y-4 max-w-md">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="limona-label block mb-2">Piętro</label>
-              <input
-                type="number"
-                className="limona-input"
-                value={pietroForm.pietro}
-                onChange={e => setPietroForm(f => ({ ...f, pietro: e.target.value }))}
-                placeholder="np. 3"
-                min="0"
-                max="99"
-              />
-            </div>
-            <div>
-              <label className="limona-label block mb-2">Z ilu pięter</label>
-              <input
-                type="number"
-                className="limona-input"
-                value={pietroForm.pietro_z_ilu}
-                onChange={e => setPietroForm(f => ({ ...f, pietro_z_ilu: e.target.value }))}
-                placeholder="np. 5"
-                min="0"
-                max="99"
-              />
-            </div>
-          </div>
-          <button onClick={handleSavePietro} disabled={savingPietro} className="limona-btn-sm flex items-center gap-1.5 disabled:opacity-50">
-            <Save size={12} /> {savingPietro ? 'Zapisywanie...' : 'Zapisz'}
-          </button>
         </div>
       )}
 

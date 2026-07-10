@@ -2,9 +2,9 @@
 
 import { useState, useEffect } from 'react'
 import { Plus, X } from 'lucide-react'
-import type { Property, PropertyType, DealType, PropertyCost } from '@/types/database'
+import type { Property, PropertyType, DealType, PropertyLineItem } from '@/types/database'
 import { DEAL_TYPE_LABELS } from '@/lib/stages'
-import { sumCosts } from '@/lib/calculator'
+import { sumLineItems } from '@/lib/calculator'
 import { formatMoney } from '@/lib/utils'
 
 interface KontaktOption {
@@ -48,7 +48,6 @@ export function PropertyForm({ initial = {}, onSubmit, onCancel, submitLabel = '
     area_sqm: initial.area_sqm?.toString() || '',
     value_per_sqm: initial.value_per_sqm?.toString() || '',
     wartosc_realna: initial.wartosc_realna?.toString() || '',
-    total_debt: initial.total_debt?.toString() || '0',
     debt_type: initial.debt_type || 'below_value',
     creditor1_amount: initial.creditor1_amount?.toString() || '0',
     creditor2_amount: initial.creditor2_amount?.toString() || '0',
@@ -72,7 +71,7 @@ export function PropertyForm({ initial = {}, onSubmit, onCancel, submitLabel = '
     strony_swiata: initial.strony_swiata || '',
     wycena_szacunkowa: initial.wycena_szacunkowa?.toString() || '',
   })
-  const [koszty, setKoszty] = useState<PropertyCost[]>(initial.koszty_dodatkowe || [])
+  const [zadluzenia, setZadluzenia] = useState<PropertyLineItem[]>(initial.zadluzenia || [])
   const [loading, setLoading] = useState(false)
   const [kontakty, setKontakty] = useState<KontaktOption[]>([])
   const [kontaktSearch, setKontaktSearch] = useState('')
@@ -102,16 +101,16 @@ export function PropertyForm({ initial = {}, onSubmit, onCancel, submitLabel = '
     }))
   }
 
-  function updateKoszt(i: number, patch: Partial<PropertyCost>) {
-    setKoszty(prev => prev.map((k, idx) => idx === i ? { ...k, ...patch } : k))
+  function updateDlug(i: number, patch: Partial<PropertyLineItem>) {
+    setZadluzenia(prev => prev.map((d, idx) => idx === i ? { ...d, ...patch } : d))
   }
 
-  function removeKoszt(i: number) {
-    setKoszty(prev => prev.filter((_, idx) => idx !== i))
+  function removeDlug(i: number) {
+    setZadluzenia(prev => prev.filter((_, idx) => idx !== i))
   }
 
-  function addKoszt() {
-    setKoszty(prev => [...prev, { label: '', value: 0 }])
+  function addDlug() {
+    setZadluzenia(prev => [...prev, { label: '', value: 0 }])
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -119,6 +118,7 @@ export function PropertyForm({ initial = {}, onSubmit, onCancel, submitLabel = '
     setLoading(true)
     try {
       const dealType = (form.deal_type as DealType) || null
+      const cleanZadluzenia = zadluzenia.filter(d => d.label.trim()).map(d => ({ label: d.label.trim(), value: Number(d.value) || 0 }))
       const data: Partial<Property> = {
         adres: form.adres,
         kod_pocztowy: form.kod_pocztowy || null,
@@ -128,13 +128,13 @@ export function PropertyForm({ initial = {}, onSubmit, onCancel, submitLabel = '
         area_sqm: form.area_sqm ? parseFloat(form.area_sqm) : null,
         value_per_sqm: form.value_per_sqm ? parseFloat(form.value_per_sqm) : null,
         wartosc_realna: form.wartosc_realna ? parseFloat(form.wartosc_realna) : null,
-        total_debt: parseFloat(form.total_debt) || 0,
+        total_debt: sumLineItems(cleanZadluzenia),
+        zadluzenia: cleanZadluzenia,
         debt_type: dealType === 'zadluzony_powyzej' ? 'above_value' : 'below_value',
         creditor1_amount: parseFloat(form.creditor1_amount) || 0,
         creditor2_amount: parseFloat(form.creditor2_amount) || 0,
         creditor3_amount: parseFloat(form.creditor3_amount) || 0,
         owner_coefficient: parseFloat(form.owner_coefficient) || 0.025,
-        koszty_dodatkowe: koszty.filter(k => k.label.trim()).map(k => ({ label: k.label.trim(), value: Number(k.value) || 0 })),
         deal_type: dealType,
         owner_name: form.owner_name || null,
         kw_number: form.kw_number || null,
@@ -162,7 +162,7 @@ export function PropertyForm({ initial = {}, onSubmit, onCancel, submitLabel = '
 
   const dealType = (form.deal_type as DealType) || null
   const isAboveValue = dealType === 'zadluzony_powyzej'
-  const kosztyTotal = sumCosts(koszty)
+  const zadluzeniaTotal = sumLineItems(zadluzenia)
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
@@ -462,18 +462,6 @@ export function PropertyForm({ initial = {}, onSubmit, onCancel, submitLabel = '
             />
           </div>
           <div>
-            <label className="limona-label block mb-2">Suma zadłużenia (K) [zł]</label>
-            <input
-              type="number"
-              className="limona-input"
-              value={form.total_debt}
-              onChange={e => set('total_debt', e.target.value)}
-              placeholder="0"
-              min="0"
-              step="1000"
-            />
-          </div>
-          <div>
             <label className="limona-label block mb-2">Czynsz miesięczny [zł]</label>
             <input
               type="number"
@@ -487,40 +475,40 @@ export function PropertyForm({ initial = {}, onSubmit, onCancel, submitLabel = '
           </div>
         </div>
 
-        {/* Suma kosztów — dynamiczna lista */}
+        {/* Suma zadłużenia — dynamiczna lista */}
         <div className="mt-4">
-          <label className="limona-label block mb-2">Suma kosztów</label>
+          <label className="limona-label block mb-2">Suma zadłużenia (K)</label>
           <div className="space-y-2">
-            {koszty.map((k, i) => (
+            {zadluzenia.map((d, i) => (
               <div key={i} className="flex items-center gap-2">
                 <input
                   className="limona-input flex-1"
-                  value={k.label}
-                  onChange={e => updateKoszt(i, { label: e.target.value })}
-                  placeholder="np. Taksa notarialna"
+                  value={d.label}
+                  onChange={e => updateDlug(i, { label: e.target.value })}
+                  placeholder="np. Bank hipoteczny"
                 />
                 <input
                   type="number"
                   className="limona-input w-32"
-                  value={k.value || ''}
-                  onChange={e => updateKoszt(i, { value: parseFloat(e.target.value) || 0 })}
+                  value={d.value || ''}
+                  onChange={e => updateDlug(i, { value: parseFloat(e.target.value) || 0 })}
                   placeholder="0"
                   min="0"
-                  step="100"
+                  step="1000"
                 />
-                <button type="button" onClick={() => removeKoszt(i)} className="p-2 text-limona-text-dim hover:text-limona-red transition-colors">
+                <button type="button" onClick={() => removeDlug(i)} className="p-2 text-limona-text-dim hover:text-limona-red transition-colors">
                   <X size={14} />
                 </button>
               </div>
             ))}
-            <button type="button" onClick={addKoszt}
+            <button type="button" onClick={addDlug}
               className="text-xs text-limona-text-dim hover:text-limona-lime flex items-center gap-1 transition-colors">
-              <Plus size={12} /> Dodaj koszt
+              <Plus size={12} /> Dodaj pozycję zadłużenia
             </button>
           </div>
           <div className="border-t border-limona-border mt-3 pt-3 flex items-center justify-between">
-            <span className="text-sm text-limona-text-muted">Suma kosztów</span>
-            <span className="font-mono font-bold text-limona-white">{formatMoney(kosztyTotal)}</span>
+            <span className="text-sm text-limona-text-muted">Suma zadłużenia</span>
+            <span className="font-mono font-bold text-limona-white">{formatMoney(zadluzeniaTotal)}</span>
           </div>
         </div>
       </div>

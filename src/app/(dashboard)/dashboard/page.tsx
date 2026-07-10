@@ -15,7 +15,7 @@ import { useNotifications } from '@/hooks/useNotifications'
 import { Avatar } from '@/components/ui/Avatar'
 import { Badge } from '@/components/ui/Badge'
 import { Skeleton } from '@/components/ui/Skeleton'
-import { calculateBelow, calculateAbove, sumCosts } from '@/lib/calculator'
+import { calculateBelow, calculateAbove } from '@/lib/calculator'
 import { formatMoney, formatPercent, formatPropertyAddress, cn } from '@/lib/utils'
 import { STATUS_DLUZNIKA_OPTIONS, STATUS_DLUZNIKA_LABELS } from '@/lib/stages'
 import type { Property, StatusDluznika } from '@/types/database'
@@ -23,16 +23,15 @@ import type { Property, StatusDluznika } from '@/types/database'
 function calcProfit(p: Property): number | null {
   if (!p.value_per_sqm) return null
   try {
-    const additionalCosts = sumCosts(p.koszty_dodatkowe)
     if (p.debt_type === 'above_value') {
       return calculateAbove({
         valuePerSqm: p.value_per_sqm, totalDebt: p.total_debt || 0,
         creditor1: p.creditor1_amount || 0, creditor2: p.creditor2_amount || 0, creditor3: p.creditor3_amount || 0,
-        ownerCoefficient: p.owner_coefficient || 0.025, additionalCosts,
+        ownerCoefficient: p.owner_coefficient || 0.025, additionalCosts: 0,
       }).profit
     } else {
       return calculateBelow({
-        valuePerSqm: p.value_per_sqm, totalDebt: p.total_debt || 0, additionalCosts,
+        valuePerSqm: p.value_per_sqm, totalDebt: p.total_debt || 0, additionalCosts: 0,
       }).profit
     }
   } catch { return null }
@@ -67,17 +66,16 @@ export default function DashboardPage() {
       // Simple average: calc each and mean
       return withRoi.reduce((sum, p) => {
         try {
-          const additionalCosts = sumCosts(p.koszty_dodatkowe)
           if (p.debt_type === 'above_value') {
             const r = calculateAbove({
               valuePerSqm: p.value_per_sqm!, totalDebt: p.total_debt || 0,
               creditor1: p.creditor1_amount || 0, creditor2: p.creditor2_amount || 0, creditor3: p.creditor3_amount || 0,
-              ownerCoefficient: p.owner_coefficient || 0.025, additionalCosts,
+              ownerCoefficient: p.owner_coefficient || 0.025, additionalCosts: 0,
             })
             return sum + r.roi
           } else {
             const r = calculateBelow({
-              valuePerSqm: p.value_per_sqm!, totalDebt: p.total_debt || 0, additionalCosts,
+              valuePerSqm: p.value_per_sqm!, totalDebt: p.total_debt || 0, additionalCosts: 0,
             })
             return sum + r.roi
           }

@@ -16,6 +16,8 @@ const typeLabels: Record<string, string> = {
   mention_task: 'Oznaczenie — Zadanie',
   task_assigned: 'Przypisano zadanie',
   comment_added: 'Nowy komentarz',
+  dm_message: 'Wiadomość prywatna',
+  group_message: 'Wiadomość grupowa',
 }
 
 const typeColors: Record<string, string> = {
@@ -23,6 +25,8 @@ const typeColors: Record<string, string> = {
   mention_task: 'text-limona-blue',
   task_assigned: 'text-limona-yellow',
   comment_added: 'text-limona-text-muted',
+  dm_message: 'text-limona-lime',
+  group_message: 'text-limona-lime',
 }
 
 export function NotificationBell({ userId }: NotificationBellProps) {

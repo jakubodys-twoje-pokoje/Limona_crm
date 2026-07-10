@@ -2,7 +2,7 @@
 // LIMONA CRM — Calculator Business Logic
 // =============================================
 
-import type { PropertyCost } from '@/types/database'
+import type { PropertyLineItem } from '@/types/database'
 
 export interface CreditorWeights {
   largest: number
@@ -16,9 +16,9 @@ export const DEFAULT_WEIGHTS: CreditorWeights = {
   smallest: 0.7,
 }
 
-export function sumCosts(costs: PropertyCost[] | null | undefined): number {
-  if (!costs) return 0
-  return costs.reduce((sum, c) => sum + (Number(c.value) || 0), 0)
+export function sumLineItems(items: PropertyLineItem[] | null | undefined): number {
+  if (!items) return 0
+  return items.reduce((sum, c) => sum + (Number(c.value) || 0), 0)
 }
 
 // =============================================
