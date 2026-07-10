@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getSessionUser, unauthorized } from '@/lib/api-auth'
 import { geocodeAddress } from '@/lib/geocode'
 import { formatFlagChangeComment } from '@/lib/status-comments'
+import { canSeeInvestors } from '@/lib/roles'
 
 const SELECT_WITH_RELATIONS = `*,
   creator:profiles!kontakty_created_by_fkey(id,full_name,avatar_url),
@@ -23,6 +24,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     .maybeSingle()
 
   if (!kontakt) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (kontakt.typ === 'inwestor' && !canSeeInvestors(user.role)) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
   return NextResponse.json(kontakt)
 }
 
@@ -35,6 +39,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const body = await req.json()
   const statusComment: string | undefined = body.statusComment
   delete body.statusComment
+
+  if (!canSeeInvestors(user.role)) {
+    const { data: existing } = await supabase.from('kontakty').select('typ').eq('id', id).maybeSingle()
+    if (!existing || existing.typ === 'inwestor' || body.typ === 'inwestor') {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    }
+  }
 
   // Flagi decyzyjne (chęć współpracy / niezainteresowani) wymagają
   // komentarza uzasadniającego przy każdej zmianie — reszta checkboxów
@@ -101,6 +112,11 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   if (!user) return unauthorized()
   const supabase = await createClient()
   const { id } = await params
+
+  if (!canSeeInvestors(user.role)) {
+    const { data: existing } = await supabase.from('kontakty').select('typ').eq('id', id).maybeSingle()
+    if (!existing || existing.typ === 'inwestor') return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
 
   const { error } = await supabase.from('kontakty').delete().eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

@@ -2,6 +2,8 @@
 
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
+import { useAuth } from '@/hooks/useAuth'
+import { canSeeInvestors } from '@/lib/roles'
 import type { Kontakt, KontaktTyp, Profile, WeeklyHours } from '@/types/database'
 import { KONTAKT_TYP_LABELS, KONTAKT_TYPY, TYPY_SPOLDZIELNIA, TYPY_Z_PROWIZJA, WEEK_DAYS, WEEK_DAY_LABELS } from '@/types/database'
 
@@ -53,12 +55,14 @@ function Field({ label, children, className }: { label: string; children: React.
 }
 
 export function KontaktForm({ initial, profiles, onSubmit, onCancel, submitLabel = 'Zapisz' }: Props) {
+  const { profile } = useAuth()
   const [form, setForm] = useState<Partial<Kontakt>>({ ...DEFAULTS, ...initial })
   const [submitting, setSubmitting] = useState(false)
 
   const typ = (form.typ || 'spoldzielnia') as KontaktTyp
   const isSpoldzielnia = TYPY_SPOLDZIELNIA.has(typ)
   const hasWspolpracaWithProwizja = TYPY_Z_PROWIZJA.has(typ)
+  const visibleTypy = canSeeInvestors(profile?.role) ? KONTAKT_TYPY : KONTAKT_TYPY.filter(t => t !== 'inwestor')
 
   function set(field: keyof Kontakt, value: unknown) {
     setForm(prev => ({ ...prev, [field]: value }))
@@ -95,7 +99,7 @@ export function KontaktForm({ initial, profiles, onSubmit, onCancel, submitLabel
               onChange={e => set('typ', e.target.value)}
               required
             >
-              {KONTAKT_TYPY.map(t => (
+              {visibleTypy.map(t => (
                 <option key={t} value={t}>{KONTAKT_TYP_LABELS[t]}</option>
               ))}
             </select>

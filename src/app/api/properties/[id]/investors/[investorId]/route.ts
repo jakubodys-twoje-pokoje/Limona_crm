@@ -1,11 +1,13 @@
 export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { getSessionUser, unauthorized } from '@/lib/api-auth'
+import { getSessionUser, unauthorized, forbidden } from '@/lib/api-auth'
+import { canSeeInvestors } from '@/lib/roles'
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string; investorId: string }> }) {
   const user = await getSessionUser()
   if (!user) return unauthorized()
+  if (!canSeeInvestors(user.role)) return forbidden()
   const supabase = await createClient()
   const { investorId } = await params
 
@@ -20,6 +22,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string; investorId: string }> }) {
   const user = await getSessionUser()
   if (!user) return unauthorized()
+  if (!canSeeInvestors(user.role)) return forbidden()
   const supabase = await createClient()
   const { investorId } = await params
 

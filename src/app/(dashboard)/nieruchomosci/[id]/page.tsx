@@ -19,6 +19,7 @@ import { Modal } from '@/components/ui/Modal'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { formatMoney, formatPropertyAddress, cn } from '@/lib/utils'
 import { sumLineItems } from '@/lib/calculator'
+import { canSeeInvestors } from '@/lib/roles'
 import type { Property, Task, Document, PropertyNegotiationNote, PropertyInvestor, StatusDluznika, StatusInwestora, InvestorPropertyStatus, ChecklistItemState } from '@/types/database'
 import {
   STAGE_TASK_TEMPLATES, DEAL_TYPE_LABELS,
@@ -534,7 +535,7 @@ export default function PropertyDetailPage() {
           { key: 'docs', label: `Dokumenty (${documents.length})` },
           { key: 'checklist', label: `Checklista i status (${Object.values(property.checklist || {}).filter(s => s.checked).length}/${CHECKLIST_INFO.length + CHECKLIST_DOCS.length})` },
           { key: 'negocjacja', label: 'Negocjacja' },
-          { key: 'inwestorzy', label: `Inwestorzy (${investors.length || ''})` },
+          ...(canSeeInvestors(profile?.role) ? [{ key: 'inwestorzy', label: `Inwestorzy (${investors.length || ''})` }] as const : []),
           { key: 'report', label: 'Raport agenta' },
           { key: 'log', label: 'Historia' },
         ] as const).map(tab => (

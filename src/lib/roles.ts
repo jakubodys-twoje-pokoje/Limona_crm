@@ -20,6 +20,14 @@ export function canManageTeams(role: UserRole | string | undefined): boolean {
   return role === 'admin' || role === 'kierownik_centrali'
 }
 
+/**
+ * Kto widzi inwestorów (kontakty typu 'inwestor' + zakładkę Inwestorzy na
+ * nieruchomości) — dane wrażliwe handlowo, tylko centrala i admini.
+ */
+export function canSeeInvestors(role: UserRole | string | undefined): boolean {
+  return role === 'admin' || role === 'kierownik_centrali'
+}
+
 export const ROLE_LABELS: Record<UserRole, string> = {
   admin: 'Admin',
   kierownik_centrali: 'Kierownik centrali',

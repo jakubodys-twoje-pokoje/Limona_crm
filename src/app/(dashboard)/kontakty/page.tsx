@@ -3,10 +3,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { useSearchParams } from 'next/navigation'
-import { List, Map } from 'lucide-react'
+import { List, Map, ShieldAlert } from 'lucide-react'
 import { useKontakty } from '@/hooks/useKontakty'
 import { useAuth } from '@/hooks/useAuth'
 import { useVisibleUserIds } from '@/hooks/useTeamVisibility'
+import { canSeeInvestors } from '@/lib/roles'
 import { KontaktyTable } from '@/components/kontakty/KontaktyTable'
 import { KontaktForm } from '@/components/kontakty/KontaktForm'
 import { Modal } from '@/components/ui/Modal'
@@ -24,8 +25,9 @@ export default function KontaktyPage() {
   const searchParams = useSearchParams()
   const typParam = searchParams.get('typ')
   const activeTyp: KontaktTyp | null = typParam && (KONTAKT_TYPY as string[]).includes(typParam) ? typParam as KontaktTyp : null
+  const denied = activeTyp === 'inwestor' && !canSeeInvestors(profile?.role)
   const { visibleIds } = useVisibleUserIds(user?.id, profile?.role)
-  const filters = useMemo(() => ({ visibleIds, typ: activeTyp || undefined }), [visibleIds, activeTyp])
+  const filters = useMemo(() => ({ visibleIds, typ: denied ? undefined : (activeTyp || undefined) }), [visibleIds, activeTyp, denied])
   const { kontakty, loading, createKontakt } = useKontakty(filters)
   const { showToast } = useToast()
   const [profiles, setProfiles] = useState<Profile[]>([])
@@ -53,10 +55,16 @@ export default function KontaktyPage() {
         <div>
           <span className="limona-eyebrow">Partnerzy i dostawcy</span>
           <h1 className="limona-heading text-3xl mt-1">
-            {activeTyp ? KONTAKT_TYP_LABELS[activeTyp] : 'Baza kontaktów'}
+            {denied ? 'Baza kontaktów' : activeTyp ? KONTAKT_TYP_LABELS[activeTyp] : 'Baza kontaktów'}
           </h1>
           <p className="text-limona-text-muted text-sm mt-1">
-            {activeTyp ? `Kontakty typu: ${KONTAKT_TYP_LABELS[activeTyp]}` : 'Inwestorzy, spółdzielnie, wspólnoty, zarządcy i komornicy'}
+            {denied
+              ? 'Brak dostępu do tej kategorii'
+              : activeTyp
+                ? `Kontakty typu: ${KONTAKT_TYP_LABELS[activeTyp]}`
+                : canSeeInvestors(profile?.role)
+                  ? 'Inwestorzy, spółdzielnie, wspólnoty, zarządcy i komornicy'
+                  : 'Spółdzielnie, wspólnoty, zarządcy i komornicy'}
           </p>
         </div>
 
@@ -83,7 +91,15 @@ export default function KontaktyPage() {
       </div>
 
       {/* Content */}
-      {view === 'lista' ? (
+      {denied ? (
+        <div className="limona-card p-8 flex flex-col items-center text-center gap-3">
+          <ShieldAlert size={28} className="text-limona-text-dim" />
+          <p className="text-limona-text font-medium">Brak dostępu</p>
+          <p className="text-limona-text-muted text-sm max-w-sm">
+            Kontakty typu Inwestor są widoczne wyłącznie dla centrali i administratorów.
+          </p>
+        </div>
+      ) : view === 'lista' ? (
         <div className="limona-card p-4 lg:p-6">
           <KontaktyTable
             kontakty={kontakty}

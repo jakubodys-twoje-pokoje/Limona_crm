@@ -1,9 +1,9 @@
 export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { getSessionUser, unauthorized } from '@/lib/api-auth'
+import { getSessionUser, unauthorized, forbidden } from '@/lib/api-auth'
 import { geocodeAddress } from '@/lib/geocode'
-import { canSeeAllTeams } from '@/lib/roles'
+import { canSeeAllTeams, canSeeInvestors } from '@/lib/roles'
 
 const SELECT_WITH_RELATIONS = `*,
   creator:profiles!kontakty_created_by_fkey(id,full_name,avatar_url),
@@ -28,6 +28,12 @@ export async function GET(req: NextRequest) {
   const assignedTo = sp.get('assigned_to')
   const search = sp.get('search')
   const visibleIds = sp.get('visibleIds')?.split(',').filter(Boolean)
+
+  // Inwestorzy — dane wrażliwe handlowo, widoczne tylko dla centrali i adminów
+  if (!canSeeInvestors(user.role)) {
+    if (typ === 'inwestor') return forbidden()
+    query = query.neq('typ', 'inwestor')
+  }
 
   // Widoczność: admin/manager/kierownik_centrali widzą wszystko; reszta —
   // tylko własne kontakty (assigned_to/created_by wśród visibleIds) plus
@@ -67,6 +73,7 @@ export async function POST(req: NextRequest) {
   const supabase = await createClient()
 
   const body = await req.json()
+  if (body.typ === 'inwestor' && !canSeeInvestors(user.role)) return forbidden()
   // Auto-geokodowanie przy tworzeniu (nieblokujące — brak współrzędnych to null)
   const coords = await geocodeAddress(body.ulica, body.miasto, body.wojewodztwo)
 

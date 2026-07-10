@@ -9,6 +9,7 @@ import { useWallContext } from '@/hooks/useWallProvider'
 import { NotificationBell } from '@/components/ui/NotificationBell'
 import { Avatar } from '@/components/ui/Avatar'
 import { cn } from '@/lib/utils'
+import { canSeeInvestors } from '@/lib/roles'
 
 interface NavChild { href: string; icon: typeof ListTodo; label: string }
 interface NavItem { href: string; icon: typeof ListTodo; label: string; showCounter?: boolean; children?: NavChild[] }
@@ -47,7 +48,10 @@ export const Sidebar = memo(function Sidebar() {
   const isAdmin = profile?.role === 'admin'
   const [manuallyToggled, setManuallyToggled] = useState<Record<string, boolean>>({})
 
-  const allItems = [...navItems, ...(isAdmin ? adminItems : [])]
+  const allItems = [...navItems, ...(isAdmin ? adminItems : [])].map(item => {
+    if (item.href !== '/kontakty' || !item.children || canSeeInvestors(profile?.role)) return item
+    return { ...item, children: item.children.filter(c => c.href !== '/kontakty?typ=inwestor') }
+  })
 
   function isChildActive(child: NavChild) {
     return child.href.includes('?') ? currentFull === child.href : pathname === child.href

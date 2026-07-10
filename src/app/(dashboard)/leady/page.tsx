@@ -153,7 +153,11 @@ export default function LeadyPage() {
           assigned_to: lead.assigned_to || null,
         }),
       })
-      if (!res.ok) { showToast('Błąd tworzenia nieruchomości', 'error'); return }
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        showToast(body.error || 'Błąd tworzenia nieruchomości', 'error')
+        return
+      }
       const newProp = await res.json()
 
       await fetch(`/api/leads/${lead.id}`, {

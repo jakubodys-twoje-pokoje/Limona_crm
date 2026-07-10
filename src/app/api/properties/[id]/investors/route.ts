@@ -1,13 +1,15 @@
 export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { getSessionUser, unauthorized } from '@/lib/api-auth'
+import { getSessionUser, unauthorized, forbidden } from '@/lib/api-auth'
+import { canSeeInvestors } from '@/lib/roles'
 
 const SELECT_WITH_KONTAKT = '*, kontakt:kontakty!property_investors_kontakt_id_fkey(id,nazwa,telefon,email,typ)'
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getSessionUser()
   if (!user) return unauthorized()
+  if (!canSeeInvestors(user.role)) return forbidden()
   const supabase = await createClient()
   const { id } = await params
 
@@ -24,6 +26,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getSessionUser()
   if (!user) return unauthorized()
+  if (!canSeeInvestors(user.role)) return forbidden()
   const supabase = await createClient()
   const { id } = await params
 

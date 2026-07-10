@@ -31,12 +31,63 @@ export async function GET(req: NextRequest) {
   return NextResponse.json(data)
 }
 
+// Usuwa znaki specjalne dla ILIKE (%, _) oraz separatory PostgREST (,()) —
+// szukamy dokładnego dopasowania (bez znaczenia wielkości liter), nie substringu.
+function sanitizeForIlike(v: string): string {
+  return v.replace(/[%_,()]/g, ' ').trim()
+}
+
+const DUP_SELECT = `id, adres,
+  assignee:profiles!properties_assigned_to_fkey(id,full_name),
+  creator:profiles!properties_created_by_fkey(id,full_name)`
+
+interface DuplicateMatch {
+  id: string
+  assignee: { full_name: string } | { full_name: string }[] | null
+  creator: { full_name: string } | { full_name: string }[] | null
+}
+
+function duplicateContactLabel(dup: DuplicateMatch): string {
+  const assignee = Array.isArray(dup.assignee) ? dup.assignee[0] : dup.assignee
+  const creator = Array.isArray(dup.creator) ? dup.creator[0] : dup.creator
+  return assignee?.full_name || creator?.full_name || 'osobą przypisaną do nieruchomości'
+}
+
 export async function POST(req: NextRequest) {
   const user = await getSessionUser()
   if (!user) return unauthorized()
   const supabase = await createClient()
 
   const body = await req.json()
+
+  // Wykrywanie duplikatów — agenci widzą tylko swoje nieruchomości, więc bez
+  // tej kontroli mogliby niezależnie dodać tę samą nieruchomość dwa razy.
+  const kwNumber = typeof body.kw_number === 'string' ? sanitizeForIlike(body.kw_number) : ''
+  const adres = typeof body.adres === 'string' ? sanitizeForIlike(body.adres) : ''
+  const kodPocztowy = typeof body.kod_pocztowy === 'string' ? sanitizeForIlike(body.kod_pocztowy) : ''
+  const miasto = typeof body.miasto === 'string' ? sanitizeForIlike(body.miasto) : ''
+
+  let duplicate: DuplicateMatch | null = null
+
+  if (kwNumber) {
+    const { data } = await supabase.from('properties').select(DUP_SELECT).ilike('kw_number', kwNumber).limit(1)
+    duplicate = (data?.[0] as unknown as DuplicateMatch) ?? null
+  }
+
+  // Dopasowanie po adresie tylko gdy mamy wszystkie 3 pola — sam adres bez
+  // miasta/kodu to za słaby sygnał (patrz np. placeholder z kalkulatora).
+  if (!duplicate && adres && kodPocztowy && miasto) {
+    const { data } = await supabase.from('properties').select(DUP_SELECT)
+      .ilike('adres', adres).ilike('kod_pocztowy', kodPocztowy).ilike('miasto', miasto).limit(1)
+    duplicate = (data?.[0] as unknown as DuplicateMatch) ?? null
+  }
+
+  if (duplicate) {
+    return NextResponse.json({
+      error: `Nieruchomość jest już w bazie, skontaktuj się z ${duplicateContactLabel(duplicate)} po więcej informacji`,
+      duplicatePropertyId: duplicate.id,
+    }, { status: 409 })
+  }
 
   // Auto-geokodowanie przy tworzeniu (nieblokujące — brak współrzędnych to null)
   const coords = await geocodeAddress(body.adres, body.miasto ?? null, null)

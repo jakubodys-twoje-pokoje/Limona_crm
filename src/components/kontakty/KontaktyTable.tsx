@@ -7,6 +7,8 @@ import { Avatar } from '@/components/ui/Avatar'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { cn } from '@/lib/utils'
 import { isOpenNow, hasAnyHours } from '@/lib/godziny'
+import { useAuth } from '@/hooks/useAuth'
+import { canSeeInvestors } from '@/lib/roles'
 import type { Kontakt, KontaktTyp, Profile } from '@/types/database'
 import { KONTAKT_TYP_LABELS, KONTAKT_TYPY } from '@/types/database'
 
@@ -71,6 +73,8 @@ function FilterSection({ title, children }: { title: string; children: React.Rea
 
 export function KontaktyTable({ kontakty, loading, profiles, onAdd }: Props) {
   const router = useRouter()
+  const { profile } = useAuth()
+  const visibleTypy = canSeeInvestors(profile?.role) ? KONTAKT_TYPY : KONTAKT_TYPY.filter(t => t !== 'inwestor')
 
   // Dropdown / text filters
   const [search,         setSearch]         = useState('')
@@ -224,7 +228,7 @@ export function KontaktyTable({ kontakty, loading, profiles, onAdd }: Props) {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <select className="limona-input text-sm" value={typFilter} onChange={e => setTypFilter(e.target.value)}>
               <option value="">Wszystkie typy</option>
-              {KONTAKT_TYPY.map(t => <option key={t} value={t}>{KONTAKT_TYP_LABELS[t]}</option>)}
+              {visibleTypy.map(t => <option key={t} value={t}>{KONTAKT_TYP_LABELS[t]}</option>)}
             </select>
             <select className="limona-input text-sm" value={wojFilter} onChange={e => setWojFilter(e.target.value)}>
               <option value="">Wszystkie województwa</option>
