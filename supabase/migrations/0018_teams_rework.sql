@@ -37,6 +37,40 @@ create trigger set_teams_updated_at
   for each row execute function public.set_updated_at();
 
 -- ---------------------------------------------------------------
+-- Polityki RLS na daily_reports / missed_report_acks (z migracji 0017)
+-- odwoływały się do team_visibility ("czy user jest managerem targetu")
+-- — trzeba je przepisać na team_members, ZANIM usuniemy tę tabelę,
+-- inaczej DROP TABLE niżej wywali błąd o zależnych obiektach.
+-- ---------------------------------------------------------------
+drop policy if exists "daily_reports_select" on public.daily_reports;
+create policy "daily_reports_select" on public.daily_reports
+  for select to authenticated
+  using (
+    user_id = (select auth.uid())
+    or public.can_manage_teams()
+    or exists (
+      select 1 from public.team_members tm_lead
+      join public.team_members tm_target on tm_target.team_id = tm_lead.team_id
+      where tm_lead.user_id = (select auth.uid()) and tm_lead.is_lead
+        and tm_target.user_id = daily_reports.user_id
+    )
+  );
+
+drop policy if exists "missed_report_acks_select" on public.missed_report_acks;
+create policy "missed_report_acks_select" on public.missed_report_acks
+  for select to authenticated
+  using (
+    user_id = (select auth.uid())
+    or public.can_manage_teams()
+    or exists (
+      select 1 from public.team_members tm_lead
+      join public.team_members tm_target on tm_target.team_id = tm_lead.team_id
+      where tm_lead.user_id = (select auth.uid()) and tm_lead.is_lead
+        and tm_target.user_id = missed_report_acks.user_id
+    )
+  );
+
+-- ---------------------------------------------------------------
 -- Backfill z team_visibility (jeśli tabela jeszcze istnieje)
 -- ---------------------------------------------------------------
 do $$
