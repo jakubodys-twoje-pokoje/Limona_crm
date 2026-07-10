@@ -19,7 +19,7 @@ export const TopBar = memo(function TopBar() {
           <span className="font-heading font-bold text-sm uppercase tracking-wide text-limona-white">Limona</span>
         </Link>
         <div className="flex items-center gap-2">
-          <DailyReportCta compact />
+          {profile?.role === 'user' && <DailyReportCta compact />}
           <NotificationBell userId={user?.id} />
           <Link href="/profil">
             <Avatar name={profile?.full_name || 'User'} url={profile?.avatar_url} size="sm" />

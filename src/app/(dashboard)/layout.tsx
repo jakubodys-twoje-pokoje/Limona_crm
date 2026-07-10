@@ -17,8 +17,9 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode
 }) {
-  const { user, loading } = useAuth()
+  const { user, profile, loading } = useAuth()
   const router = useRouter()
+  const requiresDailyReport = profile?.role === 'user'
 
   useEffect(() => {
     if (!loading && !user) {
@@ -42,10 +43,12 @@ export default function DashboardLayout({
         <div className="min-h-screen bg-limona-bg">
           <Sidebar />
           <TopBar />
-          {/* CTA raportu dziennego — desktop, prawy górny róg */}
-          <div className="hidden lg:block fixed top-4 right-6 z-40">
-            <DailyReportCta />
-          </div>
+          {/* CTA raportu dziennego — desktop, prawy górny róg (tylko rola user) */}
+          {requiresDailyReport && (
+            <div className="hidden lg:block fixed top-4 right-6 z-40">
+              <DailyReportCta />
+            </div>
+          )}
           <main className="lg:ml-64 pt-14 lg:pt-16 pb-20 lg:pb-0 min-h-screen">
             <div className="p-4 lg:p-8 lg:pt-2">
               {children}
@@ -53,7 +56,7 @@ export default function DashboardLayout({
           </main>
           <MobileNav />
           <NotificationModal />
-          <MissedReportGate />
+          {requiresDailyReport && <MissedReportGate />}
         </div>
       </WallProvider>
     </ToastProvider>
