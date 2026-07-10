@@ -19,34 +19,71 @@
 -- manual_offer, kw_opis, source, status są usuwane trwale.
 -- Jeśli w bazie są rekordy z wartościami w tych kolumnach, przed
 -- uruchomieniem tej migracji rozważ ich eksport.
+--
+-- Ta migracja jest bezpieczna do wielokrotnego uruchomienia
+-- (idempotentna) — każdy krok sprawdza aktualny stan przed
+-- wykonaniem, więc można ją ponownie wkleić po nieudanej/częściowej
+-- wcześniejszej próbie bez błędów w stylu "column already exists".
 -- =============================================================
 
 -- ---------------------------------------------------------------
 -- properties — nowe kolumny
 -- ---------------------------------------------------------------
 alter table public.properties
-  add column adres                 text,
-  add column kod_pocztowy          text,
-  add column miasto                text,
-  add column wartosc_realna        numeric(14,2),
-  add column zadluzenia            jsonb not null default '[]'::jsonb,
-  add column status_dluznika       text not null default 'brak',
-  add column status_inwestora      text not null default 'brak',
-  add column pietro_z_ilu          integer,
-  add column kw_dzial1_komentarz   text,
-  add column kw_dzial2_komentarz   text,
-  add column kw_dzial3_komentarz   text,
-  add column kw_dzial4_komentarz   text;
+  add column if not exists adres                 text,
+  add column if not exists kod_pocztowy           text,
+  add column if not exists miasto                 text,
+  add column if not exists wartosc_realna         numeric(14,2),
+  add column if not exists status_dluznika        text not null default 'brak',
+  add column if not exists status_inwestora       text not null default 'brak',
+  add column if not exists pietro_z_ilu           integer,
+  add column if not exists kw_dzial1_komentarz    text,
+  add column if not exists kw_dzial2_komentarz    text,
+  add column if not exists kw_dzial3_komentarz    text,
+  add column if not exists kw_dzial4_komentarz    text;
+
+-- Wcześniejsza wersja tej migracji nazywała tę kolumnę koszty_dodatkowe —
+-- jeśli została już utworzona pod starą nazwą, przemianuj zamiast dublować.
+do $$
+begin
+  if exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'properties' and column_name = 'koszty_dodatkowe')
+     and not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'properties' and column_name = 'zadluzenia') then
+    alter table public.properties rename column koszty_dodatkowe to zadluzenia;
+  end if;
+end $$;
+
+alter table public.properties
+  add column if not exists zadluzenia jsonb not null default '[]'::jsonb;
 
 -- Backfill adres z dotychczasowego location (best effort — jedno pole
--- w całości trafia do adresu, kod/miasto zostają puste do uzupełnienia)
-update public.properties set adres = location where adres is null;
+-- w całości trafia do adresu, kod/miasto zostają puste do uzupełnienia).
+-- Kolumna location mogła już zostać usunięta w poprzedniej próbie —
+-- w takim wypadku ten krok jest pomijany.
+do $$
+begin
+  if exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'properties' and column_name = 'location') then
+    update public.properties set adres = location where adres is null;
+  end if;
+end $$;
+
+-- Puste adresy (np. rekordy bez dawnego location) dostają placeholder,
+-- żeby constraint not null nie wywalił migracji na istniejących danych.
+update public.properties set adres = '(brak adresu)' where adres is null;
 
 alter table public.properties
   alter column adres set not null;
 
 -- Rename: operat szacunkowy -> wycena szacunkowa (ta sama kolumna)
-alter table public.properties rename column operat_szacunkowy to wycena_szacunkowa;
+do $$
+begin
+  if exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'properties' and column_name = 'operat_szacunkowy')
+     and not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'properties' and column_name = 'wycena_szacunkowa') then
+    alter table public.properties rename column operat_szacunkowy to wycena_szacunkowa;
+  end if;
+end $$;
+
+alter table public.properties
+  add column if not exists wycena_szacunkowa numeric(14,2);
 
 -- Trigger na status_changed_at odwoływał się do kolumny `status` —
 -- przepinamy na oba nowe tory statusu.
@@ -65,25 +102,25 @@ $$;
 
 -- Usunięcie pól wycofanych z formularza/UI
 alter table public.properties
-  drop column location,
-  drop column trello_link,
-  drop column lead_temperature,
-  drop column contact_type,
-  drop column commission_pct,
-  drop column notary_fee,
-  drop column manual_offer,
-  drop column kw_opis,
-  drop column source,
-  drop column status;
+  drop column if exists location,
+  drop column if exists trello_link,
+  drop column if exists lead_temperature,
+  drop column if exists contact_type,
+  drop column if exists commission_pct,
+  drop column if exists notary_fee,
+  drop column if exists manual_offer,
+  drop column if exists kw_opis,
+  drop column if exists source,
+  drop column if exists status;
 
-create index properties_status_dluznika_idx on public.properties (status_dluznika);
-create index properties_status_inwestora_idx on public.properties (status_inwestora);
-create index properties_miasto_idx on public.properties (miasto);
+create index if not exists properties_status_dluznika_idx on public.properties (status_dluznika);
+create index if not exists properties_status_inwestora_idx on public.properties (status_inwestora);
+create index if not exists properties_miasto_idx on public.properties (miasto);
 
 -- ---------------------------------------------------------------
 -- property_negotiation_notes — zakładka "Negocjacja" (notatki)
 -- ---------------------------------------------------------------
-create table public.property_negotiation_notes (
+create table if not exists public.property_negotiation_notes (
   id          uuid primary key default gen_random_uuid(),
   property_id uuid not null references public.properties(id) on delete cascade on update cascade,
   user_id     uuid references public.profiles(id) on delete set null on update cascade,
@@ -91,15 +128,21 @@ create table public.property_negotiation_notes (
   created_at  timestamptz not null default now()
 );
 
-create index property_negotiation_notes_property_id_idx on public.property_negotiation_notes (property_id);
+create index if not exists property_negotiation_notes_property_id_idx on public.property_negotiation_notes (property_id);
 
 grant select, insert, update, delete on public.property_negotiation_notes to authenticated;
 grant all on public.property_negotiation_notes to service_role;
 
 alter table public.property_negotiation_notes enable row level security;
+
+drop policy if exists "property_negotiation_notes_select" on public.property_negotiation_notes;
 create policy "property_negotiation_notes_select" on public.property_negotiation_notes for select to authenticated using (true);
+
+drop policy if exists "property_negotiation_notes_insert" on public.property_negotiation_notes;
 create policy "property_negotiation_notes_insert" on public.property_negotiation_notes for insert to authenticated
   with check (user_id = (select auth.uid()));
+
+drop policy if exists "property_negotiation_notes_delete" on public.property_negotiation_notes;
 create policy "property_negotiation_notes_delete" on public.property_negotiation_notes for delete to authenticated
   using (user_id = (select auth.uid()) or public.is_admin());
 
@@ -112,7 +155,7 @@ create policy "property_negotiation_notes_delete" on public.property_negotiation
 -- property_investors — zakładka "Inwestorzy": powiązanie
 -- nieruchomość <-> kontakt (typ='inwestor') + status per nieruchomość
 -- ---------------------------------------------------------------
-create table public.property_investors (
+create table if not exists public.property_investors (
   id          uuid primary key default gen_random_uuid(),
   property_id uuid not null references public.properties(id) on delete cascade on update cascade,
   kontakt_id  uuid not null references public.kontakty(id) on delete cascade on update cascade,
@@ -122,17 +165,25 @@ create table public.property_investors (
   unique (property_id, kontakt_id)
 );
 
-create index property_investors_property_id_idx on public.property_investors (property_id);
-create index property_investors_kontakt_id_idx on public.property_investors (kontakt_id);
+create index if not exists property_investors_property_id_idx on public.property_investors (property_id);
+create index if not exists property_investors_kontakt_id_idx on public.property_investors (kontakt_id);
 
 grant select, insert, update, delete on public.property_investors to authenticated;
 grant all on public.property_investors to service_role;
 
 alter table public.property_investors enable row level security;
+
+drop policy if exists "property_investors_select" on public.property_investors;
 create policy "property_investors_select" on public.property_investors for select to authenticated using (true);
+
+drop policy if exists "property_investors_insert" on public.property_investors;
 create policy "property_investors_insert" on public.property_investors for insert to authenticated
   with check (created_by = (select auth.uid()));
+
+drop policy if exists "property_investors_update" on public.property_investors;
 create policy "property_investors_update" on public.property_investors for update to authenticated
   using (true) with check (true);
+
+drop policy if exists "property_investors_delete" on public.property_investors;
 create policy "property_investors_delete" on public.property_investors for delete to authenticated
   using (true);
