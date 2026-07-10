@@ -10,7 +10,7 @@ import { isOpenNow, hasAnyHours } from '@/lib/godziny'
 import { useAuth } from '@/hooks/useAuth'
 import { canSeeInvestors } from '@/lib/roles'
 import type { Kontakt, KontaktTyp, Profile } from '@/types/database'
-import { KONTAKT_TYP_LABELS, KONTAKT_TYPY } from '@/types/database'
+import { KONTAKT_TYP_LABELS, KONTAKT_TYPY, KONTAKT_ROZMIAR_LABELS, KONTAKT_ROZMIARY } from '@/types/database'
 
 const WOJEWODZTWA = [
   'dolnośląskie','kujawsko-pomorskie','lubelskie','lubuskie','łódzkie',
@@ -82,6 +82,7 @@ export function KontaktyTable({ kontakty, loading, profiles, onAdd }: Props) {
   const [wojFilter,      setWojFilter]      = useState('')
   const [miastoFilter,   setMiastoFilter]   = useState('')
   const [assignedFilter, setAssignedFilter] = useState('')
+  const [rozmiarFilter,  setRozmiarFilter]  = useState('')
   const [showFilters,    setShowFilters]    = useState(false)
 
   // Statusy realizacji
@@ -113,13 +114,13 @@ export function KontaktyTable({ kontakty, loading, profiles, onAdd }: Props) {
   }
 
   const activeFilterCount = [
-    typFilter, wojFilter, miastoFilter, assignedFilter,
+    typFilter, wojFilter, miastoFilter, assignedFilter, rozmiarFilter,
     fWizyta, fMail, fCoop, fNie, fUlotki, fPlakat, fOperator,
     fGodziny, fOtwarte, fTelefon, fEmail, fBezOpiek, fProwizja, fUmowa,
   ].filter(Boolean).length
 
   function resetFilters() {
-    setTypFilter(''); setWojFilter(''); setMiastoFilter(''); setAssignedFilter('')
+    setTypFilter(''); setWojFilter(''); setMiastoFilter(''); setAssignedFilter(''); setRozmiarFilter('')
     setFWizyta(false); setFMail(false); setFCoop(false); setFNie(false)
     setFUlotki(false); setFPlakat(false); setFOperator(false)
     setFGodziny(false); setFOtwarte(false); setFTelefon(false)
@@ -134,6 +135,7 @@ export function KontaktyTable({ kontakty, loading, profiles, onAdd }: Props) {
         if (wojFilter      && k.wojewodztwo  !== wojFilter)      return false
         if (miastoFilter   && !k.miasto?.toLowerCase().includes(miastoFilter.toLowerCase())) return false
         if (assignedFilter && k.assigned_to  !== assignedFilter) return false
+        if (rozmiarFilter  && k.rozmiar      !== rozmiarFilter)  return false
 
         if (search) {
           const q = search.toLowerCase()
@@ -173,7 +175,7 @@ export function KontaktyTable({ kontakty, loading, profiles, onAdd }: Props) {
         return sortDir === 'asc' ? aV.localeCompare(bV, 'pl') : bV.localeCompare(aV, 'pl')
       })
   }, [
-    kontakty, typFilter, wojFilter, miastoFilter, assignedFilter, search,
+    kontakty, typFilter, wojFilter, miastoFilter, assignedFilter, rozmiarFilter, search,
     fWizyta, fMail, fCoop, fNie, fUlotki, fPlakat, fOperator,
     fGodziny, fOtwarte, fTelefon, fEmail, fBezOpiek, fProwizja, fUmowa,
     sortKey, sortDir,
@@ -243,6 +245,10 @@ export function KontaktyTable({ kontakty, loading, profiles, onAdd }: Props) {
             <select className="limona-input text-sm" value={assignedFilter} onChange={e => setAssignedFilter(e.target.value)}>
               <option value="">Wszyscy opiekunowie</option>
               {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
+            </select>
+            <select className="limona-input text-sm" value={rozmiarFilter} onChange={e => setRozmiarFilter(e.target.value)}>
+              <option value="">Wszystkie rozmiary</option>
+              {KONTAKT_ROZMIARY.map(r => <option key={r} value={r}>{KONTAKT_ROZMIAR_LABELS[r]}</option>)}
             </select>
           </div>
 

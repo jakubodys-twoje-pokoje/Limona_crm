@@ -4,8 +4,8 @@ import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
 import { canSeeInvestors, canManageTeams } from '@/lib/roles'
-import type { Kontakt, KontaktTyp, Profile, WeeklyHours } from '@/types/database'
-import { KONTAKT_TYP_LABELS, KONTAKT_TYPY, TYPY_SPOLDZIELNIA, TYPY_Z_PROWIZJA, WEEK_DAYS, WEEK_DAY_LABELS } from '@/types/database'
+import type { Kontakt, KontaktTyp, KontaktRozmiar, Profile, WeeklyHours } from '@/types/database'
+import { KONTAKT_TYP_LABELS, KONTAKT_TYPY, KONTAKT_ROZMIAR_LABELS, KONTAKT_ROZMIARY, TYPY_SPOLDZIELNIA, TYPY_Z_PROWIZJA, WEEK_DAYS, WEEK_DAY_LABELS } from '@/types/database'
 
 const WOJEWODZTWA = [
   'dolnośląskie','kujawsko-pomorskie','lubelskie','lubuskie','łódzkie',
@@ -32,6 +32,10 @@ const DEFAULTS: Partial<Kontakt> = {
   telefon: '',
   email: '',
   opis: '',
+  nip: '',
+  krs: '',
+  www: '',
+  rozmiar: null,
   assigned_to: null,
   oddzial: '',
   wizyta_osobista: false,
@@ -166,6 +170,45 @@ export function KontaktForm({ initial, profiles, onSubmit, onCancel, submitLabel
               onChange={e => set('email', e.target.value)}
               placeholder="kontakt@firma.pl"
             />
+          </Field>
+
+          <Field label="NIP">
+            <input
+              className="limona-input w-full"
+              value={form.nip || ''}
+              onChange={e => set('nip', e.target.value)}
+              placeholder="000-000-00-00"
+            />
+          </Field>
+
+          <Field label="KRS">
+            <input
+              className="limona-input w-full"
+              value={form.krs || ''}
+              onChange={e => set('krs', e.target.value)}
+              placeholder="0000000000"
+            />
+          </Field>
+
+          <Field label="Strona www">
+            <input
+              type="url"
+              className="limona-input w-full"
+              value={form.www || ''}
+              onChange={e => set('www', e.target.value)}
+              placeholder="https://firma.pl"
+            />
+          </Field>
+
+          <Field label="Rozmiar">
+            <select
+              className="limona-input w-full"
+              value={form.rozmiar || ''}
+              onChange={e => set('rozmiar', (e.target.value || null) as KontaktRozmiar | null)}
+            >
+              <option value="">— nie wybrano —</option>
+              {KONTAKT_ROZMIARY.map(r => <option key={r} value={r}>{KONTAKT_ROZMIAR_LABELS[r]}</option>)}
+            </select>
           </Field>
 
           {canAssign ? (

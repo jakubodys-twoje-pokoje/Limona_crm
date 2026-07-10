@@ -267,6 +267,16 @@ export const KONTAKT_TYP_COLORS: Record<KontaktTyp, string> = {
 // Color used for numbered tour pins (overrides type color)
 export const TOUR_PIN_COLOR = '#eab308' // yellow
 
+export type KontaktRozmiar = 'mala' | 'srednia' | 'duza'
+
+export const KONTAKT_ROZMIAR_LABELS: Record<KontaktRozmiar, string> = {
+  mala: 'Mała',
+  srednia: 'Średnia',
+  duza: 'Duża',
+}
+
+export const KONTAKT_ROZMIARY: KontaktRozmiar[] = ['mala', 'srednia', 'duza']
+
 // Types that are spółdzielnia / wspólnota (mają zgody na ulotki/plakaty, operatora budowy)
 export const TYPY_SPOLDZIELNIA = new Set<KontaktTyp>(['spoldzielnia', 'wspolnota'])
 
@@ -311,6 +321,11 @@ export interface Kontakt {
   telefon: string | null
   email: string | null
   opis: string | null
+  nip: string | null
+  krs: string | null
+  www: string | null
+  rozmiar: KontaktRozmiar | null
+  zdjecia: string[]
   assigned_to: string | null
   oddzial: string | null
   created_by: string | null

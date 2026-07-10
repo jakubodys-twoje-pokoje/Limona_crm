@@ -1,12 +1,12 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
 import {
   ArrowLeft, Phone, Mail, MapPin, Clock, User,
-  CheckSquare, Square, Edit, Trash2, ExternalLink, Plus, Circle, CheckCircle, Users, X, ListTodo
+  CheckSquare, Square, Edit, Trash2, ExternalLink, Plus, Circle, CheckCircle, Users, X, ListTodo, Hash, Ruler, ImagePlus
 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { useTasks } from '@/hooks/useTasks'
@@ -23,7 +23,7 @@ import { formatWeeklyHours } from '@/lib/godziny'
 import type { Kontakt, KontaktTyp, KontaktShare, Profile, Task } from '@/types/database'
 
 const KontaktMiniMap = dynamic(() => import('@/components/kontakty/KontaktMiniMap'), { ssr: false })
-import { KONTAKT_TYP_LABELS, TYPY_SPOLDZIELNIA, TYPY_Z_PROWIZJA } from '@/types/database'
+import { KONTAKT_TYP_LABELS, KONTAKT_ROZMIAR_LABELS, TYPY_SPOLDZIELNIA, TYPY_Z_PROWIZJA } from '@/types/database'
 
 function InfoRow({ icon: Icon, label, value }: { icon: React.ElementType; label: string; value: string | null | undefined }) {
   if (!value) return null
@@ -33,6 +33,22 @@ function InfoRow({ icon: Icon, label, value }: { icon: React.ElementType; label:
       <div className="flex-1 min-w-0">
         <p className="text-[10px] uppercase tracking-wider text-limona-text-dim">{label}</p>
         <p className="text-sm text-limona-text break-words">{value}</p>
+      </div>
+    </div>
+  )
+}
+
+function InfoLinkRow({ icon: Icon, label, url }: { icon: React.ElementType; label: string; url: string | null | undefined }) {
+  if (!url) return null
+  const href = /^https?:\/\//i.test(url) ? url : `https://${url}`
+  return (
+    <div className="flex items-start gap-3 py-2 border-b border-limona-border/40 last:border-0">
+      <Icon size={14} className="text-limona-text-muted mt-0.5 flex-shrink-0" />
+      <div className="flex-1 min-w-0">
+        <p className="text-[10px] uppercase tracking-wider text-limona-text-dim">{label}</p>
+        <a href={href} target="_blank" rel="noopener noreferrer" className="text-sm text-limona-lime hover:underline break-words">
+          {url}
+        </a>
       </div>
     </div>
   )
@@ -83,6 +99,11 @@ export default function KontaktDetailPage() {
   const [sharesLoading, setSharesLoading] = useState(false)
   const [shareUserId, setShareUserId] = useState('')
 
+  // Zdjęcia
+  const MAX_PHOTOS = 5
+  const [uploadingPhoto, setUploadingPhoto] = useState(false)
+  const photoInputRef = useRef<HTMLInputElement>(null)
+
   async function loadKontakt() {
     const res = await fetch(`/api/kontakty/${kontaktId}`)
     if (!res.ok) { router.push('/kontakty'); return }
@@ -132,6 +153,61 @@ export default function KontaktDetailPage() {
     await fetch(`/api/kontakty/${kontaktId}/shares/${shareId}`, { method: 'DELETE' })
     setShares(prev => prev.filter(s => s.id !== shareId))
   }
+
+  async function uploadPhoto(file: File) {
+    if (!kontakt) return
+    if ((kontakt.zdjecia?.length || 0) >= MAX_PHOTOS) {
+      showToast(`Maksymalnie ${MAX_PHOTOS} zdjęć na kontakt`, 'error')
+      return
+    }
+    if (!file.type.startsWith('image/')) {
+      showToast('Dozwolone są tylko obrazy', 'error')
+      return
+    }
+    setUploadingPhoto(true)
+    const formData = new FormData()
+    formData.append('file', file)
+    const res = await fetch(`/api/kontakty/${kontaktId}/photos`, { method: 'POST', body: formData })
+    if (res.ok) {
+      const { zdjecia } = await res.json()
+      setKontakt(prev => prev ? { ...prev, zdjecia } : prev)
+    } else {
+      showToast((await res.json()).error || 'Błąd wgrywania zdjęcia', 'error')
+    }
+    setUploadingPhoto(false)
+  }
+
+  async function handleRemovePhoto(url: string) {
+    const res = await fetch(`/api/kontakty/${kontaktId}/photos`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url }),
+    })
+    if (res.ok) {
+      const { zdjecia } = await res.json()
+      setKontakt(prev => prev ? { ...prev, zdjecia } : prev)
+    } else {
+      showToast((await res.json()).error || 'Błąd usuwania zdjęcia', 'error')
+    }
+  }
+
+  // Wklejanie zdjęcia ze schowka (Ctrl+V) w dowolnym miejscu na stronie kontaktu
+  useEffect(() => {
+    function handlePaste(e: ClipboardEvent) {
+      if (!kontakt || (kontakt.zdjecia?.length || 0) >= MAX_PHOTOS) return
+      const items = e.clipboardData?.items
+      if (!items) return
+      for (const item of items) {
+        if (item.type.startsWith('image/')) {
+          const file = item.getAsFile()
+          if (file) { uploadPhoto(file); break }
+        }
+      }
+    }
+    window.addEventListener('paste', handlePaste)
+    return () => window.removeEventListener('paste', handlePaste)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kontakt?.zdjecia?.length, kontaktId])
 
   async function patchField(updates: Partial<Kontakt> & { statusComment?: string }) {
     if (!kontakt) return
@@ -257,6 +333,10 @@ export default function KontaktDetailPage() {
               <InfoRow icon={MapPin}   label="Adres"         value={[kontakt.ulica, kontakt.miasto, kontakt.wojewodztwo].filter(Boolean).join(', ')} />
               <InfoRow icon={Clock}    label="Godziny otwarcia / przyjęć stron" value={formatWeeklyHours(kontakt.godziny_otwarcia)} />
               <InfoRow icon={User}     label="Oddział"       value={kontakt.oddzial} />
+              <InfoRow icon={Hash}     label="NIP"           value={kontakt.nip} />
+              <InfoRow icon={Hash}     label="KRS"           value={kontakt.krs} />
+              <InfoLinkRow icon={ExternalLink} label="Strona www" url={kontakt.www} />
+              <InfoRow icon={Ruler}    label="Rozmiar"       value={kontakt.rozmiar ? KONTAKT_ROZMIAR_LABELS[kontakt.rozmiar] : null} />
             </div>
 
             {kontakt.assignee && (
@@ -287,6 +367,54 @@ export default function KontaktDetailPage() {
                 onGeocode={(newLat: number, newLng: number) => setKontakt(prev => prev ? { ...prev, lat: newLat, lng: newLng } : prev)}
               />
             </div>
+          </div>
+
+          {/* Zdjęcia */}
+          <div className="limona-card p-5">
+            <p className="limona-eyebrow mb-4 flex items-center gap-2">
+              <ImagePlus size={14} /> Zdjęcia ({(kontakt.zdjecia?.length || 0)}/{MAX_PHOTOS})
+            </p>
+            <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
+              {(kontakt.zdjecia || []).map(url => (
+                <div key={url} className="relative group aspect-square rounded overflow-hidden border border-limona-border">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={url} alt="Zdjęcie kontaktu" className="w-full h-full object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => handleRemovePhoto(url)}
+                    className="absolute top-1 right-1 w-6 h-6 rounded-full bg-black/60 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-limona-red"
+                    title="Usuń zdjęcie"
+                  >
+                    <X size={12} />
+                  </button>
+                </div>
+              ))}
+              {(kontakt.zdjecia?.length || 0) < MAX_PHOTOS && (
+                <button
+                  type="button"
+                  onClick={() => photoInputRef.current?.click()}
+                  disabled={uploadingPhoto}
+                  className="aspect-square rounded border border-dashed border-limona-border flex flex-col items-center justify-center gap-1 text-limona-text-dim hover:text-limona-lime hover:border-limona-lime transition-colors disabled:opacity-50"
+                >
+                  <ImagePlus size={18} />
+                  <span className="text-[10px] uppercase tracking-wider">{uploadingPhoto ? 'Wgrywanie…' : 'Dodaj'}</span>
+                </button>
+              )}
+            </div>
+            <input
+              ref={photoInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={e => {
+                const file = e.target.files?.[0]
+                if (file) uploadPhoto(file)
+                e.target.value = ''
+              }}
+            />
+            <p className="text-[10px] text-limona-text-dim mt-3">
+              Max {MAX_PHOTOS} zdjęć. Możesz też wkleić zdjęcie ze schowka (Ctrl+V) będąc na tej stronie.
+            </p>
           </div>
 
           {/* Zadania */}
