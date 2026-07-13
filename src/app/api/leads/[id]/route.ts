@@ -1,8 +1,10 @@
 export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { getSessionUser, unauthorized } from '@/lib/api-auth'
+import { getSessionUser, unauthorized, forbidden } from '@/lib/api-auth'
 import { LEAD_STATUS_LABELS, formatStatusChangeComment } from '@/lib/status-comments'
+import { validateLeadTransition } from '@/lib/lead-rules'
+import { canSeeAllTeams } from '@/lib/roles'
 import type { LeadStatus } from '@/types/database'
 
 const SELECT_WITH_RELATIONS = `*,
@@ -35,23 +37,37 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const { data: existing } = await supabase
     .from('leads')
-    .select('status')
+    .select('status, assigned_to')
     .eq('id', id)
     .maybeSingle()
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  // Każda zmiana statusu wymaga komentarza uzasadniającego (dlaczego?)
+  // Konwertowany lead jest zamrożony — jego historia to dokument
+  if (existing.status === 'converted') {
+    return NextResponse.json({ error: 'Lead po konwersji jest tylko do odczytu' }, { status: 409 })
+  }
+
+  // Zmiana statusu: dozwolone przejście + obowiązkowy komentarz "dlaczego"
   const statusChanging = typeof body.status === 'string' && body.status !== existing.status
-  if (statusChanging && !statusComment?.trim()) {
-    return NextResponse.json({ error: 'Zmiana statusu wymaga komentarza — uzasadnij, dlaczego' }, { status: 400 })
+  if (statusChanging) {
+    const transitionError = validateLeadTransition(existing.status as LeadStatus, body.status as LeadStatus)
+    if (transitionError) return NextResponse.json({ error: transitionError }, { status: 400 })
+    if (!statusComment?.trim()) {
+      return NextResponse.json({ error: 'Zmiana statusu wymaga komentarza — uzasadnij, dlaczego' }, { status: 400 })
+    }
+  }
+
+  // Przepięcie leada na innego agenta — tylko role zarządzające zespołem
+  if (body.assignedTo !== undefined && body.assignedTo !== existing.assigned_to && !canSeeAllTeams(user.role)) {
+    return forbidden()
   }
 
   const updates: Record<string, unknown> = {}
-  for (const f of ['name', 'phone', 'email', 'location', 'source', 'notes', 'status'] as const) {
+  for (const f of ['name', 'phone', 'email', 'location', 'source', 'notes', 'status', 'temperature'] as const) {
     if (body[f] !== undefined) updates[f] = body[f]
   }
+  if (body.nextContactAt !== undefined) updates.next_contact_at = body.nextContactAt || null
   if (body.assignedTo !== undefined) updates.assigned_to = body.assignedTo || null
-  if (body.propertyId !== undefined) updates.property_id = body.propertyId || null
 
   const { data: lead, error } = await supabase
     .from('leads')
@@ -75,6 +91,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getSessionUser()
   if (!user) return unauthorized()
+  // Usuwanie leadów tylko dla ról zarządzających — agent odrzuca (rejected),
+  // nie kasuje; historia leadów to dane firmy, nie prywatna lista
+  if (!canSeeAllTeams(user.role)) return forbidden()
   const supabase = await createClient()
   const { id } = await params
 

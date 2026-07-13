@@ -46,6 +46,7 @@ export const KONTAKT_TYP_SHORT: Record<KontaktTyp, string> = {
   wspolnota: 'WS',
   zarzadca: 'ZA',
   komornik: 'KM',
+  klient: 'KL',
 }
 
 export const PROPERTY_TYPE_SHORT: Record<PropertyType, string> = {

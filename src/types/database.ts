@@ -200,6 +200,8 @@ export interface BoardList {
 
 export type LeadStatus = 'new' | 'contacted' | 'qualified' | 'assigned' | 'converted' | 'rejected'
 
+export type LeadTemperature = 'hot' | 'warm' | 'cold'
+
 export interface Lead {
   id: string
   name: string
@@ -209,14 +211,28 @@ export interface Lead {
   source: string | null
   notes: string | null
   status: LeadStatus
+  temperature: LeadTemperature
+  next_contact_at: string | null
   assigned_to: string | null
   property_id: string | null
+  kontakt_id: string | null
+  converted_at: string | null
+  meta: Record<string, unknown>
   created_by: string | null
   created_at: string
   updated_at: string
   // Joined fields
   assignee?: Profile
   creator?: Profile
+}
+
+export interface LeadComment {
+  id: string
+  lead_id: string
+  user_id: string | null
+  content: string
+  created_at: string
+  user?: { id: string; full_name: string; avatar_url: string | null }
 }
 
 export interface ActivityLog {
@@ -250,6 +266,7 @@ export type KontaktTyp =
   | 'wspolnota'
   | 'zarzadca'
   | 'komornik'
+  | 'klient'
 
 export const KONTAKT_TYP_LABELS: Record<KontaktTyp, string> = {
   inwestor: 'Inwestor',
@@ -257,6 +274,7 @@ export const KONTAKT_TYP_LABELS: Record<KontaktTyp, string> = {
   wspolnota: 'Wspólnota',
   zarzadca: 'Zarządca',
   komornik: 'Komornik',
+  klient: 'Klient',
 }
 
 export const KONTAKT_TYPY: KontaktTyp[] = [
@@ -265,6 +283,7 @@ export const KONTAKT_TYPY: KontaktTyp[] = [
   'wspolnota',
   'zarzadca',
   'komornik',
+  'klient',
 ]
 
 // Map pin colors — one distinct color per contact type
@@ -274,6 +293,7 @@ export const KONTAKT_TYP_COLORS: Record<KontaktTyp, string> = {
   wspolnota:   '#0e7490', // cyan
   zarzadca:    '#c2410c', // burnt orange
   komornik:    '#dc2626', // red
+  klient:      '#7c3aed', // violet
 }
 
 // Color used for numbered tour pins (overrides type color)
