@@ -26,13 +26,22 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   // Reguły domykania walidujemy na stanie PO zmianie (istniejące + patch)
   const { data: existing } = await supabase
     .from('tasks')
-    .select('status, task_type, outcome, rejection_reason, rejection_note')
+    .select('status, task_type, outcome, rejection_reason, rejection_note, assigned_to, co_assignees')
     .eq('id', id)
     .maybeSingle()
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const ruleError = validateTaskRules({ ...existing, ...body })
   if (ruleError) return NextResponse.json({ error: ruleError }, { status: 400 })
+
+  // Główny wykonawca nie może być jednocześnie współwykonawcą (CC)
+  if ('assigned_to' in body || 'co_assignees' in body) {
+    const finalAssignedTo = 'assigned_to' in body ? body.assigned_to : existing.assigned_to
+    const finalCoAssignees = 'co_assignees' in body ? body.co_assignees : existing.co_assignees
+    if (finalAssignedTo && Array.isArray(finalCoAssignees)) {
+      body.co_assignees = finalCoAssignees.filter((cid: string) => cid !== finalAssignedTo)
+    }
+  }
 
   // Każda zmiana statusu wymaga komentarza uzasadniającego (dlaczego?)
   const statusChanging = typeof body.status === 'string' && body.status !== existing.status

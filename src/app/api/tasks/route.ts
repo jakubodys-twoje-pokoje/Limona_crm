@@ -58,9 +58,17 @@ export async function POST(req: NextRequest) {
   const ruleError = validateTaskRules(body)
   if (ruleError) return NextResponse.json({ error: ruleError }, { status: 400 })
 
+  // Bez wybranego przypisania zadanie domyślnie trafia do tego, kto je
+  // dodał — inaczej ginęło z widoku "moje zadania" mimo bycia twórcą.
+  const assignedTo = body.assigned_to ?? user.id
+  // Główny wykonawca nie może być jednocześnie współwykonawcą (CC)
+  const coAssignees = Array.isArray(body.co_assignees)
+    ? body.co_assignees.filter((id: string) => id !== assignedTo)
+    : body.co_assignees
+
   const { data: task, error } = await supabase
     .from('tasks')
-    .insert({ ...body, created_by: user.id })
+    .insert({ ...body, assigned_to: assignedTo, co_assignees: coAssignees, created_by: user.id })
     .select(SELECT_WITH_RELATIONS)
     .single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

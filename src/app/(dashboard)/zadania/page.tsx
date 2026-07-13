@@ -447,7 +447,14 @@ export default function ZadaniaPage() {
           </div>
           <div>
             <label className="limona-label block mb-2">Główny wykonawca</label>
-            <select className="limona-select" value={form.assigned_to} onChange={e => setForm(f => ({ ...f, assigned_to: e.target.value }))}>
+            <select
+              className="limona-select"
+              value={form.assigned_to}
+              onChange={e => {
+                const assigned_to = e.target.value
+                setForm(f => ({ ...f, assigned_to, co_assignees: f.co_assignees.filter(id => id !== assigned_to) }))
+              }}
+            >
               <option value="">Nieprzypisane</option>
               {profiles.map(p => (
                 <option key={p.id} value={p.id}>{p.full_name}</option>
