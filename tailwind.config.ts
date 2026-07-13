@@ -9,22 +9,27 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        // Wartości pochodzą z CSS custom properties (globals.css), zdefiniowanych
+        // jako trójki RGB (np. "10 10 10"), żeby modyfikatory opacity Tailwinda
+        // (np. bg-limona-lime/20) działały poprawnie przez <alpha-value>.
+        // Dzięki temu motyw (dark/light/contrast) da się przełączać atrybutem
+        // data-theme na <html>, bez przebudowy — patrz globals.css i ThemeProvider.
         limona: {
-          bg: '#0a0a0a',
-          surface: '#141414',
-          'surface-2': '#1a1a1a',
-          border: '#2a2a2a',
-          lime: '#84cc16',
-          'lime-hover': '#a3e635',
-          'lime-active': '#65a30d',
-          white: '#FFFFFF',
-          text: '#E0E0E0',
-          'text-muted': '#808080',
-          'text-dim': '#4a4a4a',
-          green: '#00E676',
-          red: '#FF3D3D',
-          yellow: '#FFD600',
-          blue: '#448AFF',
+          bg: 'rgb(var(--limona-bg) / <alpha-value>)',
+          surface: 'rgb(var(--limona-surface) / <alpha-value>)',
+          'surface-2': 'rgb(var(--limona-surface-2) / <alpha-value>)',
+          border: 'rgb(var(--limona-border) / <alpha-value>)',
+          lime: 'rgb(var(--limona-lime) / <alpha-value>)',
+          'lime-hover': 'rgb(var(--limona-lime-hover) / <alpha-value>)',
+          'lime-active': 'rgb(var(--limona-lime-active) / <alpha-value>)',
+          white: 'rgb(var(--limona-white) / <alpha-value>)',
+          text: 'rgb(var(--limona-text) / <alpha-value>)',
+          'text-muted': 'rgb(var(--limona-text-muted) / <alpha-value>)',
+          'text-dim': 'rgb(var(--limona-text-dim) / <alpha-value>)',
+          green: 'rgb(var(--limona-green) / <alpha-value>)',
+          red: 'rgb(var(--limona-red) / <alpha-value>)',
+          yellow: 'rgb(var(--limona-yellow) / <alpha-value>)',
+          blue: 'rgb(var(--limona-blue) / <alpha-value>)',
         },
       },
       fontFamily: {

@@ -5,7 +5,8 @@ import { Send, Trash2 } from 'lucide-react'
 import { useTaskComments } from '@/hooks/useTaskComments'
 import { Avatar } from '@/components/ui/Avatar'
 import { Skeleton } from '@/components/ui/Skeleton'
-import { cn } from '@/lib/utils'
+import { SortToggle } from '@/components/ui/SortToggle'
+import { cn, sortByCreatedAt, type SortDirection } from '@/lib/utils'
 
 interface TaskCommentsProps {
   taskId: string
@@ -17,6 +18,8 @@ export function TaskComments({ taskId, userId, isAdmin }: TaskCommentsProps) {
   const { comments, loading, addComment, deleteComment } = useTaskComments(taskId)
   const [newComment, setNewComment] = useState('')
   const [sending, setSending] = useState(false)
+  const [sortDir, setSortDir] = useState<SortDirection>('desc')
+  const sortedComments = sortByCreatedAt(comments, sortDir)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -44,9 +47,12 @@ export function TaskComments({ taskId, userId, isAdmin }: TaskCommentsProps) {
 
   return (
     <div className="space-y-3">
-      <h4 className="text-xs uppercase tracking-wider text-limona-text-muted font-bold">
-        Komentarze ({comments.length})
-      </h4>
+      <div className="flex items-center justify-between">
+        <h4 className="text-xs uppercase tracking-wider text-limona-text-muted font-bold">
+          Komentarze ({comments.length})
+        </h4>
+        {comments.length > 1 && <SortToggle dir={sortDir} onToggle={() => setSortDir(d => d === 'desc' ? 'asc' : 'desc')} />}
+      </div>
 
       {loading ? (
         <div className="space-y-2">
@@ -54,7 +60,7 @@ export function TaskComments({ taskId, userId, isAdmin }: TaskCommentsProps) {
         </div>
       ) : (
         <div className="space-y-2 max-h-64 overflow-y-auto">
-          {comments.map(comment => (
+          {sortedComments.map(comment => (
             <div key={comment.id} className="flex gap-2 group">
               <Avatar
                 name={comment.user?.full_name || 'Użytkownik'}

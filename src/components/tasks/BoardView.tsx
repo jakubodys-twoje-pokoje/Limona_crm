@@ -6,7 +6,7 @@ import { useTasks } from '@/hooks/useTasks'
 import { Badge } from '@/components/ui/Badge'
 import { Avatar } from '@/components/ui/Avatar'
 import { TaskDetailModal } from '@/components/tasks/TaskDetailModal'
-import { cn } from '@/lib/utils'
+import { cn, isOverdueDate } from '@/lib/utils'
 import type { Board, BoardList, Task, Profile } from '@/types/database'
 
 export const BOARD_COLORS = ['#84cc16', '#448AFF', '#FF6D00', '#E040FB', '#F50057', '#FFD600', '#00BCD4', '#4CAF50']
@@ -94,8 +94,8 @@ export function BoardView({ board, visibleIds, userId, userName, isAdmin, canAss
     setEditingName(false)
   }
 
-  async function handleDeleteTask(id: string) {
-    return await deleteTask(id)
+  async function handleDeleteTask(id: string, scope?: 'one' | 'following' | 'series') {
+    return await deleteTask(id, scope)
   }
 
   async function handleUpdateTask(id: string, updates: Partial<Task>) {
@@ -341,7 +341,7 @@ function BoardTaskCard({ task, allLists, onMoveToList, onOpen, onDelete }: {
   onOpen: () => void
   onDelete: () => void
 }) {
-  const isOverdue = !!(task.due_date && task.status !== 'done' && new Date(task.due_date) < new Date())
+  const isOverdue = !!(task.due_date && task.status !== 'done' && isOverdueDate(task.due_date))
 
   return (
     <div

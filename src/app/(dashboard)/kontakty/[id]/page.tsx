@@ -19,9 +19,11 @@ import { Badge } from '@/components/ui/Badge'
 import { KontaktForm } from '@/components/kontakty/KontaktForm'
 import { KontaktKomentarze } from '@/components/kontakty/KontaktKomentarze'
 import { StatusChangeCommentModal } from '@/components/shared/StatusChangeCommentModal'
+import { TaskDetailModal } from '@/components/tasks/TaskDetailModal'
 import { cn } from '@/lib/utils'
 import { formatWeeklyHours } from '@/lib/godziny'
 import { compressImage } from '@/lib/imageCompress'
+import { canSeeAllTeams } from '@/lib/roles'
 import type { Kontakt, KontaktTyp, KontaktShare, Profile, Task } from '@/types/database'
 
 const KontaktMiniMap = dynamic(() => import('@/components/kontakty/KontaktMiniMap'), { ssr: false })
@@ -87,6 +89,7 @@ export default function KontaktDetailPage() {
   const { user, profile } = useAuth()
   const { showToast } = useToast()
   const { tasks, createTask, updateTask, deleteTask } = useTasks(undefined, undefined, undefined, kontaktId)
+  const canAssign = canSeeAllTeams(profile?.role)
 
   const [kontakt, setKontakt] = useState<Kontakt | null>(null)
   const [loading, setLoading] = useState(true)
@@ -95,6 +98,7 @@ export default function KontaktDetailPage() {
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [saving, setSaving] = useState(false)
   const [newTaskTitle, setNewTaskTitle] = useState('')
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null)
 
   // Udostępnianie
   const [shares, setShares] = useState<KontaktShare[]>([])
@@ -139,6 +143,14 @@ export default function KontaktDetailPage() {
     if (!user) return
     await updateTask(task.id, { status: task.status === 'done' ? 'todo' : 'done' }, user.id)
   }
+
+  useEffect(() => {
+    if (selectedTask) {
+      const updated = tasks.find(t => t.id === selectedTask.id)
+      if (updated) setSelectedTask(updated)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tasks])
 
   async function handleAddShare(e: React.FormEvent) {
     e.preventDefault()
@@ -464,18 +476,28 @@ export default function KontaktDetailPage() {
             ) : (
               <div className="space-y-2">
                 {tasks.map(task => (
-                  <div key={task.id} className="flex items-center gap-3 p-2.5 rounded bg-limona-surface-2/40">
+                  <div key={task.id}
+                    onClick={() => setSelectedTask(task)}
+                    className="flex items-center gap-3 p-2.5 rounded bg-limona-surface-2/40 cursor-pointer hover:bg-limona-surface-2 transition-colors"
+                  >
                     <button
-                      onClick={() => handleToggleTask(task)}
+                      onClick={e => { e.stopPropagation(); handleToggleTask(task) }}
                       className={cn('flex-shrink-0 transition-colors', task.status === 'done' ? 'text-limona-green' : 'text-limona-text-dim hover:text-limona-lime')}
                     >
                       {task.status === 'done' ? <CheckCircle size={16} /> : <Circle size={16} />}
                     </button>
-                    <p className={cn('flex-1 text-sm', task.status === 'done' ? 'line-through text-limona-text-muted' : 'text-limona-text')}>
-                      {task.title}
-                    </p>
+                    <div className="flex-1 min-w-0">
+                      <p className={cn('text-sm', task.status === 'done' ? 'line-through text-limona-text-muted' : 'text-limona-text')}>
+                        {task.title}
+                      </p>
+                      {task.due_date && (
+                        <p className="text-xs text-limona-text-dim mt-0.5">
+                          Termin: {new Date(task.due_date).toLocaleDateString('pl-PL')}
+                        </p>
+                      )}
+                    </div>
                     <Badge value={task.priority} />
-                    <button onClick={() => deleteTask(task.id)} className="p-1 text-limona-text-dim hover:text-limona-red transition-colors flex-shrink-0">
+                    <button onClick={e => { e.stopPropagation(); deleteTask(task.id) }} className="p-1 text-limona-text-dim hover:text-limona-red transition-colors flex-shrink-0">
                       <Trash2 size={13} />
                     </button>
                   </div>
@@ -640,6 +662,22 @@ export default function KontaktDetailPage() {
         newStatusLabel={pendingFlag ? `${pendingFlag.label}: ${pendingFlag.newValue ? 'tak' : 'nie'}` : ''}
         entityLabel="kontaktu"
       />
+
+      {selectedTask && (
+        <TaskDetailModal
+          task={selectedTask}
+          isOpen={!!selectedTask}
+          onClose={() => setSelectedTask(null)}
+          onUpdate={async (id, updates) => user ? updateTask(id, updates, user.id) : { error: 'No user' }}
+          onDelete={async (id, scope) => deleteTask(id, scope)}
+          userId={user?.id || ''}
+          userName={profile?.full_name || ''}
+          isAdmin={profile?.role === 'admin'}
+          canAssign={canAssign}
+          profiles={profiles}
+          tasks={tasks}
+        />
+      )}
 
       {/* Lightbox zdjęć */}
       {lightboxIndex !== null && kontakt.zdjecia?.[lightboxIndex] && (

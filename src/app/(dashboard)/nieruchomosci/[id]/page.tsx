@@ -17,14 +17,17 @@ import { Badge } from '@/components/ui/Badge'
 import { Avatar } from '@/components/ui/Avatar'
 import { Modal } from '@/components/ui/Modal'
 import { Skeleton } from '@/components/ui/Skeleton'
-import { formatMoney, formatPropertyAddress, cn } from '@/lib/utils'
+import { formatMoney, formatPropertyAddress, cn, sortByCreatedAt, type SortDirection } from '@/lib/utils'
+import { SortToggle } from '@/components/ui/SortToggle'
+import { TaskDetailModal } from '@/components/tasks/TaskDetailModal'
+import { InvestorOfferCard } from '@/components/properties/InvestorOfferCard'
+import { PropertyComments } from '@/components/properties/PropertyComments'
 import { sumLineItems } from '@/lib/calculator'
-import { canSeeInvestors } from '@/lib/roles'
-import type { Property, Task, Document, PropertyNegotiationNote, PropertyInvestor, StatusDluznika, StatusInwestora, InvestorPropertyStatus, ChecklistItemState } from '@/types/database'
+import { canSeeInvestors, canSeeAllTeams } from '@/lib/roles'
+import type { Property, Task, Document, PropertyNegotiationNote, PropertyInvestor, StatusDluznika, StatusInwestora, InvestorPropertyStatus, ChecklistItemState, Profile } from '@/types/database'
 import {
   STAGE_TASK_TEMPLATES, DEAL_TYPE_LABELS,
   STATUS_DLUZNIKA_OPTIONS, STATUS_DLUZNIKA_LABELS, STATUS_INWESTORA_OPTIONS, STATUS_INWESTORA_LABELS,
-  INVESTOR_PROPERTY_STATUS_OPTIONS, INVESTOR_PROPERTY_STATUS_LABELS,
   getStatusDluznikaLabel,
 } from '@/lib/stages'
 import type { DealType } from '@/types/database'
@@ -83,10 +86,13 @@ export default function PropertyDetailPage() {
   const { tasks, createTask, updateTask, deleteTask } = useTasks(propertyId)
   const { logs, loading: logsLoading } = useActivityLog(propertyId)
   const { showToast } = useToast()
+  const canAssign = canSeeAllTeams(profile?.role)
 
   const [property, setProperty] = useState<Property | null>(null)
+  const [profiles, setProfiles] = useState<Profile[]>([])
   const [loadingProp, setLoadingProp] = useState(true)
-  const [activeTab, setActiveTab] = useState<'tasks' | 'docs' | 'checklist' | 'negocjacja' | 'inwestorzy' | 'log' | 'report'>('tasks')
+  const [activeTab, setActiveTab] = useState<'komentarze' | 'tasks' | 'docs' | 'checklist' | 'negocjacja' | 'inwestorzy' | 'log' | 'report'>('tasks')
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   const [showEditModal, setShowEditModal] = useState(false)
   const [newTaskTitle, setNewTaskTitle] = useState('')
   const [showTemplates, setShowTemplates] = useState(false)
@@ -109,6 +115,7 @@ export default function PropertyDetailPage() {
   const [negNotes, setNegNotes] = useState<PropertyNegotiationNote[]>([])
   const [negLoading, setNegLoading] = useState(false)
   const [newNegNote, setNewNegNote] = useState('')
+  const [negSortDir, setNegSortDir] = useState<SortDirection>('desc')
 
   // Inwestorzy
   const [investors, setInvestors] = useState<PropertyInvestor[]>([])
@@ -263,6 +270,15 @@ export default function PropertyDetailPage() {
     if (res.ok) setInvestors(prev => prev.map(i => i.id === investorId ? { ...i, status } : i))
   }
 
+  async function handleInvestorOffer(investorId: string, amount: number | null) {
+    const res = await fetch(`/api/properties/${propertyId}/investors/${investorId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ offer_amount: amount }),
+    })
+    if (res.ok) setInvestors(prev => prev.map(i => i.id === investorId ? { ...i, offer_amount: amount } : i))
+  }
+
   async function handleRemoveInvestor(investorId: string) {
     await fetch(`/api/properties/${propertyId}/investors/${investorId}`, { method: 'DELETE' })
     setInvestors(prev => prev.filter(i => i.id !== investorId))
@@ -284,6 +300,18 @@ export default function PropertyDetailPage() {
     }
     load()
   }, [propertyId, router])
+
+  useEffect(() => {
+    fetch('/api/profiles').then(r => r.json()).then(data => setProfiles(data || [])).catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    if (selectedTask) {
+      const updated = tasks.find(t => t.id === selectedTask.id)
+      if (updated) setSelectedTask(updated)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tasks])
 
   async function handleToggleTask(task: Task) {
     if (!user) return
@@ -531,6 +559,7 @@ export default function PropertyDetailPage() {
 
       <div className="flex gap-1 border-b border-limona-border overflow-x-auto">
         {([
+          { key: 'komentarze', label: 'Komentarze' },
           { key: 'tasks', label: `Zadania (${tasks.length})` },
           { key: 'docs', label: `Dokumenty (${documents.length})` },
           { key: 'checklist', label: `Checklista i status (${Object.values(property.checklist || {}).filter(s => s.checked).length}/${CHECKLIST_INFO.length + CHECKLIST_DOCS.length})` },
@@ -617,9 +646,12 @@ export default function PropertyDetailPage() {
             <p className="text-center text-limona-text-muted py-8">Brak zadań</p>
           ) : (
             tasks.map(task => (
-              <div key={task.id} className="limona-card flex items-center gap-3 p-3">
+              <div key={task.id}
+                onClick={() => setSelectedTask(task)}
+                className="limona-card flex items-center gap-3 p-3 cursor-pointer hover:border-limona-lime/40 transition-colors"
+              >
                 <button
-                  onClick={() => handleToggleTask(task)}
+                  onClick={e => { e.stopPropagation(); handleToggleTask(task) }}
                   className={cn('flex-shrink-0 transition-colors', task.status === 'done' ? 'text-limona-green' : 'text-limona-text-dim hover:text-limona-lime')}
                 >
                   {task.status === 'done' ? <CheckCircle size={18} /> : <Circle size={18} />}
@@ -637,7 +669,7 @@ export default function PropertyDetailPage() {
                 <div className="flex items-center gap-2">
                   <Badge value={task.priority} />
                   <button
-                    onClick={() => deleteTask(task.id)}
+                    onClick={e => { e.stopPropagation(); deleteTask(task.id) }}
                     className="p-1 text-limona-text-dim hover:text-limona-red transition-colors"
                   >
                     <Trash2 size={14} />
@@ -887,6 +919,10 @@ export default function PropertyDetailPage() {
         </div>
       )}
 
+      {activeTab === 'komentarze' && propertyId && user && (
+        <PropertyComments propertyId={propertyId} userId={user.id} isAdmin={profile?.role === 'admin'} />
+      )}
+
       {activeTab === 'negocjacja' && (
         <div className="space-y-4">
           <form onSubmit={handleAddNegNote} className="limona-card-accent p-4 space-y-3">
@@ -900,6 +936,12 @@ export default function PropertyDetailPage() {
             <button type="submit" disabled={!newNegNote.trim()} className="limona-btn-sm disabled:opacity-40">Dodaj notatkę</button>
           </form>
 
+          {negNotes.length > 1 && (
+            <div className="flex justify-end">
+              <SortToggle dir={negSortDir} onToggle={() => setNegSortDir(d => d === 'desc' ? 'asc' : 'desc')} />
+            </div>
+          )}
+
           {negLoading ? (
             <div className="space-y-2">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-16" />)}</div>
           ) : negNotes.length === 0 ? (
@@ -909,7 +951,7 @@ export default function PropertyDetailPage() {
             </div>
           ) : (
             <div className="space-y-2">
-              {negNotes.map(note => (
+              {sortByCreatedAt(negNotes, negSortDir).map(note => (
                 <div key={note.id} className="limona-card p-3 flex items-start gap-3">
                   <div className="flex-1 min-w-0">
                     <p className="text-sm text-limona-text whitespace-pre-wrap">{note.content}</p>
@@ -973,24 +1015,14 @@ export default function PropertyDetailPage() {
           ) : (
             <div className="space-y-2">
               {investors.map(inv => (
-                <div key={inv.id} className="limona-card p-3 flex items-center gap-3">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-limona-text">{inv.kontakt?.nazwa || '—'}</p>
-                    {inv.kontakt?.telefon && <p className="text-xs text-limona-text-dim">{inv.kontakt.telefon}</p>}
-                  </div>
-                  <select
-                    className="limona-select w-auto text-xs py-1.5"
-                    value={inv.status}
-                    onChange={e => handleInvestorStatus(inv.id, e.target.value as InvestorPropertyStatus)}
-                  >
-                    {INVESTOR_PROPERTY_STATUS_OPTIONS.map(s => (
-                      <option key={s} value={s}>{INVESTOR_PROPERTY_STATUS_LABELS[s]}</option>
-                    ))}
-                  </select>
-                  <button onClick={() => handleRemoveInvestor(inv.id)} className="p-1 text-limona-text-dim hover:text-limona-red transition-colors flex-shrink-0">
-                    <X size={14} />
-                  </button>
-                </div>
+                <InvestorOfferCard
+                  key={inv.id}
+                  propertyId={propertyId!}
+                  investor={inv}
+                  onStatusChange={handleInvestorStatus}
+                  onRemove={handleRemoveInvestor}
+                  onOfferChange={handleInvestorOffer}
+                />
               ))}
             </div>
           )}
@@ -1044,6 +1076,22 @@ export default function PropertyDetailPage() {
         newStatusLabel={statusChange?.label || ''}
         entityLabel="nieruchomości"
       />
+
+      {selectedTask && (
+        <TaskDetailModal
+          task={selectedTask}
+          isOpen={!!selectedTask}
+          onClose={() => setSelectedTask(null)}
+          onUpdate={async (id, updates) => user ? updateTask(id, updates, user.id) : { error: 'No user' }}
+          onDelete={async (id, scope) => deleteTask(id, scope)}
+          userId={user?.id || ''}
+          userName={profile?.full_name || ''}
+          isAdmin={profile?.role === 'admin'}
+          canAssign={canAssign}
+          profiles={profiles}
+          tasks={tasks}
+        />
+      )}
     </div>
   )
 }

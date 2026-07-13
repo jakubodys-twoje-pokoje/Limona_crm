@@ -42,8 +42,8 @@ export default function ZadaniaKalendarzPage() {
     return await updateTask(id, updates, user.id)
   }
 
-  async function handleDeleteTask(id: string) {
-    return await deleteTask(id)
+  async function handleDeleteTask(id: string, scope?: 'one' | 'following' | 'series') {
+    return await deleteTask(id, scope)
   }
 
   async function handleQuickAddTask(title: string, dueDateKey: string, dueTime: string | null) {

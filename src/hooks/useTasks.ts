@@ -58,8 +58,9 @@ export function useTasks(propertyId?: string, visibleUserIds?: string[] | null, 
     return { data: updated, error: null }
   }
 
-  const deleteTask = async (id: string) => {
-    const res = await fetch(`/api/tasks/${id}`, { method: 'DELETE' })
+  const deleteTask = async (id: string, scope?: 'one' | 'following' | 'series') => {
+    const qs = scope && scope !== 'one' ? `?scope=${scope}` : ''
+    const res = await fetch(`/api/tasks/${id}${qs}`, { method: 'DELETE' })
     if (!res.ok) return { error: (await res.json()).error || 'Error' }
     fetchTasks()
     return { error: null }

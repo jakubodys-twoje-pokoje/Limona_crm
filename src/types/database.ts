@@ -49,6 +49,8 @@ export type TaskOutcome =
 
 export type RejectionReason = 'cena' | 'timing' | 'konkurencja' | 'brak_decyzyjnosci' | 'inny'
 
+export type ThemePreference = 'dark' | 'light' | 'contrast'
+
 export interface Profile {
   id: string
   full_name: string
@@ -57,6 +59,7 @@ export interface Profile {
   rejon: string | null
   rejon_lat: number | null
   rejon_lng: number | null
+  theme_preference: ThemePreference
   created_at: string
 }
 
@@ -117,6 +120,7 @@ export interface Property {
 export interface PropertyNegotiationNote {
   id: string
   property_id: string
+  investor_id: string | null
   user_id: string | null
   content: string
   created_at: string
@@ -128,6 +132,7 @@ export interface PropertyInvestor {
   property_id: string
   kontakt_id: string
   status: InvestorPropertyStatus
+  offer_amount: number | null
   created_by: string | null
   created_at: string
   kontakt?: Kontakt
@@ -156,6 +161,10 @@ export interface Task {
   created_by: string | null
   completed_at: string | null
   property_stage: string | null
+  recurrence_freq: RecurrenceFreq | null
+  recurrence_interval: number
+  recurrence_until: string | null
+  recurrence_parent_id: string | null
   created_at: string
   updated_at: string
   // Joined fields
@@ -166,6 +175,8 @@ export interface Task {
   board?: Board
   list?: BoardList
 }
+
+export type RecurrenceFreq = 'daily' | 'weekly' | 'monthly'
 
 export interface Board {
   id: string

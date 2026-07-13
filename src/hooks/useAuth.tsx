@@ -12,6 +12,7 @@ interface Profile {
   rejon: string | null
   rejon_lat: number | null
   rejon_lng: number | null
+  theme_preference: string
 }
 
 interface AuthContextType {

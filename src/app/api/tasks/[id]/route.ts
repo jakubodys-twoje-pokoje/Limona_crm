@@ -75,13 +75,34 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   return NextResponse.json(task)
 }
 
-export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getSessionUser()
   if (!user) return unauthorized()
   const supabase = await createClient()
   const { id } = await params
+  // scope=one (domyślnie) — tylko to wystąpienie; scope=following — to i
+  // kolejne wystąpienia serii; scope=series — cała seria (wszystkie wystąpienia).
+  const scope = req.nextUrl.searchParams.get('scope') ?? 'one'
 
-  const { error } = await supabase.from('tasks').delete().eq('id', id)
+  if (scope === 'one') {
+    const { error } = await supabase.from('tasks').delete().eq('id', id)
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ ok: true })
+  }
+
+  const { data: current } = await supabase
+    .from('tasks')
+    .select('id, due_date, recurrence_parent_id')
+    .eq('id', id)
+    .maybeSingle()
+  if (!current) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  const rootId = current.recurrence_parent_id ?? current.id
+  let query = supabase.from('tasks').delete().or(`id.eq.${rootId},recurrence_parent_id.eq.${rootId}`)
+  if (scope === 'following' && current.due_date) {
+    query = query.gte('due_date', current.due_date)
+  }
+  const { error } = await query
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true })
 }

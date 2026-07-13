@@ -397,13 +397,13 @@ export function CalendarView({ tasks, loading, profiles, onOpenTask, onQuickAddT
           )}
 
           {/* Nagłówki dni + pasek "cały dzień" */}
-          <div className="grid grid-cols-[44px_1fr_1fr_1fr] gap-1.5">
+          <div className="grid grid-cols-[44px_1fr_1fr_1fr] gap-0">
             <div />
             {visibleDays.map(dayKey => {
               const d = parseDateKey(dayKey)
               const isToday = dayKey === todayKey
               return (
-                <div key={dayKey} className={cn('text-center rounded-t px-1 py-1', isToday && 'bg-limona-lime/10')}>
+                <div key={dayKey} className={cn('text-center rounded-t px-1 py-1 border-l-2 border-limona-border', isToday && 'bg-limona-lime/10')}>
                   <p className="text-[9px] uppercase tracking-wider text-limona-text-dim">{DAYS_PL[(d.getDay() + 6) % 7]}</p>
                   <p className={cn('text-sm font-mono font-bold', isToday ? 'text-limona-lime' : 'text-limona-white')}>
                     {d.getDate()} {MONTHS_PL[d.getMonth()].slice(0, 3)}
@@ -413,7 +413,7 @@ export function CalendarView({ tasks, loading, profiles, onOpenTask, onQuickAddT
             })}
           </div>
 
-          <div className="grid grid-cols-[44px_1fr_1fr_1fr] gap-1.5">
+          <div className="grid grid-cols-[44px_1fr_1fr_1fr] gap-0">
             <div className="text-[9px] text-limona-text-dim text-right pr-1 pt-1 uppercase tracking-wider">cały dzień</div>
             {visibleDays.map(dayKey => {
               const allDayTasks = dayTasksFor(dayKey).filter(t => !t.due_time)
@@ -424,8 +424,8 @@ export function CalendarView({ tasks, loading, profiles, onOpenTask, onQuickAddT
                   onDragLeave={() => setDragOverSlot(null)}
                   onDrop={e => handleDropAllDay(e, dayKey)}
                   className={cn(
-                    'min-h-[36px] rounded border border-dashed p-1 space-y-1 transition-colors',
-                    dragOverSlot === `all-${dayKey}` ? 'border-limona-lime bg-limona-lime/5' : 'border-limona-border/40',
+                    'min-h-[36px] border-l-2 p-1.5 space-y-1 transition-colors overflow-hidden',
+                    dragOverSlot === `all-${dayKey}` ? 'border-limona-lime bg-limona-lime/5' : 'border-limona-border',
                   )}
                 >
                   {allDayTasks.map(t => (
@@ -453,7 +453,7 @@ export function CalendarView({ tasks, loading, profiles, onOpenTask, onQuickAddT
 
           {/* Siatka godzinowa — przewijalna, 3 kolumny dni */}
           <div ref={gridScrollRef} className="overflow-y-auto rounded border border-limona-border/50" style={{ maxHeight: 520 }}>
-            <div className="grid grid-cols-[44px_1fr_1fr_1fr] gap-1.5 relative" style={{ height: HOUR_HEIGHT * 24 }}>
+            <div className="grid grid-cols-[44px_1fr_1fr_1fr] gap-0 relative" style={{ height: HOUR_HEIGHT * 24 }}>
               {/* Etykiety godzin */}
               <div className="relative">
                 {Array.from({ length: 24 }, (_, h) => (
@@ -489,12 +489,12 @@ export function CalendarView({ tasks, loading, profiles, onOpenTask, onQuickAddT
                     onDragLeave={() => setDragOverSlot(null)}
                     onDrop={e => handleDropGrid(e, dayKey)}
                     className={cn(
-                      'relative border-l border-limona-border/30 cursor-crosshair transition-colors',
+                      'relative border-l-2 border-limona-border cursor-crosshair transition-colors overflow-hidden',
                       dragOverSlot === `grid-${dayKey}` && 'bg-limona-lime/5',
                     )}
                   >
                     {Array.from({ length: 24 }, (_, h) => (
-                      <div key={h} className="absolute left-0 right-0 border-t border-limona-border/20" style={{ top: h * HOUR_HEIGHT }} />
+                      <div key={h} className="absolute left-0 right-0 border-t border-limona-border/30" style={{ top: h * HOUR_HEIGHT }} />
                     ))}
                     {isToday && (
                       <div className="absolute left-0 right-0 border-t-2 border-limona-red z-20 pointer-events-none" style={{ top: nowTop }}>
@@ -502,7 +502,7 @@ export function CalendarView({ tasks, loading, profiles, onOpenTask, onQuickAddT
                       </div>
                     )}
                     {positioned.map(({ task: t, top }) => (
-                      <div key={t.id} className="absolute left-0.5 right-0.5" style={{ top }}>
+                      <div key={t.id} className="absolute left-1 right-1" style={{ top }}>
                         <MiniTaskChip
                           task={t}
                           onOpen={() => onOpenTask(t)}
@@ -711,9 +711,9 @@ function CalendarTaskRow({
               <LinkIcon size={9} />{formatPropertyAddress(task.property)}
             </span>
           )}
-          {task.property?.kontakt && (
+          {(task.property?.kontakt || task.kontakt) && (
             <span className="flex items-center gap-1 text-[10px] text-limona-lime">
-              <BookUser size={9} />{task.property.kontakt.nazwa}
+              <BookUser size={9} />{(task.property?.kontakt || task.kontakt)!.nazwa}
             </span>
           )}
           {task.board && (

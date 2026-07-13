@@ -18,8 +18,8 @@ import { TaskDetailModal } from '@/components/tasks/TaskDetailModal'
 import { BoardView, BOARD_COLORS } from '@/components/tasks/BoardView'
 import { TASK_TYPE_LABELS, CONTACT_CATEGORY_LABELS } from '@/lib/reports'
 import { canSeeAllTeams } from '@/lib/roles'
-import { cn, formatPropertyAddress } from '@/lib/utils'
-import type { Task, TaskStatus, TaskPriority, TaskType, ContactCategory, Profile } from '@/types/database'
+import { cn, formatPropertyAddress, isOverdueDate } from '@/lib/utils'
+import type { Task, TaskStatus, TaskPriority, TaskType, ContactCategory, Profile, RecurrenceFreq } from '@/types/database'
 
 const columns: { status: TaskStatus; label: string; icon: React.ReactNode; color: string }[] = [
   { status: 'todo', label: 'Do zrobienia', icon: <Circle16 />, color: 'border-t-gray-500' },
@@ -46,6 +46,9 @@ interface TaskFormData {
   co_assignees: string[]
   task_type: TaskType | ''
   contact_category: ContactCategory | ''
+  recurrence_freq: RecurrenceFreq | ''
+  recurrence_interval: number
+  recurrence_until: string
 }
 
 const EMPTY_FORM: TaskFormData = {
@@ -58,6 +61,13 @@ const EMPTY_FORM: TaskFormData = {
   co_assignees: [],
   task_type: '',
   contact_category: '',
+  recurrence_freq: '',
+  recurrence_interval: 1,
+  recurrence_until: '',
+}
+
+const RECURRENCE_FREQ_LABELS: Record<RecurrenceFreq, string> = {
+  daily: 'Codziennie', weekly: 'Co tydzień', monthly: 'Co miesiąc',
 }
 
 interface NewBoardForm {
@@ -125,6 +135,9 @@ export default function ZadaniaPage() {
       co_assignees: form.co_assignees,
       task_type: form.task_type || null,
       contact_category: form.contact_category || null,
+      recurrence_freq: form.due_date ? (form.recurrence_freq || null) : null,
+      recurrence_interval: form.recurrence_interval || 1,
+      recurrence_until: form.recurrence_until || null,
     }, user.id)
 
     if (error) { showToast(error, 'error'); return }
@@ -153,13 +166,13 @@ export default function ZadaniaPage() {
     return await updateTask(id, updates, user.id)
   }
 
-  async function handleDeleteTask(id: string) {
-    return await deleteTask(id)
+  async function handleDeleteTask(id: string, scope?: 'one' | 'following' | 'series') {
+    return await deleteTask(id, scope)
   }
 
   function isOverdue(task: Task): boolean {
     if (!task.due_date || task.status === 'done') return false
-    return new Date(task.due_date) < new Date()
+    return isOverdueDate(task.due_date)
   }
 
   async function handleCreateBoard(e: React.FormEvent) {
@@ -392,6 +405,11 @@ export default function ZadaniaPage() {
                           <LinkIcon size={11} />
                           {formatPropertyAddress(task.property)}
                         </span>
+                      ) : task.kontakt ? (
+                        <span className="text-xs text-limona-lime flex items-center gap-1">
+                          <LinkIcon size={11} />
+                          {task.kontakt.nazwa}
+                        </span>
                       ) : <span className="text-limona-text-dim">—</span>}
                     </td>
                   </tr>
@@ -448,6 +466,40 @@ export default function ZadaniaPage() {
               <input type="date" className="limona-input" value={form.due_date} onChange={e => setForm(f => ({ ...f, due_date: e.target.value }))} />
             </div>
           </div>
+          {form.due_date && (
+            <div className="grid grid-cols-2 gap-4 items-end">
+              <div>
+                <label className="limona-label block mb-2">Powtarzaj</label>
+                <select
+                  className="limona-select"
+                  value={form.recurrence_freq}
+                  onChange={e => setForm(f => ({ ...f, recurrence_freq: e.target.value as RecurrenceFreq | '' }))}
+                >
+                  <option value="">Nie powtarzaj</option>
+                  {(Object.keys(RECURRENCE_FREQ_LABELS) as RecurrenceFreq[]).map(f => (
+                    <option key={f} value={f}>{RECURRENCE_FREQ_LABELS[f]}</option>
+                  ))}
+                </select>
+              </div>
+              {form.recurrence_freq && (
+                <div>
+                  <label className="limona-label block mb-2">Powtarzaj do (opcjonalnie)</label>
+                  <input
+                    type="date"
+                    className="limona-input"
+                    value={form.recurrence_until}
+                    min={form.due_date}
+                    onChange={e => setForm(f => ({ ...f, recurrence_until: e.target.value }))}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+          {form.recurrence_freq && (
+            <p className="text-xs text-limona-text-dim -mt-2">
+              Każde wystąpienie to osobne zadanie z własnymi komentarzami i statusem — nie wpływają na siebie nawzajem.
+            </p>
+          )}
           <div>
             <label className="limona-label block mb-2">Główny wykonawca</label>
             {canAssign ? (
@@ -670,10 +722,15 @@ function TaskCard({ task, isOverdue, onMove, onDelete, onOpen }: {
         )}
       </div>
 
-      {task.property && (
+      {task.property ? (
         <div className="flex items-center gap-1 text-[10px] text-limona-blue truncate">
           <LinkIcon size={9} />
           {formatPropertyAddress(task.property)}
+        </div>
+      ) : task.kontakt && (
+        <div className="flex items-center gap-1 text-[10px] text-limona-lime truncate">
+          <LinkIcon size={9} />
+          {task.kontakt.nazwa}
         </div>
       )}
 

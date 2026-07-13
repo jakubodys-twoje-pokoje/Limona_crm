@@ -2,60 +2,34 @@
 
 import { useEffect, useState, useMemo, useRef } from 'react'
 import dynamic from 'next/dynamic'
-import { Search, X, Route, Navigation, Trash2, CheckSquare, Square, MapPin, ChevronUp, ChevronDown, Building2 } from 'lucide-react'
+import { Search, X, Route, Navigation, Trash2, CheckSquare, Square, MapPin, ChevronUp, ChevronDown, Building2, Clock, AlertTriangle } from 'lucide-react'
 import { useKontakty } from '@/hooks/useKontakty'
 import { useProperties } from '@/hooks/useProperties'
 import { useAuth } from '@/hooks/useAuth'
 import { cn, formatPropertyAddress } from '@/lib/utils'
+import { geocodeAddress } from '@/lib/geocode'
+import { isOpenAt } from '@/lib/godziny'
+import { buildRouteOrder, estimateArrivals, minutesToTimeLabel } from '@/lib/routePlanning'
 import type { Kontakt, KontaktTyp } from '@/types/database'
 import { KONTAKT_TYP_LABELS, KONTAKT_TYPY, TOUR_PIN_COLOR } from '@/types/database'
 import { MAP_STATUS_HEX, MAP_STATUS_LABELS } from '@/lib/mapStatus'
 
 const KontaktyMap = dynamic(() => import('@/components/kontakty/KontaktyMap'), { ssr: false })
 
-// ─── Geo helpers ────────────────────────────────────────────────────────────
-
-function haversine(lat1: number, lng1: number, lat2: number, lng2: number): number {
-  const R = 6371
-  const dLat = (lat2 - lat1) * Math.PI / 180
-  const dLng = (lng2 - lng1) * Math.PI / 180
-  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-}
-
-// Nearest-neighbor greedy sort from a start point
-function nearestNeighborSort(
-  items: { id: string; lat: number | null; lng: number | null }[],
-  startLat: number,
-  startLng: number,
-): string[] {
-  const withCoords = items.filter(k => k.lat != null && k.lng != null)
-  const noCoords   = items.filter(k => k.lat == null || k.lng == null)
-
-  const unvisited = [...withCoords]
-  const result: string[] = []
-  let curLat = startLat
-  let curLng = startLng
-
-  while (unvisited.length > 0) {
-    let nearest = 0
-    let minDist = Infinity
-    for (let i = 0; i < unvisited.length; i++) {
-      const d = haversine(curLat, curLng, unvisited[i].lat!, unvisited[i].lng!)
-      if (d < minDist) { minDist = d; nearest = i }
-    }
-    const [picked] = unvisited.splice(nearest, 1)
-    result.push(picked.id)
-    curLat = picked.lat!
-    curLng = picked.lng!
-  }
-
-  return [...result, ...noCoords.map(k => k.id)]
-}
-
 // ─── Tour state helpers ─────────────────────────────────────────────────────
 
 function tourKey(userId: string) { return `limona-tour-${userId}` }
+function tourMetaKey(userId: string) { return `limona-tour-meta-${userId}` }
+
+interface TourMeta {
+  startAddress: string
+  startLat: number | null
+  startLng: number | null
+  departureTime: string
+  appointments: Record<string, string>
+}
+
+const EMPTY_TOUR_META: TourMeta = { startAddress: '', startLat: null, startLng: null, departureTime: '08:00', appointments: {} }
 
 function gmapsNav(k: Kontakt): string {
   if (k.lat && k.lng) return `https://www.google.com/maps/dir/?api=1&destination=${k.lat},${k.lng}`
@@ -87,6 +61,10 @@ export default function MapaPage() {
   const [showLegend,    setShowLegend]    = useState(true)
   const tourLoadedRef = useRef(false)
 
+  // Punkt startowy objazdu, godzina wyjazdu, stałe godziny spotkań per kontakt
+  const [tourMeta, setTourMeta] = useState<TourMeta>(EMPTY_TOUR_META)
+  const [geocodingStart, setGeocodingStart] = useState(false)
+
   // Load per-user tour from localStorage
   useEffect(() => {
     if (!user?.id || tourLoadedRef.current) return
@@ -95,6 +73,10 @@ export default function MapaPage() {
       const saved = JSON.parse(localStorage.getItem(tourKey(user.id)) || '[]') as string[]
       setTourIds(saved)
     } catch { /* ignore */ }
+    try {
+      const savedMeta = JSON.parse(localStorage.getItem(tourMetaKey(user.id)) || 'null') as TourMeta | null
+      if (savedMeta) setTourMeta({ ...EMPTY_TOUR_META, ...savedMeta })
+    } catch { /* ignore */ }
   }, [user?.id])
 
   // Persist to per-user key (only after initial load)
@@ -102,6 +84,28 @@ export default function MapaPage() {
     if (!user?.id || !tourLoadedRef.current) return
     localStorage.setItem(tourKey(user.id), JSON.stringify(tourIds))
   }, [tourIds, user?.id])
+
+  useEffect(() => {
+    if (!user?.id || !tourLoadedRef.current) return
+    localStorage.setItem(tourMetaKey(user.id), JSON.stringify(tourMeta))
+  }, [tourMeta, user?.id])
+
+  async function handleGeocodeStart() {
+    if (!tourMeta.startAddress.trim()) return
+    setGeocodingStart(true)
+    const coords = await geocodeAddress(null, tourMeta.startAddress.trim(), null)
+    setGeocodingStart(false)
+    if (coords) setTourMeta(m => ({ ...m, startLat: coords.lat, startLng: coords.lng }))
+  }
+
+  function setAppointment(kontaktId: string, time: string) {
+    setTourMeta(m => {
+      const appointments = { ...m.appointments }
+      if (time) appointments[kontaktId] = time
+      else delete appointments[kontaktId]
+      return { ...m, appointments }
+    })
+  }
 
   // Derive full Kontakt objects for tour list (keeps data fresh)
   const tourList = useMemo(
@@ -208,27 +212,63 @@ export default function MapaPage() {
 
   const [optimizing, setOptimizing] = useState(false)
 
+  async function resolveStartCoords(): Promise<{ lat: number; lng: number } | null> {
+    if (tourMeta.startLat != null && tourMeta.startLng != null) {
+      return { lat: tourMeta.startLat, lng: tourMeta.startLng }
+    }
+    return new Promise(resolve => {
+      if (!navigator.geolocation) { resolve(null); return }
+      navigator.geolocation.getCurrentPosition(
+        pos => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        () => resolve(null),
+        { timeout: 4000, maximumAge: 60000 },
+      )
+    })
+  }
+
   async function optimizeRoute() {
     if (tourList.length < 2) return
     setOptimizing(true)
     try {
-      const startFromGPS = await new Promise<{ lat: number; lng: number } | null>(resolve => {
-        if (!navigator.geolocation) { resolve(null); return }
-        navigator.geolocation.getCurrentPosition(
-          pos => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-          () => resolve(null),
-          { timeout: 4000, maximumAge: 60000 },
-        )
-      })
       const withCoords = tourList.filter(k => k.lat && k.lng)
       if (withCoords.length < 2) { setOptimizing(false); return }
-      const startLat = startFromGPS?.lat ?? withCoords[0].lat!
-      const startLng = startFromGPS?.lng ?? withCoords[0].lng!
-      const sorted = nearestNeighborSort(tourList, startLat, startLng)
+      const start = await resolveStartCoords()
+      const startLat = start?.lat ?? withCoords[0].lat!
+      const startLng = start?.lng ?? withCoords[0].lng!
+      const sorted = buildRouteOrder(
+        tourList.map(k => ({ id: k.id, lat: k.lat!, lng: k.lng!, appointmentTime: tourMeta.appointments[k.id] || null })),
+        startLat,
+        startLng,
+      )
       setTourIds(sorted)
     } finally {
       setOptimizing(false)
     }
+  }
+
+  // Szacowane godziny przyjazdu wg aktualnej kolejności — do wykrywania kolizji z godzinami otwarcia
+  const arrivalByKontaktId = useMemo(() => {
+    const startLat = tourMeta.startLat ?? tourList.find(k => k.lat && k.lng)?.lat ?? null
+    const startLng = tourMeta.startLng ?? tourList.find(k => k.lat && k.lng)?.lng ?? null
+    if (startLat == null || startLng == null) return new Map<string, number>()
+    const [h, m] = tourMeta.departureTime.split(':').map(Number)
+    const departureMinutes = (h || 0) * 60 + (m || 0)
+    const estimates = estimateArrivals(
+      tourList.map(k => ({ id: k.id, lat: k.lat, lng: k.lng })),
+      startLat, startLng, departureMinutes,
+    )
+    return new Map(estimates.map(e => [e.id, e.arrivalMinutes]))
+  }, [tourList, tourMeta.startLat, tourMeta.startLng, tourMeta.departureTime])
+
+  function arrivalWarning(k: Kontakt): string | null {
+    const arrival = arrivalByKontaktId.get(k.id)
+    if (arrival == null) return null
+    const arrivalDate = new Date()
+    arrivalDate.setHours(0, 0, 0, 0)
+    arrivalDate.setMinutes(arrival)
+    const open = isOpenAt(k.godziny_otwarcia, arrivalDate)
+    if (open === false) return `Szacowany przyjazd ${minutesToTimeLabel(arrival)} — zamknięte o tej porze`
+    return null
   }
 
   // ── Stats ─────────────────────────────────────────────────────────────────
@@ -472,6 +512,37 @@ export default function MapaPage() {
                     {optimizing ? 'Optymalizuję…' : 'Zoptymalizuj trasę'}
                   </button>
                 )}
+
+                {/* Punkt startowy + godzina wyjazdu — używane przy optymalizacji trasy i szacowaniu przyjazdów */}
+                <div className="pt-2 border-t border-limona-border space-y-1.5">
+                  <p className="text-[9px] uppercase tracking-widest text-limona-text-dim font-bold">Start objazdu</p>
+                  <div className="flex gap-1.5">
+                    <input
+                      className="limona-input flex-1 text-xs py-1.5"
+                      placeholder="Adres startowy (np. biuro)..."
+                      value={tourMeta.startAddress}
+                      onChange={e => setTourMeta(m => ({ ...m, startAddress: e.target.value, startLat: null, startLng: null }))}
+                      onKeyDown={e => { if (e.key === 'Enter') handleGeocodeStart() }}
+                    />
+                    <button
+                      onClick={handleGeocodeStart}
+                      disabled={geocodingStart || !tourMeta.startAddress.trim()}
+                      className="px-2.5 py-1.5 rounded border border-limona-border text-[10px] uppercase tracking-wider text-limona-text-muted hover:border-limona-lime hover:text-limona-lime transition-colors disabled:opacity-40 whitespace-nowrap"
+                    >
+                      {geocodingStart ? '…' : (tourMeta.startLat != null ? '✓' : 'Ustaw')}
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Clock size={11} className="text-limona-text-dim flex-shrink-0" />
+                    <label className="text-[10px] text-limona-text-dim">Wyjazd o</label>
+                    <input
+                      type="time"
+                      className="limona-input text-xs py-1 w-24"
+                      value={tourMeta.departureTime}
+                      onChange={e => setTourMeta(m => ({ ...m, departureTime: e.target.value }))}
+                    />
+                  </div>
+                </div>
               </div>
             )}
 
@@ -510,6 +581,27 @@ export default function MapaPage() {
                               {[k.ulica, k.miasto].filter(Boolean).join(', ')}
                             </p>
                           )}
+                          <div className="flex items-center gap-2 pl-5 mt-1 flex-wrap">
+                            <label className="flex items-center gap-1 text-[9px] text-limona-text-dim" title="Stała godzina spotkania — trasa ją uwzględni przy optymalizacji">
+                              <Clock size={9} />
+                              <input
+                                type="time"
+                                value={tourMeta.appointments[k.id] || ''}
+                                onChange={e => setAppointment(k.id, e.target.value)}
+                                className="bg-transparent border border-limona-border rounded px-1 py-0.5 text-[9px] text-limona-text w-[62px]"
+                              />
+                            </label>
+                            {arrivalByKontaktId.has(k.id) && (
+                              <span className="text-[9px] text-limona-text-dim">
+                                ~{minutesToTimeLabel(arrivalByKontaktId.get(k.id)!)}
+                              </span>
+                            )}
+                            {arrivalWarning(k) && (
+                              <span title={arrivalWarning(k)!} className="flex items-center gap-0.5 text-[9px] text-limona-yellow">
+                                <AlertTriangle size={9} /> zamknięte
+                              </span>
+                            )}
+                          </div>
                         </div>
 
                         {/* Hover actions */}

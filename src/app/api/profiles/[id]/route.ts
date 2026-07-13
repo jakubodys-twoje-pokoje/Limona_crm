@@ -33,7 +33,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     .from('profiles')
     .update(body)
     .eq('id', id)
-    .select('id, full_name, avatar_url, role, email, rejon, rejon_lat, rejon_lng, created_at, updated_at')
+    .select('id, full_name, avatar_url, role, email, rejon, rejon_lat, rejon_lng, theme_preference, created_at, updated_at')
     .single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 

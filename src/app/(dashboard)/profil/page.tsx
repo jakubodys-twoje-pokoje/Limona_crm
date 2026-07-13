@@ -3,10 +3,18 @@
 export const dynamic = 'force-dynamic'
 
 import { useState } from 'react'
-import { Mail, Lock, Save } from 'lucide-react'
+import { Mail, Lock, Save, Sun, Moon, Contrast } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { useToast } from '@/components/ui/Toast'
 import { Avatar } from '@/components/ui/Avatar'
+import { applyTheme } from '@/components/ThemeProvider'
+import { cn } from '@/lib/utils'
+
+const THEME_OPTIONS = [
+  { value: 'dark', label: 'Ciemny', description: 'Domyślny — ciemne tło, limonkowe akcenty', icon: Moon },
+  { value: 'light', label: 'Jasny', description: 'Czarno-białe tło, odrobina limonki jako akcent', icon: Sun },
+  { value: 'contrast', label: 'Wysoki kontrast', description: 'Czerń/biel z maksymalną czytelnością krawędzi', icon: Contrast },
+] as const
 
 export default function ProfilPage() {
   const { user, profile } = useAuth()
@@ -22,6 +30,20 @@ export default function ProfilPage() {
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [savingPassword, setSavingPassword] = useState(false)
+
+  const [theme, setTheme] = useState(profile?.theme_preference || 'dark')
+
+  async function handleThemeChange(value: string) {
+    setTheme(value)
+    applyTheme(value)
+    if (!user) return
+    const res = await fetch(`/api/profiles/${user.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ theme_preference: value }),
+    })
+    if (!res.ok) showToast((await res.json()).error || 'Błąd zapisu motywu', 'error')
+  }
 
   async function handleSaveProfile(e: React.FormEvent) {
     e.preventDefault()
@@ -71,6 +93,31 @@ export default function ProfilPage() {
       <div>
         <span className="limona-eyebrow">Konto</span>
         <h1 className="limona-heading text-3xl mt-1">Profil</h1>
+      </div>
+
+      <div className="limona-card p-6 space-y-5">
+        <h2 className="limona-eyebrow">Wygląd</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {THEME_OPTIONS.map(opt => {
+            const Icon = opt.icon
+            const active = theme === opt.value
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => handleThemeChange(opt.value)}
+                className={cn(
+                  'text-left p-4 rounded border transition-colors',
+                  active ? 'border-limona-lime bg-limona-lime/10' : 'border-limona-border hover:border-limona-text-muted',
+                )}
+              >
+                <Icon size={18} className={active ? 'text-limona-lime' : 'text-limona-text-muted'} />
+                <p className={cn('text-sm font-bold mt-2', active ? 'text-limona-lime' : 'text-limona-white')}>{opt.label}</p>
+                <p className="text-xs text-limona-text-dim mt-1">{opt.description}</p>
+              </button>
+            )
+          })}
+        </div>
       </div>
 
       <form onSubmit={handleSaveProfile} className="limona-card p-6 space-y-5">

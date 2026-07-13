@@ -10,7 +10,7 @@ export async function GET() {
 
   const { data: profile, error } = await supabase
     .from('profiles')
-    .select('id, full_name, avatar_url, role, email, rejon, rejon_lat, rejon_lng, created_at, updated_at')
+    .select('id, full_name, avatar_url, role, email, rejon, rejon_lat, rejon_lng, theme_preference, created_at, updated_at')
     .eq('id', user.id)
     .single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

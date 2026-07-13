@@ -4,24 +4,73 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --limona-bg: #0a0a0a;
-  --limona-surface: #141414;
-  --limona-surface-2: #1a1a1a;
-  --limona-border: #2a2a2a;
-  --limona-lime: #BEFF00;
-  --limona-lime-hover: #D4FF33;
-  --limona-lime-active: #A8E600;
-  --limona-lime-glow: rgba(190, 255, 0, 0.15);
-  --limona-lime-subtle: rgba(190, 255, 0, 0.08);
-  --limona-white: #FFFFFF;
-  --limona-text: #E0E0E0;
-  --limona-text-muted: #808080;
-  --limona-text-dim: #4a4a4a;
-  --limona-green: #00E676;
-  --limona-red: #FF3D3D;
-  --limona-yellow: #FFD600;
-  --limona-blue: #448AFF;
+/*
+ * Kolory motywu jako trójki RGB (space-separated), żeby Tailwind mógł
+ * doklejać kanał alfa przez rgb(var(--x) / <alpha-value>) — patrz
+ * tailwind.config.ts. Trzy warianty przełączane atrybutem [data-theme]
+ * na <html> (patrz ThemeProvider): dark (domyślny), light, contrast.
+ */
+:root,
+:root[data-theme="dark"] {
+  --limona-bg: 10 10 10;
+  --limona-surface: 20 20 20;
+  --limona-surface-2: 26 26 26;
+  --limona-border: 42 42 42;
+  --limona-lime: 132 204 22;
+  --limona-lime-hover: 163 230 53;
+  --limona-lime-active: 101 163 13;
+  --limona-lime-glow: rgba(132, 204, 22, 0.15);
+  --limona-lime-subtle: rgba(132, 204, 22, 0.08);
+  --limona-white: 255 255 255;
+  --limona-text: 224 224 224;
+  --limona-text-muted: 128 128 128;
+  --limona-text-dim: 74 74 74;
+  --limona-green: 0 230 118;
+  --limona-red: 255 61 61;
+  --limona-yellow: 255 214 0;
+  --limona-blue: 68 138 255;
+}
+
+/* Jasny — czarno-białe tło, odrobina limony jako akcent */
+:root[data-theme="light"] {
+  --limona-bg: 255 255 255;
+  --limona-surface: 244 244 244;
+  --limona-surface-2: 232 232 232;
+  --limona-border: 204 204 204;
+  --limona-lime: 92 128 1;
+  --limona-lime-hover: 111 156 2;
+  --limona-lime-active: 74 102 1;
+  --limona-lime-glow: rgba(92, 128, 1, 0.12);
+  --limona-lime-subtle: rgba(92, 128, 1, 0.08);
+  --limona-white: 17 17 17;
+  --limona-text: 31 31 31;
+  --limona-text-muted: 89 89 89;
+  --limona-text-dim: 156 156 156;
+  --limona-green: 18 163 90;
+  --limona-red: 217 38 38;
+  --limona-yellow: 179 134 0;
+  --limona-blue: 47 111 224;
+}
+
+/* Wysoki kontrast — czysta czerń/biel + wyraźne, jasne krawędzie */
+:root[data-theme="contrast"] {
+  --limona-bg: 0 0 0;
+  --limona-surface: 0 0 0;
+  --limona-surface-2: 23 23 23;
+  --limona-border: 255 255 255;
+  --limona-lime: 198 255 0;
+  --limona-lime-hover: 217 255 77;
+  --limona-lime-active: 163 230 0;
+  --limona-lime-glow: rgba(198, 255, 0, 0.2);
+  --limona-lime-subtle: rgba(198, 255, 0, 0.12);
+  --limona-white: 255 255 255;
+  --limona-text: 255 255 255;
+  --limona-text-muted: 210 210 210;
+  --limona-text-dim: 170 170 170;
+  --limona-green: 0 255 133;
+  --limona-red: 255 77 77;
+  --limona-yellow: 255 224 0;
+  --limona-blue: 90 160 255;
 }
 
 * {
@@ -31,8 +80,8 @@
 }
 
 html, body {
-  background-color: var(--limona-bg);
-  color: var(--limona-text);
+  background-color: rgb(var(--limona-bg));
+  color: rgb(var(--limona-text));
   font-family: 'DM Sans', sans-serif;
   font-size: 15px;
   line-height: 1.6;
@@ -46,20 +95,20 @@ html, body {
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: var(--limona-bg);
+  background: rgb(var(--limona-bg));
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--limona-border);
+  background: rgb(var(--limona-border));
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--limona-text-dim);
+  background: rgb(var(--limona-text-dim));
 }
 
 /* Selection */
 ::selection {
-  background: rgba(190, 255, 0, 0.3);
-  color: var(--limona-white);
+  background: rgb(var(--limona-lime) / 0.3);
+  color: rgb(var(--limona-white));
 }
 
 /* Input range (slider) styling for calculator */
@@ -68,7 +117,7 @@ input[type="range"] {
   appearance: none;
   width: 100%;
   height: 8px;
-  background: var(--limona-border);
+  background: rgb(var(--limona-border));
   border-radius: 4px;
   outline: none;
 }
@@ -78,17 +127,17 @@ input[type="range"]::-webkit-slider-thumb {
   width: 24px;
   height: 24px;
   border-radius: 50%;
-  background: var(--limona-lime);
+  background: rgb(var(--limona-lime));
   cursor: pointer;
-  border: 2px solid var(--limona-bg);
+  border: 2px solid rgb(var(--limona-bg));
 }
 input[type="range"]::-moz-range-thumb {
   width: 24px;
   height: 24px;
   border-radius: 50%;
-  background: var(--limona-lime);
+  background: rgb(var(--limona-lime));
   cursor: pointer;
-  border: 2px solid var(--limona-bg);
+  border: 2px solid rgb(var(--limona-bg));
 }
 
 /* Number input - hide spinners */

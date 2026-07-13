@@ -16,7 +16,8 @@ import {
 } from '@/lib/reports'
 import { TASK_STATUS_LABELS } from '@/lib/status-comments'
 import { StatusChangeCommentModal } from '@/components/shared/StatusChangeCommentModal'
-import { cn, formatPropertyAddress } from '@/lib/utils'
+import { cn, formatPropertyAddress, isOverdueDate, sortByCreatedAt, type SortDirection } from '@/lib/utils'
+import { SortToggle } from '@/components/ui/SortToggle'
 import type {
   Task, TaskStatus, TaskPriority, Profile,
   TaskType, ContactCategory, TaskOutcome, RejectionReason,
@@ -27,7 +28,7 @@ interface TaskDetailModalProps {
   isOpen: boolean
   onClose: () => void
   onUpdate: (id: string, updates: Partial<Task>) => Promise<any>
-  onDelete: (id: string) => Promise<any>
+  onDelete: (id: string, scope?: 'one' | 'following' | 'series') => Promise<any>
   userId: string
   userName: string
   isAdmin: boolean
@@ -85,10 +86,16 @@ export function TaskDetailModal({
   const [pendingDone, setPendingDone] = useState(false)
   // Każda zmiana statusu wymaga komentarza „dlaczego" — czeka na potwierdzenie
   const [pendingStatus, setPendingStatus] = useState<TaskStatus | null>(null)
+  // Próba zamknięcia z niezapisaną zmianą tytułu/opisu — pytamy, co zrobić
+  const [showUnsavedConfirm, setShowUnsavedConfirm] = useState(false)
+  // Zadanie cykliczne — usunięcie wymaga wyboru zakresu (tylko to / kolejne / cała seria)
+  const [showDeleteMenu, setShowDeleteMenu] = useState(false)
 
   const { comments, loading: commentsLoading, addComment, deleteComment } = useTaskComments(task.id)
   const [newComment, setNewComment] = useState('')
   const [sendingComment, setSendingComment] = useState(false)
+  const [commentSortDir, setCommentSortDir] = useState<SortDirection>('desc')
+  const sortedComments = sortByCreatedAt(comments, commentSortDir)
 
   const overlayRef = useRef<HTMLDivElement>(null)
 
@@ -113,15 +120,43 @@ export function TaskDetailModal({
     return () => { document.body.style.overflow = '' }
   }, [isOpen])
 
+  const hasUnsavedChanges =
+    (editingTitle && title.trim() !== '' && title !== task.title) ||
+    (editingDesc && description !== (task.description || ''))
+
+  function requestClose() {
+    if (hasUnsavedChanges) { setShowUnsavedConfirm(true); return }
+    onClose()
+  }
+
   useEffect(() => {
-    function handleKey(e: KeyboardEvent) { if (e.key === 'Escape') onClose() }
+    function handleKey(e: KeyboardEvent) { if (e.key === 'Escape') requestClose() }
     if (isOpen) {
       window.addEventListener('keydown', handleKey)
       return () => window.removeEventListener('keydown', handleKey)
     }
-  }, [isOpen, onClose])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, hasUnsavedChanges])
 
   if (!isOpen) return null
+
+  async function handleSaveAndClose() {
+    if (editingTitle && title.trim() && title !== task.title) await saveField('title', title.trim())
+    if (editingDesc && description !== (task.description || '')) await saveField('description', description || null)
+    setShowUnsavedConfirm(false)
+    setEditingTitle(false)
+    setEditingDesc(false)
+    onClose()
+  }
+
+  function handleDiscardAndClose() {
+    setTitle(task.title)
+    setDescription(task.description || '')
+    setEditingTitle(false)
+    setEditingDesc(false)
+    setShowUnsavedConfirm(false)
+    onClose()
+  }
 
   async function saveField(field: string, value: any) {
     const previousAssignee = task.assigned_to
@@ -270,11 +305,22 @@ export function TaskDetailModal({
     setSendingComment(false)
   }
 
+  const isRecurring = !!(task.recurrence_freq || task.recurrence_parent_id)
+
   async function handleDeleteTask() {
+    if (isRecurring) { setShowDeleteMenu(v => !v); return }
     if (confirm('Na pewno usunąć to zadanie?')) {
       await onDelete(task.id)
       onClose()
     }
+  }
+
+  async function handleDeleteScoped(scope: 'one' | 'following' | 'series') {
+    setShowDeleteMenu(false)
+    const labels = { one: 'to jedno wystąpienie', following: 'to i kolejne wystąpienia', series: 'całą serię wystąpień' }
+    if (!confirm(`Na pewno usunąć ${labels[scope]}?`)) return
+    await onDelete(task.id, scope)
+    onClose()
   }
 
   function formatTime(dateStr: string) {
@@ -299,7 +345,7 @@ export function TaskDetailModal({
     <div
       ref={overlayRef}
       className="fixed inset-0 z-50 flex items-start justify-center pt-[5vh] p-4 bg-black/70 backdrop-blur-sm overflow-y-auto"
-      onClick={(e) => { if (e.target === overlayRef.current) onClose() }}
+      onClick={(e) => { if (e.target === overlayRef.current) requestClose() }}
     >
       <div className="w-full max-w-3xl limona-card flex flex-col max-h-[90vh]">
         {/* Header */}
@@ -330,17 +376,30 @@ export function TaskDetailModal({
               </a>
             )}
           </div>
-          <div className="flex items-center gap-1 flex-shrink-0">
+          <div className="flex items-center gap-1 flex-shrink-0 relative">
             <button onClick={handleDeleteTask}
               className="p-2 text-limona-text-dim hover:text-limona-red transition-colors">
               <Trash2 size={16} />
             </button>
-            <button onClick={onClose}
+            {showDeleteMenu && (
+              <div className="absolute top-full right-8 mt-1 bg-limona-surface border border-limona-border rounded-lg shadow-xl z-10 overflow-hidden w-56">
+                <p className="px-3 pt-2 pb-1 text-[10px] uppercase tracking-wider text-limona-text-dim">To zadanie jest cykliczne</p>
+                <button onClick={() => handleDeleteScoped('one')} className="w-full px-3 py-2 text-sm text-left hover:bg-limona-surface-2 transition-colors">Usuń tylko to</button>
+                <button onClick={() => handleDeleteScoped('following')} className="w-full px-3 py-2 text-sm text-left hover:bg-limona-surface-2 transition-colors">Usuń to i kolejne</button>
+                <button onClick={() => handleDeleteScoped('series')} className="w-full px-3 py-2 text-sm text-left text-limona-red hover:bg-limona-surface-2 transition-colors">Usuń całą serię</button>
+              </div>
+            )}
+            <button onClick={requestClose}
               className="p-2 text-limona-text-muted hover:text-limona-lime transition-colors">
               <X size={18} />
             </button>
           </div>
         </div>
+        {isRecurring && (
+          <p className="px-5 -mt-1 flex items-center gap-1.5 text-[10px] text-limona-lime uppercase tracking-wider">
+            <Clock size={10} /> Zadanie cykliczne
+          </p>
+        )}
 
         <div className="flex-1 overflow-y-auto">
           <div className="flex flex-col lg:flex-row gap-5 p-5">
@@ -381,9 +440,14 @@ export function TaskDetailModal({
 
               {/* Comments */}
               <div>
-                <label className="flex items-center gap-2 text-xs uppercase tracking-wider text-limona-text-muted font-bold mb-3">
-                  <MessageCircle size={12} /> Komentarze ({comments.length})
-                </label>
+                <div className="flex items-center justify-between mb-3">
+                  <label className="flex items-center gap-2 text-xs uppercase tracking-wider text-limona-text-muted font-bold">
+                    <MessageCircle size={12} /> Komentarze ({comments.length})
+                  </label>
+                  {comments.length > 1 && (
+                    <SortToggle dir={commentSortDir} onToggle={() => setCommentSortDir(d => d === 'desc' ? 'asc' : 'desc')} />
+                  )}
+                </div>
 
                 <div className="space-y-3 max-h-72 overflow-y-auto mb-3">
                   {commentsLoading ? (
@@ -391,7 +455,7 @@ export function TaskDetailModal({
                   ) : comments.length === 0 ? (
                     <p className="text-xs text-limona-text-dim text-center py-4">Brak komentarzy</p>
                   ) : (
-                    comments.map(comment => (
+                    sortedComments.map(comment => (
                       <div key={comment.id} className="flex gap-2 group">
                         <Avatar name={comment.user?.full_name || 'Użytkownik'} url={comment.user?.avatar_url} size="sm" />
                         <div className="flex-1 min-w-0 bg-limona-surface-2/50 rounded-lg p-2.5">
@@ -624,7 +688,7 @@ export function TaskDetailModal({
                     disabled={!dueDate} title={!dueDate ? 'Ustaw najpierw datę' : 'Godzina (opcjonalnie)'}
                     onChange={e => handleDueTimeChange(e.target.value)} />
                 </div>
-                {dueDate && new Date(dueDate) < new Date() && status !== 'done' && (
+                {dueDate && isOverdueDate(dueDate) && status !== 'done' && (
                   <p className="flex items-center gap-1 text-[10px] text-limona-red mt-1">
                     <AlertTriangle size={10} /> Przeterminowane
                   </p>
@@ -656,6 +720,25 @@ export function TaskDetailModal({
         newStatusLabel={pendingStatus ? TASK_STATUS_LABELS[pendingStatus] : ''}
         entityLabel="zadania"
       />
+
+      {showUnsavedConfirm && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/70" onClick={() => setShowUnsavedConfirm(false)}>
+          <div className="limona-card w-full max-w-sm p-5 space-y-4" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-2 text-limona-yellow">
+              <AlertTriangle size={16} />
+              <p className="font-bold text-sm text-limona-white">Masz niezapisane zmiany</p>
+            </div>
+            <p className="text-sm text-limona-text-muted">
+              Na pewno chcesz opuścić zadanie bez zapisania edytowanego {editingTitle ? 'tytułu' : 'opisu'}?
+            </p>
+            <div className="flex flex-wrap gap-2 justify-end">
+              <button onClick={() => setShowUnsavedConfirm(false)} className="limona-btn-outline text-xs px-3 py-1.5">Anuluj</button>
+              <button onClick={handleDiscardAndClose} className="text-xs px-3 py-1.5 rounded-full border border-limona-red text-limona-red hover:bg-limona-red/10 transition-colors font-bold uppercase tracking-wider">Odrzuć zmiany</button>
+              <button onClick={handleSaveAndClose} className="limona-btn-sm text-xs">Zapisz i zamknij</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

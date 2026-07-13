@@ -26,12 +26,12 @@ export function hasAnyHours(godziny: WeeklyHours | null | undefined): boolean {
   return WEEK_DAYS.some(d => godziny[d]?.trim())
 }
 
-export function isOpenNow(godziny: WeeklyHours | null | undefined): boolean | null {
+/** Czy punkt jest otwarty o wskazanym momencie (dowolny dzień/godzina, np. szacowany przyjazd w objeździe). */
+export function isOpenAt(godziny: WeeklyHours | null | undefined, at: Date): boolean | null {
   if (!hasAnyHours(godziny)) return null
 
-  const now = new Date()
-  const today = JS_DAY_TO_WEEK_DAY[now.getDay()]
-  const range = godziny?.[today]
+  const day = JS_DAY_TO_WEEK_DAY[at.getDay()]
+  const range = godziny?.[day]
   if (!range?.trim()) return false
 
   const m = range.match(/(\d{1,2}[:.h]?\d{0,2})\s*[-–]\s*(\d{1,2}[:.h]?\d{0,2})/)
@@ -41,8 +41,12 @@ export function isOpenNow(godziny: WeeklyHours | null | undefined): boolean | nu
   const end = parseMinutes(m[2])
   if (start === null || end === null) return null
 
-  const currentMin = now.getHours() * 60 + now.getMinutes()
-  return currentMin >= start && currentMin < end
+  const mins = at.getHours() * 60 + at.getMinutes()
+  return mins >= start && mins < end
+}
+
+export function isOpenNow(godziny: WeeklyHours | null | undefined): boolean | null {
+  return isOpenAt(godziny, new Date())
 }
 
 export function formatWeeklyHours(godziny: WeeklyHours | null | undefined): string {

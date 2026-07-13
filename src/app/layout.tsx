@@ -28,6 +28,14 @@ export default function RootLayout({
 }) {
   return (
     <html lang="pl">
+      <head>
+        {/* Motyw z localStorage stosowany przed pierwszym malowaniem — bez tego byłby błysk złego motywu */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try{var t=localStorage.getItem('limona-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}`,
+          }}
+        />
+      </head>
       <body className="min-h-screen bg-limona-bg">
         <Providers>
           {children}

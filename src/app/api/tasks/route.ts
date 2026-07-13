@@ -4,6 +4,8 @@ import { createClient } from '@/lib/supabase/server'
 import { getSessionUser, unauthorized } from '@/lib/api-auth'
 import { validateTaskRules } from '@/lib/task-rules'
 import { canSeeAllTeams } from '@/lib/roles'
+import { generateOccurrenceDates } from '@/lib/recurrence'
+import type { RecurrenceFreq } from '@/types/database'
 
 const SELECT_WITH_RELATIONS = `*,
   property:properties!tasks_property_id_fkey(id,adres,kod_pocztowy,miasto,kontakt_id,kontakt:kontakty!properties_kontakt_id_fkey(id,nazwa)),
@@ -83,6 +85,41 @@ export async function POST(req: NextRequest) {
       action: 'task_created',
       details: { title: task.title },
     })
+  }
+
+  // Zadanie cykliczne — każde wystąpienie to osobny wiersz (własne
+  // komentarze i status), powiązany z pierwszym przez recurrence_parent_id.
+  if (task.recurrence_freq && task.due_date) {
+    const occurrenceDates = generateOccurrenceDates(
+      task.due_date,
+      task.recurrence_freq as RecurrenceFreq,
+      task.recurrence_interval,
+      task.recurrence_until,
+    )
+    if (occurrenceDates.length > 0) {
+      const occurrences = occurrenceDates.map(dueDate => ({
+        title: task.title,
+        description: task.description,
+        status: 'todo',
+        priority: task.priority,
+        task_type: task.task_type,
+        contact_category: task.contact_category,
+        due_date: dueDate,
+        due_time: task.due_time,
+        assigned_to: task.assigned_to,
+        co_assignees: task.co_assignees,
+        board_id: task.board_id,
+        list_id: task.list_id,
+        property_id: task.property_id,
+        kontakt_id: task.kontakt_id,
+        created_by: user.id,
+        recurrence_freq: task.recurrence_freq,
+        recurrence_interval: task.recurrence_interval,
+        recurrence_until: task.recurrence_until,
+        recurrence_parent_id: task.id,
+      }))
+      await supabase.from('tasks').insert(occurrences)
+    }
   }
 
   return NextResponse.json(task, { status: 201 })
