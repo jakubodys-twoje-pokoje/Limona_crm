@@ -17,6 +17,7 @@ import { Skeleton } from '@/components/ui/Skeleton'
 import { TaskDetailModal } from '@/components/tasks/TaskDetailModal'
 import { BoardView, BOARD_COLORS } from '@/components/tasks/BoardView'
 import { TASK_TYPE_LABELS, CONTACT_CATEGORY_LABELS } from '@/lib/reports'
+import { canSeeAllTeams } from '@/lib/roles'
 import { cn, formatPropertyAddress } from '@/lib/utils'
 import type { Task, TaskStatus, TaskPriority, TaskType, ContactCategory, Profile } from '@/types/database'
 
@@ -67,6 +68,7 @@ interface NewBoardForm {
 
 export default function ZadaniaPage() {
   const { user, profile } = useAuth()
+  const canAssign = canSeeAllTeams(profile?.role)
   const { visibleIds } = useVisibleUserIds(user?.id, profile?.role)
   const { boards, loading: boardsLoading, createBoard, updateBoard, deleteBoard } = useBoards()
 
@@ -81,7 +83,7 @@ export default function ZadaniaPage() {
   const [view, setView] = useState<'kanban' | 'list'>('kanban')
   const [showAddModal, setShowAddModal] = useState(false)
   const [addStatus, setAddStatus] = useState<TaskStatus>('todo')
-  const [form, setForm] = useState<TaskFormData>({ ...EMPTY_FORM })
+  const [form, setForm] = useState<TaskFormData>({ ...EMPTY_FORM, assigned_to: canAssign ? '' : (user?.id ?? '') })
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   const [profiles, setProfiles] = useState<Profile[]>([])
 
@@ -128,12 +130,12 @@ export default function ZadaniaPage() {
     if (error) { showToast(error, 'error'); return }
     showToast('Zadanie dodane', 'success')
     setShowAddModal(false)
-    setForm({ ...EMPTY_FORM })
+    setForm({ ...EMPTY_FORM, assigned_to: canAssign ? '' : (user?.id ?? '') })
   }
 
   function openAdd(status: TaskStatus) {
     setAddStatus(status)
-    setForm({ ...EMPTY_FORM, status })
+    setForm({ ...EMPTY_FORM, status, assigned_to: canAssign ? '' : (user?.id ?? '') })
     setShowAddModal(true)
   }
 
@@ -233,6 +235,7 @@ export default function ZadaniaPage() {
           userId={user?.id || ''}
           userName={profile?.full_name || ''}
           isAdmin={profile?.role === 'admin'}
+          canAssign={canAssign}
           profiles={profiles}
           allTasks={tasks}
           onBoardUpdate={async (updates) => { await updateBoard(selectedBoard.id, updates) }}
@@ -447,19 +450,23 @@ export default function ZadaniaPage() {
           </div>
           <div>
             <label className="limona-label block mb-2">Główny wykonawca</label>
-            <select
-              className="limona-select"
-              value={form.assigned_to}
-              onChange={e => {
-                const assigned_to = e.target.value
-                setForm(f => ({ ...f, assigned_to, co_assignees: f.co_assignees.filter(id => id !== assigned_to) }))
-              }}
-            >
-              <option value="">Nieprzypisane</option>
-              {profiles.map(p => (
-                <option key={p.id} value={p.id}>{p.full_name}</option>
-              ))}
-            </select>
+            {canAssign ? (
+              <select
+                className="limona-select"
+                value={form.assigned_to}
+                onChange={e => {
+                  const assigned_to = e.target.value
+                  setForm(f => ({ ...f, assigned_to, co_assignees: f.co_assignees.filter(id => id !== assigned_to) }))
+                }}
+              >
+                <option value="">Nieprzypisane</option>
+                {profiles.map(p => (
+                  <option key={p.id} value={p.id}>{p.full_name}</option>
+                ))}
+              </select>
+            ) : (
+              <p className="limona-input flex items-center text-limona-text-muted">Ty — zadania zawsze trafiają do twórcy</p>
+            )}
           </div>
           <div>
             <label className="limona-label block mb-2">Dodatkowi wykonawcy (CC)</label>
@@ -508,6 +515,7 @@ export default function ZadaniaPage() {
           userId={user?.id || ''}
           userName={profile?.full_name || ''}
           isAdmin={profile?.role === 'admin'}
+          canAssign={canAssign}
           profiles={profiles}
           tasks={tasks}
         />

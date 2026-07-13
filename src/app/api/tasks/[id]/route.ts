@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getSessionUser, unauthorized } from '@/lib/api-auth'
 import { validateTaskRules } from '@/lib/task-rules'
 import { TASK_STATUS_LABELS, formatStatusChangeComment } from '@/lib/status-comments'
+import { canSeeAllTeams } from '@/lib/roles'
 import type { TaskStatus } from '@/types/database'
 
 const SELECT_WITH_RELATIONS = `*,
@@ -33,6 +34,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const ruleError = validateTaskRules({ ...existing, ...body })
   if (ruleError) return NextResponse.json({ error: ruleError }, { status: 400 })
+
+  // Zwykły user nie może przełożyć zadania na kogoś innego (ani przejąć
+  // cudzego) — tylko role z uprawnieniami zarządzania zespołem to robią
+  if ('assigned_to' in body && !canSeeAllTeams(user.role)) delete body.assigned_to
 
   // Główny wykonawca nie może być jednocześnie współwykonawcą (CC)
   if ('assigned_to' in body || 'co_assignees' in body) {

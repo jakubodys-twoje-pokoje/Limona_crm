@@ -10,12 +10,14 @@ import { useVisibleUserIds } from '@/hooks/useTeamVisibility'
 import { useTasks } from '@/hooks/useTasks'
 import { CalendarView } from '@/components/tasks/CalendarView'
 import { TaskDetailModal } from '@/components/tasks/TaskDetailModal'
+import { canSeeAllTeams } from '@/lib/roles'
 import type { Task, Profile } from '@/types/database'
 
 // Samodzielny widok kalendarza — agreguje zadania ze wszystkich tablic
 // (boardId pominięty w useTasks = brak filtra po stronie API), bez zakładek kanbanu
 export default function ZadaniaKalendarzPage() {
   const { user, profile } = useAuth()
+  const canAssign = canSeeAllTeams(profile?.role)
   const { visibleIds } = useVisibleUserIds(user?.id, profile?.role)
   const { tasks, loading, createTask, updateTask, deleteTask } = useTasks(undefined, visibleIds)
   const [profiles, setProfiles] = useState<Profile[]>([])
@@ -86,6 +88,7 @@ export default function ZadaniaKalendarzPage() {
           userId={user?.id || ''}
           userName={profile?.full_name || ''}
           isAdmin={profile?.role === 'admin'}
+          canAssign={canAssign}
           profiles={profiles}
           tasks={tasks}
         />

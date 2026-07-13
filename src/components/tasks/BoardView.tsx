@@ -18,13 +18,14 @@ interface BoardViewProps {
   userId: string
   userName: string
   isAdmin: boolean
+  canAssign: boolean
   profiles: Profile[]
   allTasks: Task[]
   onBoardUpdate: (updates: { name?: string; color?: string }) => Promise<void>
   onBoardDelete: () => Promise<void>
 }
 
-export function BoardView({ board, visibleIds, userId, userName, isAdmin, profiles, onBoardUpdate, onBoardDelete }: BoardViewProps) {
+export function BoardView({ board, visibleIds, userId, userName, isAdmin, canAssign, profiles, onBoardUpdate, onBoardDelete }: BoardViewProps) {
   const [lists, setLists] = useState<BoardList[]>([])
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   const [editingName, setEditingName] = useState(false)
@@ -193,6 +194,7 @@ export function BoardView({ board, visibleIds, userId, userName, isAdmin, profil
           userId={userId}
           userName={userName}
           isAdmin={isAdmin}
+          canAssign={canAssign}
           profiles={profiles}
           tasks={tasks}
         />

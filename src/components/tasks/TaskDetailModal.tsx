@@ -31,6 +31,8 @@ interface TaskDetailModalProps {
   userId: string
   userName: string
   isAdmin: boolean
+  /** Może zmienić głównego wykonawcę (przełożyć na kogoś innego) — role z uprawnieniami zarządzania zespołem */
+  canAssign: boolean
   profiles: Profile[]
   tasks: Task[]
 }
@@ -58,7 +60,7 @@ function CircleIcon() {
 }
 
 export function TaskDetailModal({
-  task, isOpen, onClose, onUpdate, onDelete, userId, userName, isAdmin, profiles, tasks,
+  task, isOpen, onClose, onUpdate, onDelete, userId, userName, isAdmin, canAssign, profiles, tasks,
 }: TaskDetailModalProps) {
   const [title, setTitle] = useState(task.title)
   const [description, setDescription] = useState(task.description || '')
@@ -574,27 +576,39 @@ export function TaskDetailModal({
               {/* Assignee */}
               <div className="relative">
                 <label className="text-[10px] uppercase tracking-wider text-limona-text-dim font-bold block mb-1">Przypisane do</label>
-                <button onClick={() => { setShowAssignMenu(!showAssignMenu); setShowStatusMenu(false); setShowPriorityMenu(false) }}
-                  className="w-full flex items-center gap-2 px-3 py-2 bg-limona-surface-2 rounded-lg hover:bg-limona-surface-2/80 transition-colors text-sm">
-                  {assignee ? (
-                    <><Avatar name={assignee.full_name} url={assignee.avatar_url} size="sm" /><span className="flex-1 text-left truncate">{assignee.full_name}</span></>
-                  ) : (
-                    <><User size={14} className="text-limona-text-dim" /><span className="flex-1 text-left text-limona-text-dim">Nieprzypisane</span></>
-                  )}
-                  <ChevronDown size={12} className="text-limona-text-dim" />
-                </button>
-                {showAssignMenu && (
-                  <div className="absolute top-full left-0 right-0 mt-1 bg-limona-surface border border-limona-border rounded-lg shadow-xl z-10 overflow-hidden max-h-48 overflow-y-auto">
-                    <button onClick={() => handleAssignChange('')}
-                      className={cn('w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors text-left', !assignedTo ? 'bg-limona-lime/20' : 'hover:bg-limona-surface-2')}>
-                      <User size={14} className="text-limona-text-dim" /><span className="text-limona-text-dim">Nieprzypisane</span>
+                {canAssign ? (
+                  <>
+                    <button onClick={() => { setShowAssignMenu(!showAssignMenu); setShowStatusMenu(false); setShowPriorityMenu(false) }}
+                      className="w-full flex items-center gap-2 px-3 py-2 bg-limona-surface-2 rounded-lg hover:bg-limona-surface-2/80 transition-colors text-sm">
+                      {assignee ? (
+                        <><Avatar name={assignee.full_name} url={assignee.avatar_url} size="sm" /><span className="flex-1 text-left truncate">{assignee.full_name}</span></>
+                      ) : (
+                        <><User size={14} className="text-limona-text-dim" /><span className="flex-1 text-left text-limona-text-dim">Nieprzypisane</span></>
+                      )}
+                      <ChevronDown size={12} className="text-limona-text-dim" />
                     </button>
-                    {profiles.map(p => (
-                      <button key={p.id} onClick={() => handleAssignChange(p.id)}
-                        className={cn('w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors text-left', p.id === assignedTo ? 'bg-limona-lime/20' : 'hover:bg-limona-surface-2')}>
-                        <Avatar name={p.full_name} url={p.avatar_url} size="sm" /><span className="truncate">{p.full_name}</span>
-                      </button>
-                    ))}
+                    {showAssignMenu && (
+                      <div className="absolute top-full left-0 right-0 mt-1 bg-limona-surface border border-limona-border rounded-lg shadow-xl z-10 overflow-hidden max-h-48 overflow-y-auto">
+                        <button onClick={() => handleAssignChange('')}
+                          className={cn('w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors text-left', !assignedTo ? 'bg-limona-lime/20' : 'hover:bg-limona-surface-2')}>
+                          <User size={14} className="text-limona-text-dim" /><span className="text-limona-text-dim">Nieprzypisane</span>
+                        </button>
+                        {profiles.map(p => (
+                          <button key={p.id} onClick={() => handleAssignChange(p.id)}
+                            className={cn('w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors text-left', p.id === assignedTo ? 'bg-limona-lime/20' : 'hover:bg-limona-surface-2')}>
+                            <Avatar name={p.full_name} url={p.avatar_url} size="sm" /><span className="truncate">{p.full_name}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="w-full flex items-center gap-2 px-3 py-2 bg-limona-surface-2 rounded-lg text-sm">
+                    {assignee ? (
+                      <><Avatar name={assignee.full_name} url={assignee.avatar_url} size="sm" /><span className="flex-1 truncate">{assignee.full_name}</span></>
+                    ) : (
+                      <><User size={14} className="text-limona-text-dim" /><span className="flex-1 text-limona-text-dim">Nieprzypisane</span></>
+                    )}
                   </div>
                 )}
               </div>

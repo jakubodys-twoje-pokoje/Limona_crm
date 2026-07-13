@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getSessionUser, unauthorized } from '@/lib/api-auth'
 import { validateTaskRules } from '@/lib/task-rules'
+import { canSeeAllTeams } from '@/lib/roles'
 
 const SELECT_WITH_RELATIONS = `*,
   property:properties!tasks_property_id_fkey(id,adres,kod_pocztowy,miasto,kontakt_id,kontakt:kontakty!properties_kontakt_id_fkey(id,nazwa)),
@@ -58,9 +59,10 @@ export async function POST(req: NextRequest) {
   const ruleError = validateTaskRules(body)
   if (ruleError) return NextResponse.json({ error: ruleError }, { status: 400 })
 
-  // Bez wybranego przypisania zadanie domyślnie trafia do tego, kto je
-  // dodał — inaczej ginęło z widoku "moje zadania" mimo bycia twórcą.
-  const assignedTo = body.assigned_to ?? user.id
+  // Zwykły user zawsze jest głównym wykonawcą własnego zadania — nie może
+  // go oddać komuś innemu, może tylko dopisać współwykonawców. Bez
+  // wybranego przypisania (rola z uprawnieniami) zadanie trafia do twórcy.
+  const assignedTo = canSeeAllTeams(user.role) ? (body.assigned_to ?? user.id) : user.id
   // Główny wykonawca nie może być jednocześnie współwykonawcą (CC)
   const coAssignees = Array.isArray(body.co_assignees)
     ? body.co_assignees.filter((id: string) => id !== assignedTo)
