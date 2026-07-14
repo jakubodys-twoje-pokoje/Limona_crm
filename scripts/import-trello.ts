@@ -57,7 +57,7 @@ interface TrelloCheckItem { name: string; state: 'complete' | 'incomplete' }
 interface TrelloChecklist { id: string; idCard: string; name: string; checkItems: TrelloCheckItem[] }
 interface TrelloBadges { comments?: number; attachments?: number; checkItems?: number }
 interface TrelloCard {
-  id: string; name: string; desc: string; closed: boolean; idList: string
+  id: string; name: string; desc: string; closed: boolean; idList: string; pos: number
   idMembers: string[]; due: string | null; dueComplete: boolean
   labels: TrelloLabel[]; attachments?: TrelloAttachment[]
   badges?: TrelloBadges; dateLastActivity: string
@@ -209,6 +209,7 @@ interface AiLeadFields {
 }
 type AiGodziny = Partial<Record<'poniedzialek' | 'wtorek' | 'sroda' | 'czwartek' | 'piatek' | 'sobota' | 'niedziela', string | null>>
 interface AiKontaktFields {
+  typ?: string | null
   telefon?: string | null; email?: string | null; miasto?: string | null
   ulica?: string | null; wojewodztwo?: string | null
   nip?: string | null; krs?: string | null
@@ -231,6 +232,20 @@ const WOJEWODZTWA = [
   'pomorskie', 'śląskie', 'świętokrzyskie', 'warmińsko-mazurskie',
   'wielkopolskie', 'zachodniopomorskie',
 ]
+
+/**
+ * Typ kontaktu z nazwy karty/nagłówka — "SM Podleśna" czy "Spółdzielnia STROP"
+ * to jednoznaczne sygnały, mocniejsze niż reguła całej listy.
+ */
+function typFromName(name: string): string | null {
+  const n = name.toLowerCase()
+  if (/spółdzielni|spoldzielni/.test(n) || /\bs\.?m\.?\b/.test(n)) return 'spoldzielnia'
+  if (/wspólnot|wspolnot/.test(n)) return 'wspolnota'
+  if (/komornik|komornicz/.test(n)) return 'komornik'
+  if (/zarządc|zarzadc|administracj|administrator/.test(n)) return 'zarzadca'
+  if (/inwestor/.test(n)) return 'inwestor'
+  return null
+}
 
 /** Etykiety Trello micro/small/medium/big → rozmiar w CRM (etykieta pewniejsza niż AI) */
 function rozmiarFromLabels(labels: TrelloLabel[]): 'mala' | 'srednia' | 'duza' | null {
@@ -275,6 +290,7 @@ const AI_SCHEMAS: Record<string, { properties: Record<string, unknown> }> = {
   },
   kontakt: {
     properties: {
+      typ: S(),
       telefon: S(), email: S(), miasto: S(), ulica: S(), wojewodztwo: S(),
       nip: S(), krs: S(), rozmiar: S(), www: S(), oddzial: S(),
       godziny_otwarcia: GODZINY_SCHEMA,
@@ -302,6 +318,8 @@ Pole, którego nie ma w tekście = null. NIE zgaduj.`,
   kontakt: `Jesteś parserem danych CRM nieruchomości. Karta Trello opisuje instytucję/osobę
 (spółdzielnia, zarządca, komornik, pośrednik) i historię kontaktów z nią (komentarze agentów).
 Wyciągnij:
+- typ: klasyfikacja instytucji, tylko 'spoldzielnia' | 'wspolnota' | 'zarzadca' | 'komornik' | 'inwestor';
+  nie da się ustalić → null,
 - telefon (9 cyfr bez +48), email, miasto, ulica (z numerem), www (adres strony),
 - nip (10 cyfr, bez kresek), krs (10 cyfr, z zerami wiodącymi), oddzial (oddział/filia, jeśli wymieniony),
 - wojewodztwo: jeśli nie podano wprost, WYWNIOSKUJ z miasta (np. Warszawa → mazowieckie,
@@ -331,7 +349,7 @@ function saveAiCache() {
 }
 
 // Wersja schematu per cel — podbicie unieważnia stary cache (nowe pola wymagają ponownego zapytania)
-const AI_SCHEMA_VERSION: Record<string, number> = { property: 2, lead: 1, kontakt: 3 }
+const AI_SCHEMA_VERSION: Record<string, number> = { property: 2, lead: 1, kontakt: 4 }
 
 async function aiExtract<T>(target: 'property' | 'lead' | 'kontakt', cardId: string, content: string, retriesLeft = 3): Promise<T | null> {
   if (!geminiKey) return null
@@ -506,6 +524,27 @@ async function main() {
     if (a.type === 'commentCard' && a.data.card?.id && a.data.text) {
       if (!exportCommentsByCard.has(a.data.card.id)) exportCommentsByCard.set(a.data.card.id, [])
       exportCommentsByCard.get(a.data.card.id)!.push(a)
+    }
+  }
+
+  // Karty-nagłówki dzielą listy na sekcje typów ("SPÓŁDZIELNIE", "KOMORNICY"...) —
+  // karta pod takim nagłówkiem dziedziczy jego typ, aż do następnego nagłówka.
+  const sectionTypByCard = new Map<string, string>()
+  {
+    const cardsByList = new Map<string, TrelloCard[]>()
+    for (const c of board.cards) {
+      if (!cardsByList.has(c.idList)) cardsByList.set(c.idList, [])
+      cardsByList.get(c.idList)!.push(c)
+    }
+    for (const cards of cardsByList.values()) {
+      let currentTyp: string | null = null
+      for (const c of [...cards].sort((a, b) => a.pos - b.pos)) {
+        if (isHeaderCard(c)) {
+          currentTyp = typFromName(c.name) // nagłówek bez typu resetuje sekcję
+        } else if (currentTyp) {
+          sectionTypByCard.set(c.id, currentTyp)
+        }
+      }
     }
   }
 
@@ -736,6 +775,11 @@ async function main() {
             if (typeof v === 'string' && v.trim()) godziny[day] = v.trim()
           }
         }
+        // Typ: nazwa karty > nagłówek-separator w liście > AI > reguła listy
+        const KONTAKT_TYPY_OK = ['spoldzielnia', 'wspolnota', 'zarzadca', 'komornik', 'inwestor', 'klient']
+        const aiTyp = KONTAKT_TYPY_OK.includes(ai?.typ ?? '') ? ai!.typ! : null
+        const finalTyp = typFromName(card.name) ?? sectionTypByCard.get(card.id) ?? aiTyp ?? rule.typ ?? 'klient'
+
         // Flagi: etykiety Trello wygrywają nad AI (są jawną decyzją agenta)
         const labelNames = new Set((card.labels ?? []).map(l => (l.name || '').toLowerCase().trim()))
         const hasLabel = (...names: string[]) => names.some(n => labelNames.has(n))
@@ -754,7 +798,7 @@ async function main() {
            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$23)
            RETURNING id`,
           [
-            rule.typ ?? 'klient', card.name.slice(0, 200),
+            finalTyp, card.name.slice(0, 200),
             str(ai?.telefon) ?? extractPhone(text),
             str(ai?.email) ?? extractEmail(text),
             opis,
