@@ -23,6 +23,16 @@
  * albo z sekcji tablicy — listy "SUKCES!"/"ODRZUCONE" dziedziczą agenta
  * z poprzedzającej sekcji).
  *
+ * AI (opcjonalnie, mocno zalecane przy zabałaganionych kartach): z kluczem
+ * GEMINI_API_KEY (env albo --gemini-key) model czyta opis + komentarze każdej
+ * karty i układa dane w pola CRM (adres, nr KW, metraż, zadłużenie, dłużnik,
+ * czynsz, telefon...). Regexy zostają jako fallback — awaria AI nie psuje
+ * importu. Jakość sprawdzisz przed importem na próbce:
+ *   npx tsx scripts/import-trello.ts --board ... --config ... --ai-sample 10
+ * Odpowiedzi cache'ują się per karta (scripts/.trello-ai-cache.json), więc
+ * ponowny przebieg nie płaci drugi raz. Model: GEMINI_MODEL (domyślnie
+ * gemini-2.5-flash). Klucz: https://aistudio.google.com/apikey
+ *
  * Idempotencja: każdy rekord dostaje znacznik [trello:<idKarty>] (leady:
  * meta.trello_card_id). Ponowne uruchomienie pomija już zaimportowane.
  *
@@ -30,7 +40,7 @@
  * do pobierania plików dodatkowo NEXT_PUBLIC_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY.
  */
 import 'dotenv/config'
-import { readFileSync } from 'fs'
+import { readFileSync, writeFileSync } from 'fs'
 import { Client } from 'pg'
 import { createClient as createSupabaseClient, type SupabaseClient } from '@supabase/supabase-js'
 
@@ -171,6 +181,128 @@ async function downloadAttachment(url: string): Promise<{ bytes: Uint8Array; con
   }
 }
 
+// ─── AI (Gemini) — układanie danych z opisów/komentarzy w pola ───────────────
+//
+// Karty Trello mają kluczowe dane wciśnięte w opisy i komentarze wolnym
+// tekstem. Z GEMINI_API_KEY (env albo --gemini-key) model czyta całą treść
+// karty i zwraca ustrukturyzowany JSON (adres, KW, metraż, zadłużenie,
+// dłużnik, telefon...). Gdy AI nie odpowie / zwróci śmieci — twardy
+// fallback na dotychczasowe regexy, import NIGDY się na AI nie wywala.
+// Odpowiedzi cache'ują się w scripts/.trello-ai-cache.json (per karta),
+// więc ponowny przebieg nie płaci drugi raz za te same karty.
+
+const geminiKey = arg('gemini-key') || process.env.GEMINI_API_KEY || null
+const GEMINI_MODEL = arg('gemini-model') || process.env.GEMINI_MODEL || 'gemini-2.5-flash'
+const AI_CACHE_PATH = 'scripts/.trello-ai-cache.json'
+
+interface AiPropertyFields {
+  adres?: string | null; kod_pocztowy?: string | null; miasto?: string | null
+  owner_name?: string | null; phone?: string | null; kw_number?: string | null
+  area_sqm?: number | null; total_debt?: number | null; czynsz_miesieczny?: number | null
+  rok_budowy?: number | null; pietro?: number | null; uklad?: string | null
+  wycena_szacunkowa?: number | null
+}
+interface AiLeadFields {
+  phone?: string | null; email?: string | null; location?: string | null
+}
+interface AiKontaktFields {
+  telefon?: string | null; email?: string | null; miasto?: string | null
+  ulica?: string | null; wojewodztwo?: string | null
+}
+
+const AI_SCHEMAS: Record<string, { properties: Record<string, { type: string; nullable: boolean }> }> = {
+  property: {
+    properties: {
+      adres: { type: 'STRING', nullable: true }, kod_pocztowy: { type: 'STRING', nullable: true },
+      miasto: { type: 'STRING', nullable: true }, owner_name: { type: 'STRING', nullable: true },
+      phone: { type: 'STRING', nullable: true }, kw_number: { type: 'STRING', nullable: true },
+      area_sqm: { type: 'NUMBER', nullable: true }, total_debt: { type: 'NUMBER', nullable: true },
+      czynsz_miesieczny: { type: 'NUMBER', nullable: true }, rok_budowy: { type: 'INTEGER', nullable: true },
+      pietro: { type: 'INTEGER', nullable: true }, uklad: { type: 'STRING', nullable: true },
+      wycena_szacunkowa: { type: 'NUMBER', nullable: true },
+    },
+  },
+  lead: {
+    properties: {
+      phone: { type: 'STRING', nullable: true }, email: { type: 'STRING', nullable: true },
+      location: { type: 'STRING', nullable: true },
+    },
+  },
+  kontakt: {
+    properties: {
+      telefon: { type: 'STRING', nullable: true }, email: { type: 'STRING', nullable: true },
+      miasto: { type: 'STRING', nullable: true }, ulica: { type: 'STRING', nullable: true },
+      wojewodztwo: { type: 'STRING', nullable: true },
+    },
+  },
+}
+
+const AI_PROMPTS: Record<string, string> = {
+  property: `Jesteś parserem danych CRM firmy skupującej zadłużone nieruchomości w Polsce.
+Z treści karty Trello (nazwa + opis + komentarze) wyciągnij dane nieruchomości.
+Zasady: adres = ulica z numerem (bez miasta i kodu). kw_number = numer księgi wieczystej (format XX0X/00000000/0).
+owner_name = imię i nazwisko dłużnika/właściciela. total_debt = łączne zadłużenie w PLN (sama liczba).
+area_sqm = metraż w m2. pietro = piętro (0 = parter). uklad = układ mieszkania (np. "2 pokoje z kuchnią").
+wycena_szacunkowa = szacowana wartość nieruchomości w PLN. phone = telefon do właściciela/kontaktu (9 cyfr, bez +48).
+Pole, którego nie ma w tekście = null. NIE zgaduj, NIE wymyślaj.`,
+  lead: `Jesteś parserem danych CRM nieruchomości. Z treści karty Trello wyciągnij dane kontaktowe leada:
+phone (9 cyfr bez +48), email, location (miasto/dzielnica/adres nieruchomości, o której mowa).
+Pole, którego nie ma w tekście = null. NIE zgaduj.`,
+  kontakt: `Jesteś parserem danych CRM nieruchomości. Karta Trello opisuje instytucję/osobę
+(spółdzielnia, zarządca, komornik, pośrednik). Wyciągnij: telefon (9 cyfr bez +48), email,
+miasto, ulica (z numerem), wojewodztwo. Pole, którego nie ma w tekście = null. NIE zgaduj.`,
+}
+
+let aiCache: Record<string, unknown> = {}
+try { aiCache = JSON.parse(readFileSync(AI_CACHE_PATH, 'utf8')) } catch { /* brak cache — ok */ }
+let aiCacheDirty = 0
+let aiCalls = 0
+let aiFailures = 0
+
+function saveAiCache() {
+  try { writeFileSync(AI_CACHE_PATH, JSON.stringify(aiCache)) } catch { /* ignore */ }
+}
+
+async function aiExtract<T>(target: 'property' | 'lead' | 'kontakt', cardId: string, content: string): Promise<T | null> {
+  if (!geminiKey) return null
+  const cacheKey = `${target}:${cardId}`
+  if (cacheKey in aiCache) return aiCache[cacheKey] as T | null
+
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${geminiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: `${AI_PROMPTS[target]}\n\n--- TREŚĆ KARTY ---\n${content.slice(0, 24000)}` }] }],
+          generationConfig: {
+            responseMimeType: 'application/json',
+            responseSchema: { type: 'OBJECT', ...AI_SCHEMAS[target] },
+            temperature: 0,
+          },
+        }),
+      },
+    )
+    if (res.status === 429) { await sleep(5000); delete aiCache[cacheKey]; return aiExtract(target, cardId, content) }
+    if (!res.ok) throw new Error(`Gemini ${res.status}`)
+    const data = await res.json() as { candidates?: { content?: { parts?: { text?: string }[] } }[] }
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text
+    const parsed = text ? JSON.parse(text) as T : null
+    aiCalls++
+    aiCache[cacheKey] = parsed
+    if (++aiCacheDirty % 50 === 0) saveAiCache()
+    return parsed
+  } catch {
+    aiFailures++
+    return null // fallback na regexy — import idzie dalej
+  }
+}
+
+/** Liczby z AI bywają stringami/śmieciami — przyjmujemy tylko sensowne wartości */
+const num = (v: unknown): number | null => (typeof v === 'number' && isFinite(v) && v > 0 ? v : null)
+const str = (v: unknown): string | null => (typeof v === 'string' && v.trim() ? v.trim() : null)
+
 // ─── Klasyfikacja list (sekcje per agent) ────────────────────────────────────
 
 interface ClassifiedList { list: TrelloList; rule: ListRule | null; agentEmail: string | null }
@@ -208,9 +340,12 @@ async function main() {
   const boardPath = arg('board')
   const commit = process.argv.includes('--commit')
   const reportListsOnly = process.argv.includes('--report-lists')
+  // Na sucho AI odpala się tylko dla próbki N kart (--ai-sample N) — do
+  // oceny jakości ekstrakcji przed właściwym importem. Na commicie: wszystkie.
+  let aiSampleLeft = Math.max(0, parseInt(arg('ai-sample') ?? '0', 10) || 0)
 
   if (!boardPath) {
-    console.error('Użycie: npx tsx scripts/import-trello.ts --board <eksport.json> --config <config.json> [--commit] [--key X --token Y]')
+    console.error('Użycie: npx tsx scripts/import-trello.ts --board <eksport.json> --config <config.json> [--commit] [--key X --token Y] [--gemini-key X] [--ai-sample N]')
     process.exit(1)
   }
   const board: TrelloBoard = JSON.parse(readFileSync(boardPath, 'utf8'))
@@ -254,6 +389,11 @@ async function main() {
     console.warn('⚠ Brak TRELLO_KEY/TRELLO_TOKEN — komentarze tylko z eksportu (Trello obcina je do 1000 akcji!),')
     console.warn('  a załączniki-pliki zostaną jako linki do trello.com (wymagają zalogowania).')
     console.warn('  Klucz: https://trello.com/power-ups/admin\n')
+  }
+  if (geminiKey) {
+    console.log(`🤖 AI włączone (${GEMINI_MODEL}) — dane z opisów/komentarzy będą układane w pola${commit ? '' : aiSampleLeft ? ` (próbka ${aiSampleLeft} kart)` : ' (na sucho AI śpi — użyj --ai-sample N, żeby zobaczyć próbkę)'}`)
+  } else {
+    console.log('ℹ Bez GEMINI_API_KEY dane z opisów wyciągają tylko regexy (telefon/email/kod pocztowy).')
   }
 
   const db = dbUrl ? new Client({ connectionString: dbUrl }) : null
@@ -376,7 +516,18 @@ async function main() {
     }
 
     if (rule.target === 'property') {
-      const { adres, kod, miasto } = parseAddress(card.address || card.name)
+      // AI układa dane z opisu/komentarzy w pola; regexy jako fallback
+      const ai = geminiKey && (commit || aiSampleLeft > 0)
+        ? await aiExtract<AiPropertyFields>('property', card.id, text)
+        : null
+      if (!commit && ai) {
+        aiSampleLeft--
+        console.log(`\n🤖 AI [property] "${card.name.slice(0, 60)}":`, JSON.stringify(ai, null, 1))
+      }
+      const parsed = parseAddress(card.address || card.name)
+      const adres = str(ai?.adres) ?? parsed.adres
+      const kod = str(ai?.kod_pocztowy) ?? parsed.kod
+      const miasto = str(ai?.miasto) ?? parsed.miasto
       const checklist: Record<string, unknown> = {}
       for (const cl of checklistsByCard.get(card.id) ?? []) {
         for (const item of cl.checkItems) {
@@ -393,9 +544,21 @@ async function main() {
       stats.comments += commentCount
       if (commit && db) {
         const { rows: [prop] } = await db.query<{ id: string }>(
-          `INSERT INTO properties (adres, kod_pocztowy, miasto, phone, status_dluznika, notes, checklist, assigned_to, created_by, lat, lng)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$8,$9,$10) RETURNING id`,
-          [adres.slice(0, 300), kod, miasto, extractPhone(text), rule.status_dluznika ?? 'brak', notes, JSON.stringify(checklist), assigneeId, lat, lng],
+          `INSERT INTO properties (
+             adres, kod_pocztowy, miasto, phone, status_dluznika, notes, checklist,
+             assigned_to, created_by, lat, lng,
+             owner_name, kw_number, area_sqm, total_debt, czynsz_miesieczny,
+             rok_budowy, pietro, uklad, wycena_szacunkowa)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
+           RETURNING id`,
+          [
+            adres.slice(0, 300), kod, miasto,
+            str(ai?.phone) ?? extractPhone(text),
+            rule.status_dluznika ?? 'brak', notes, JSON.stringify(checklist), assigneeId, lat, lng,
+            str(ai?.owner_name), str(ai?.kw_number), num(ai?.area_sqm), num(ai?.total_debt) ?? 0,
+            num(ai?.czynsz_miesieczny), num(ai?.rok_budowy), ai?.pietro ?? null,
+            str(ai?.uklad), num(ai?.wycena_szacunkowa),
+          ],
         )
         for (const c of comments) {
           const authorId = c.memberCreator ? trelloMemberToProfile.get(c.memberCreator.id) ?? null : null
@@ -430,6 +593,13 @@ async function main() {
     }
 
     if (rule.target === 'lead') {
+      const ai = geminiKey && (commit || aiSampleLeft > 0)
+        ? await aiExtract<AiLeadFields>('lead', card.id, text)
+        : null
+      if (!commit && ai) {
+        aiSampleLeft--
+        console.log(`\n🤖 AI [lead] "${card.name.slice(0, 60)}":`, JSON.stringify(ai, null, 1))
+      }
       let temperature = rule.temperature ?? 'warm'
       for (const label of card.labels ?? []) {
         const lt = config.labels?.[label.name]?.lead_temperature
@@ -444,8 +614,10 @@ async function main() {
           `INSERT INTO leads (name, phone, email, location, notes, source, status, temperature, assigned_to, meta, next_contact_at, created_at)
            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id`,
           [
-            card.name.slice(0, 200), extractPhone(text), extractEmail(text),
-            card.locationName || card.address || null, notes,
+            card.name.slice(0, 200),
+            str(ai?.phone) ?? extractPhone(text),
+            str(ai?.email) ?? extractEmail(text),
+            str(ai?.location) ?? card.locationName ?? card.address ?? null, notes,
             config.options?.leadSource ?? 'Trello',
             rule.status ?? 'new', temperature, assigneeId,
             JSON.stringify({ trello_card_id: card.id, trello_list: cls.list.name, imported_at: new Date().toISOString() }),
@@ -465,15 +637,29 @@ async function main() {
     }
 
     if (rule.target === 'kontakt') {
+      const ai = geminiKey && (commit || aiSampleLeft > 0)
+        ? await aiExtract<AiKontaktFields>('kontakt', card.id, text)
+        : null
+      if (!commit && ai) {
+        aiSampleLeft--
+        console.log(`\n🤖 AI [kontakt] "${card.name.slice(0, 60)}":`, JSON.stringify(ai, null, 1))
+      }
       stats.kontakty++
       stats.comments += commentCount
       if (commit && db) {
         const linkLines = (card.attachments ?? []).filter(a => !a.isUpload).map(a => `🔗 ${a.name}: ${a.url}`).join('\n')
         const opis = [card.desc?.trim(), linkLines, marker(card.id)].filter(Boolean).join('\n\n')
         const { rows: [kontakt] } = await db.query<{ id: string }>(
-          `INSERT INTO kontakty (typ, nazwa, telefon, email, opis, assigned_to, created_by)
-           VALUES ($1,$2,$3,$4,$5,$6,$6) RETURNING id`,
-          [rule.typ ?? 'klient', card.name.slice(0, 200), extractPhone(text), extractEmail(text), opis, assigneeId],
+          `INSERT INTO kontakty (typ, nazwa, telefon, email, opis, miasto, ulica, wojewodztwo, assigned_to, created_by)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$9) RETURNING id`,
+          [
+            rule.typ ?? 'klient', card.name.slice(0, 200),
+            str(ai?.telefon) ?? extractPhone(text),
+            str(ai?.email) ?? extractEmail(text),
+            opis,
+            str(ai?.miasto), str(ai?.ulica), str(ai?.wojewodztwo),
+            assigneeId,
+          ],
         )
         for (const c of comments) {
           const authorId = c.memberCreator ? trelloMemberToProfile.get(c.memberCreator.id) ?? null : null
@@ -499,12 +685,14 @@ async function main() {
   }
 
   if (db) await db.end()
+  if (geminiKey) saveAiCache()
 
   // ─── Raport ────────────────────────────────────────────────────────────────
   console.log(`\n=== Import Trello: „${board.name}" — ${commit ? 'ZAPISANO' : 'NA SUCHO (nic nie zapisano)'} ===`)
   console.log(`Nieruchomości: ${stats.properties} | Leady: ${stats.leads} | Kontakty: ${stats.kontakty}`)
   console.log(`Komentarze: ${stats.comments}${hasApi ? ' (pełne, z API)' : ' (TYLKO z eksportu — ucięte!)'} | Zadania: ${stats.tasks} | Dokumenty: ${stats.documents}`)
   if (commit && wantDownloads) console.log(`Pliki pobrane do Storage: ${stats.filesDownloaded} | Zdjęcia kontaktów: ${stats.photos} | Nieudane pobrania: ${stats.filesFailed}`)
+  if (geminiKey && (aiCalls || aiFailures)) console.log(`AI (${GEMINI_MODEL}): zapytań ${aiCalls}, nieudanych ${aiFailures} (fallback: regexy) — cache: ${AI_CACHE_PATH}`)
   console.log(`Pominięte: archiwum/skip ${stats.skippedCards} | nagłówki sekcji ${stats.headerCards} | już zaimportowane ${stats.alreadyImported}`)
 
   if (perList.size) {
