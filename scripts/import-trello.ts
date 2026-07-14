@@ -263,7 +263,7 @@ function saveAiCache() {
   try { writeFileSync(AI_CACHE_PATH, JSON.stringify(aiCache)) } catch { /* ignore */ }
 }
 
-async function aiExtract<T>(target: 'property' | 'lead' | 'kontakt', cardId: string, content: string): Promise<T | null> {
+async function aiExtract<T>(target: 'property' | 'lead' | 'kontakt', cardId: string, content: string, retriesLeft = 3): Promise<T | null> {
   if (!geminiKey) return null
   const cacheKey = `${target}:${cardId}`
   if (cacheKey in aiCache) return aiCache[cacheKey] as T | null
@@ -284,8 +284,11 @@ async function aiExtract<T>(target: 'property' | 'lead' | 'kontakt', cardId: str
         }),
       },
     )
-    if (res.status === 429) { await sleep(5000); delete aiCache[cacheKey]; return aiExtract(target, cardId, content) }
-    if (!res.ok) throw new Error(`Gemini ${res.status}`)
+    if (res.status === 429 && retriesLeft > 0) { await sleep(10000); return aiExtract(target, cardId, content, retriesLeft - 1) }
+    if (!res.ok) {
+      const body = (await res.text()).slice(0, 400)
+      throw new Error(`Gemini HTTP ${res.status}: ${body}`)
+    }
     const data = await res.json() as { candidates?: { content?: { parts?: { text?: string }[] } }[] }
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text
     const parsed = text ? JSON.parse(text) as T : null
@@ -293,8 +296,12 @@ async function aiExtract<T>(target: 'property' | 'lead' | 'kontakt', cardId: str
     aiCache[cacheKey] = parsed
     if (++aiCacheDirty % 50 === 0) saveAiCache()
     return parsed
-  } catch {
+  } catch (e) {
     aiFailures++
+    // Pierwsze błędy pokazujemy w całości — inaczej nie wiadomo, CO nie działa
+    // (zły klucz? limit? model?). Kolejne już cicho, żeby nie zalać raportu.
+    if (aiFailures <= 3) console.warn(`\n⚠ AI błąd (${aiFailures}): ${(e as Error).message}`)
+    if (aiFailures === 3) console.warn('  ... kolejne błędy AI wyciszam; import leci dalej na regexach\n')
     return null // fallback na regexy — import idzie dalej
   }
 }
@@ -517,13 +524,10 @@ async function main() {
 
     if (rule.target === 'property') {
       // AI układa dane z opisu/komentarzy w pola; regexy jako fallback
-      const ai = geminiKey && (commit || aiSampleLeft > 0)
-        ? await aiExtract<AiPropertyFields>('property', card.id, text)
-        : null
-      if (!commit && ai) {
-        aiSampleLeft--
-        console.log(`\n🤖 AI [property] "${card.name.slice(0, 60)}":`, JSON.stringify(ai, null, 1))
-      }
+      const wantAiProperty = !!geminiKey && (commit || aiSampleLeft > 0)
+      if (!commit && wantAiProperty) aiSampleLeft--
+      const ai = wantAiProperty ? await aiExtract<AiPropertyFields>('property', card.id, text) : null
+      if (!commit && ai) console.log(`\n🤖 AI [property] "${card.name.slice(0, 60)}":`, JSON.stringify(ai, null, 1))
       const parsed = parseAddress(card.address || card.name)
       const adres = str(ai?.adres) ?? parsed.adres
       const kod = str(ai?.kod_pocztowy) ?? parsed.kod
@@ -593,13 +597,10 @@ async function main() {
     }
 
     if (rule.target === 'lead') {
-      const ai = geminiKey && (commit || aiSampleLeft > 0)
-        ? await aiExtract<AiLeadFields>('lead', card.id, text)
-        : null
-      if (!commit && ai) {
-        aiSampleLeft--
-        console.log(`\n🤖 AI [lead] "${card.name.slice(0, 60)}":`, JSON.stringify(ai, null, 1))
-      }
+      const wantAiLead = !!geminiKey && (commit || aiSampleLeft > 0)
+      if (!commit && wantAiLead) aiSampleLeft--
+      const ai = wantAiLead ? await aiExtract<AiLeadFields>('lead', card.id, text) : null
+      if (!commit && ai) console.log(`\n🤖 AI [lead] "${card.name.slice(0, 60)}":`, JSON.stringify(ai, null, 1))
       let temperature = rule.temperature ?? 'warm'
       for (const label of card.labels ?? []) {
         const lt = config.labels?.[label.name]?.lead_temperature
@@ -637,13 +638,10 @@ async function main() {
     }
 
     if (rule.target === 'kontakt') {
-      const ai = geminiKey && (commit || aiSampleLeft > 0)
-        ? await aiExtract<AiKontaktFields>('kontakt', card.id, text)
-        : null
-      if (!commit && ai) {
-        aiSampleLeft--
-        console.log(`\n🤖 AI [kontakt] "${card.name.slice(0, 60)}":`, JSON.stringify(ai, null, 1))
-      }
+      const wantAiKontakt = !!geminiKey && (commit || aiSampleLeft > 0)
+      if (!commit && wantAiKontakt) aiSampleLeft--
+      const ai = wantAiKontakt ? await aiExtract<AiKontaktFields>('kontakt', card.id, text) : null
+      if (!commit && ai) console.log(`\n🤖 AI [kontakt] "${card.name.slice(0, 60)}":`, JSON.stringify(ai, null, 1))
       stats.kontakty++
       stats.comments += commentCount
       if (commit && db) {
