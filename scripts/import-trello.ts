@@ -31,7 +31,7 @@
  *   npx tsx scripts/import-trello.ts --board ... --config ... --ai-sample 10
  * Odpowiedzi cache'ują się per karta (scripts/.trello-ai-cache.json), więc
  * ponowny przebieg nie płaci drugi raz. Model: GEMINI_MODEL (domyślnie
- * gemini-2.5-flash). Klucz: https://aistudio.google.com/apikey
+ * gemini-flash-latest — alias najnowszego Flasha). Klucz: https://aistudio.google.com/apikey
  *
  * Idempotencja: każdy rekord dostaje znacznik [trello:<idKarty>] (leady:
  * meta.trello_card_id). Ponowne uruchomienie pomija już zaimportowane.
@@ -192,7 +192,8 @@ async function downloadAttachment(url: string): Promise<{ bytes: Uint8Array; con
 // więc ponowny przebieg nie płaci drugi raz za te same karty.
 
 const geminiKey = arg('gemini-key') || process.env.GEMINI_API_KEY || null
-const GEMINI_MODEL = arg('gemini-model') || process.env.GEMINI_MODEL || 'gemini-2.5-flash'
+// gemini-flash-latest = oficjalny alias najnowszego Flasha — nie starzeje się jak sztywne wersje
+const GEMINI_MODEL = arg('gemini-model') || process.env.GEMINI_MODEL || 'gemini-flash-latest'
 const AI_CACHE_PATH = 'scripts/.trello-ai-cache.json'
 
 interface AiPropertyFields {
