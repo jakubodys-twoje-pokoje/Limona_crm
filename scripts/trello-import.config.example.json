@@ -1,0 +1,101 @@
+{
+  "_INSTRUKCJA": [
+    "KONFIG IMPORTU Z TRELLO — skopiuj jako trello-import.config.json i uzupełnij emaile.",
+    "Wzór wypełniony pod tablicę 'Limona safe deal przestrzeń robocza'.",
+    "",
+    "KROKI:",
+    "1. Uzupełnij emaile agentów w 'agents' i 'members' (konta z CRM). Wpis '???' = do uzupełnienia.",
+    "2. Przejrzyj 'listRules' — reguły dopasowują się po FRAGMENCIE nazwy listy (bez wielkości liter),",
+    "   pierwsza pasująca wygrywa. Lista bez reguły = pominięta (raport je wypisze).",
+    "   Cele: property (nieruchomość), lead, kontakt (typ: klient|spoldzielnia|wspolnota|zarzadca|komornik|inwestor), skip.",
+    "3. (MOCNO ZALECANE) Klucz API Trello — bez niego przepada ~87% komentarzy, bo eksport JSON",
+    "   obcina akcje do 1000 na całą tablicę. https://trello.com/power-ups/admin → API key + token.",
+    "   Ustaw TRELLO_KEY i TRELLO_TOKEN w .env — wtedy skrypt dociągnie też pliki załączników",
+    "   (pdf-y, zdjęcia) do Supabase Storage (wymaga migracji 0021 + SUPABASE_SERVICE_ROLE_KEY).",
+    "4. Przebieg na sucho (nic nie zapisuje):",
+    "   npx tsx scripts/import-trello.ts --board eksport.json --config scripts/trello-import.config.json",
+    "5. Przejrzyj raport (rozbicie per lista!), popraw reguły, potem dopisz --commit.",
+    "   Import jest idempotentny — ponowne uruchomienie nie duplikuje kart.",
+    "",
+    "Podgląd wszystkich list i userów tablicy: npx tsx scripts/import-trello.ts --board eksport.json --report-lists"
+  ],
+
+  "options": {
+    "includeArchivedCards": false,
+    "skipHeaderCards": true,
+    "downloadAttachments": true,
+    "defaultAssigneeEmail": null,
+    "leadSource": "Trello"
+  },
+
+  "agents": {
+    "gosia": "???",
+    "igor": "???",
+    "paweł": "???",
+    "andrzej": "???",
+    "olga": "???",
+    "kamila": "???",
+    "bartłomiej": "???",
+    "bartłomiiej": "???",
+    "karolina": "???",
+    "karoliona": "???",
+    "klaudia": "???",
+    "łukasz": "???",
+    "patryk": "???"
+  },
+
+  "members": {
+    "gosia420": "???",
+    "igorkozuch": "???",
+    "pawelkarapulka": "???",
+    "andrzejfraczeknieruchomosci": "???",
+    "olgabesarabczuk": "???",
+    "kamila36": "???",
+    "bartomiejniewiadomski": "???",
+    "karolinafilipowicz1": "???",
+    "lukasszymichowski": "???",
+    "patrykuczak": "???",
+    "martakidonbrenkus": "???",
+    "grzegorzk11": "???",
+    "limona": "???"
+  },
+
+  "listRules": [
+    { "match": "wzór rozpisania", "target": "skip" },
+    { "match": "plany i raporty", "target": "skip" },
+    { "match": "raporty tygodniowe", "target": "skip" },
+
+    { "match": "opisy i oszacowania", "target": "property", "status_dluznika": "analiza" },
+    { "match": "sukces", "target": "property", "status_dluznika": "umowa" },
+
+    { "match": "ródła tematów - zarządcy", "target": "kontakt", "typ": "zarzadca" },
+    { "match": "ródła tematów - komornicy", "target": "kontakt", "typ": "komornik" },
+    { "match": "ródła tematów - windykacje", "target": "kontakt", "typ": "zarzadca" },
+    { "match": "ródła tematów - pośrednicy", "target": "kontakt", "typ": "zarzadca" },
+    { "match": "ródła tematów - posrednicy", "target": "kontakt", "typ": "zarzadca" },
+    { "match": "ródła tematów - licytacje", "target": "lead", "temperature": "warm" },
+    { "match": "ródła tematów", "target": "kontakt", "typ": "zarzadca" },
+
+    { "match": "spółdzielnie/ wspólnoty", "target": "kontakt", "typ": "spoldzielnia" },
+    { "match": "spółdzielnie", "target": "kontakt", "typ": "spoldzielnia" },
+    { "match": "wspólnoty", "target": "kontakt", "typ": "wspolnota" },
+    { "match": "komornicy/pośrednicy", "target": "kontakt", "typ": "komornik" },
+    { "match": "komornicy", "target": "kontakt", "typ": "komornik" },
+    { "match": "pośrednicy", "target": "kontakt", "typ": "zarzadca" },
+
+    { "match": "licytacje", "target": "lead", "temperature": "warm" },
+    { "match": "internet", "target": "lead", "temperature": "warm" },
+    { "match": "inne", "target": "lead", "temperature": "cold" },
+
+    { "match": "odrzucone", "target": "lead", "status": "rejected", "temperature": "cold" },
+    { "match": "niezainteresowany", "target": "lead", "status": "rejected", "temperature": "cold" }
+  ],
+
+  "labels": {
+    "Pilne": { "lead_temperature": "hot" },
+    "gotowe w teren": { "lead_temperature": "hot" },
+    "brak aktywności ": { "lead_temperature": "cold" },
+    "Niezainteresowani": { "lead_temperature": "cold" },
+    "NIEZAINTERESOWANI": { "lead_temperature": "cold" }
+  }
+}
