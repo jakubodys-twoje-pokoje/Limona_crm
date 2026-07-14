@@ -1,0 +1,91 @@
+{
+  "_INSTRUKCJA": [
+    "KONFIG IMPORTU Z TRELLO — wypełniony pod tablicę 'Limona safe deal przestrzeń robocza'.",
+    "Emaile = konta w CRM. Wpis '???' = osoba bez konta w CRM (jej komentarze dostaną",
+    "podpis autora w treści, a przypisania kart załatwia sekcja 'agents').",
+    "",
+    "Przebieg na sucho (nic nie zapisuje):",
+    "  npm run import:trello -- --board eksport.json --config scripts/trello-import.config.json",
+    "Podgląd jakości AI na 10 kartach:  ... --ai-sample 10",
+    "Właściwy import:                   ... --commit"
+  ],
+
+  "options": {
+    "includeArchivedCards": false,
+    "skipHeaderCards": true,
+    "downloadAttachments": true,
+    "defaultAssigneeEmail": null,
+    "leadSource": "Trello"
+  },
+
+  "agents": {
+    "gosia": "malgorzataluczak2@gmail.com",
+    "igor": "igor.kozuch11@gmail.com",
+    "paweł": "pawelkarapulka@gmail.com",
+    "andrzej": "andrzej.fraczek@limona.com.pl",
+    "olga": "besarabczuk@gmail.com",
+    "kamila": "krozwadowska@gmail.com",
+    "bartłomiej": "niewiadomskib51@gmail.com",
+    "bartłomiiej": "niewiadomskib51@gmail.com",
+    "karolina": "filipowicz.nieruchomosci@gmail.com",
+    "karoliona": "filipowicz.nieruchomosci@gmail.com",
+    "klaudia": "klaudia.adamska.praca@gmail.com",
+    "łukasz": "lukasszymichowski@gmail.com",
+    "patryk": "patryk.luczak@limona.com.pl"
+  },
+
+  "members": {
+    "gosia420": "malgorzataluczak2@gmail.com",
+    "igorkozuch": "igor.kozuch11@gmail.com",
+    "pawelkarapulka": "pawelkarapulka@gmail.com",
+    "andrzejfraczeknieruchomosci": "andrzej.fraczek@limona.com.pl",
+    "olgabesarabczuk": "besarabczuk@gmail.com",
+    "kamila36": "krozwadowska@gmail.com",
+    "bartomiejniewiadomski": "niewiadomskib51@gmail.com",
+    "karolinafilipowicz1": "filipowicz.nieruchomosci@gmail.com",
+    "lukasszymichowski": "lukasszymichowski@gmail.com",
+    "patrykuczak": "patryk.luczak@limona.com.pl",
+    "martakidonbrenkus": "???",
+    "grzegorzk11": "nawigator@email.com",
+    "limona": "???"
+  },
+
+  "listRules": [
+    { "match": "wzór rozpisania", "target": "skip" },
+    { "match": "plany i raporty", "target": "skip" },
+    { "match": "raporty tygodniowe", "target": "skip" },
+
+    { "match": "opisy i oszacowania", "target": "property", "status_dluznika": "analiza" },
+    { "match": "sukces", "target": "property", "status_dluznika": "umowa" },
+
+    { "match": "ródła tematów - zarządcy", "target": "kontakt", "typ": "zarzadca" },
+    { "match": "ródła tematów - komornicy", "target": "kontakt", "typ": "komornik" },
+    { "match": "ródła tematów - windykacje", "target": "kontakt", "typ": "zarzadca" },
+    { "match": "ródła tematów - pośrednicy", "target": "kontakt", "typ": "zarzadca" },
+    { "match": "ródła tematów - posrednicy", "target": "kontakt", "typ": "zarzadca" },
+    { "match": "ródła tematów - licytacje", "target": "lead", "temperature": "warm" },
+    { "match": "ródła tematów", "target": "kontakt", "typ": "zarzadca" },
+
+    { "match": "spółdzielnie/ wspólnoty", "target": "kontakt", "typ": "spoldzielnia" },
+    { "match": "spółdzielnie", "target": "kontakt", "typ": "spoldzielnia" },
+    { "match": "wspólnoty", "target": "kontakt", "typ": "wspolnota" },
+    { "match": "komornicy/pośrednicy", "target": "kontakt", "typ": "komornik" },
+    { "match": "komornicy", "target": "kontakt", "typ": "komornik" },
+    { "match": "pośrednicy", "target": "kontakt", "typ": "zarzadca" },
+
+    { "match": "licytacje", "target": "lead", "temperature": "warm" },
+    { "match": "internet", "target": "lead", "temperature": "warm" },
+    { "match": "inne", "target": "lead", "temperature": "cold" },
+
+    { "match": "odrzucone", "target": "lead", "status": "rejected", "temperature": "cold" },
+    { "match": "niezainteresowany", "target": "lead", "status": "rejected", "temperature": "cold" }
+  ],
+
+  "labels": {
+    "Pilne": { "lead_temperature": "hot" },
+    "gotowe w teren": { "lead_temperature": "hot" },
+    "brak aktywności ": { "lead_temperature": "cold" },
+    "Niezainteresowani": { "lead_temperature": "cold" },
+    "NIEZAINTERESOWANI": { "lead_temperature": "cold" }
+  }
+}
