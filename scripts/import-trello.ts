@@ -200,40 +200,88 @@ interface AiPropertyFields {
   adres?: string | null; kod_pocztowy?: string | null; miasto?: string | null
   owner_name?: string | null; phone?: string | null; kw_number?: string | null
   area_sqm?: number | null; total_debt?: number | null; czynsz_miesieczny?: number | null
-  rok_budowy?: number | null; pietro?: number | null; uklad?: string | null
+  rok_budowy?: number | null; pietro?: number | null; pietro_z_ilu?: number | null
+  uklad?: string | null; balkon_metraz?: number | null; strony_swiata?: string | null
   wycena_szacunkowa?: number | null
 }
 interface AiLeadFields {
   phone?: string | null; email?: string | null; location?: string | null
 }
+type AiGodziny = Partial<Record<'poniedzialek' | 'wtorek' | 'sroda' | 'czwartek' | 'piatek' | 'sobota' | 'niedziela', string | null>>
 interface AiKontaktFields {
   telefon?: string | null; email?: string | null; miasto?: string | null
   ulica?: string | null; wojewodztwo?: string | null
+  nip?: string | null; krs?: string | null
+  rozmiar?: 'mala' | 'srednia' | 'duza' | null
+  www?: string | null; oddzial?: string | null
+  godziny_otwarcia?: AiGodziny | null
+  ustalona_prowizja?: string | null
+  wizyta_osobista?: boolean | null
+  chec_wspolpracy?: boolean | null
+  niezainteresowani?: boolean | null
+  wyslany_mail_oferta?: boolean | null
+  zgoda_ulotki?: boolean | null
+  zgoda_plakat?: boolean | null
+  operator_budowy_zainteresowani?: boolean | null
 }
 
-const AI_SCHEMAS: Record<string, { properties: Record<string, { type: string; nullable: boolean }> }> = {
+const WOJEWODZTWA = [
+  'dolnośląskie', 'kujawsko-pomorskie', 'lubelskie', 'lubuskie', 'łódzkie',
+  'małopolskie', 'mazowieckie', 'opolskie', 'podkarpackie', 'podlaskie',
+  'pomorskie', 'śląskie', 'świętokrzyskie', 'warmińsko-mazurskie',
+  'wielkopolskie', 'zachodniopomorskie',
+]
+
+/** Etykiety Trello micro/small/medium/big → rozmiar w CRM (etykieta pewniejsza niż AI) */
+function rozmiarFromLabels(labels: TrelloLabel[]): 'mala' | 'srednia' | 'duza' | null {
+  for (const l of labels ?? []) {
+    const n = (l.name || '').toLowerCase().trim()
+    if (n === 'micro' || n === 'small' || n === 'mała' || n === 'mala') return 'mala'
+    if (n === 'medium' || n === 'średnia' || n === 'srednia') return 'srednia'
+    if (n === 'big' || n === 'large' || n === 'duża' || n === 'duza') return 'duza'
+  }
+  return null
+}
+
+const S = (nullable = true) => ({ type: 'STRING', nullable })
+const N = () => ({ type: 'NUMBER', nullable: true })
+const I = () => ({ type: 'INTEGER', nullable: true })
+const B = () => ({ type: 'BOOLEAN', nullable: true })
+
+const GODZINY_SCHEMA = {
+  type: 'OBJECT',
+  nullable: true,
+  properties: {
+    poniedzialek: S(), wtorek: S(), sroda: S(), czwartek: S(),
+    piatek: S(), sobota: S(), niedziela: S(),
+  },
+}
+
+const AI_SCHEMAS: Record<string, { properties: Record<string, unknown> }> = {
   property: {
     properties: {
-      adres: { type: 'STRING', nullable: true }, kod_pocztowy: { type: 'STRING', nullable: true },
-      miasto: { type: 'STRING', nullable: true }, owner_name: { type: 'STRING', nullable: true },
-      phone: { type: 'STRING', nullable: true }, kw_number: { type: 'STRING', nullable: true },
-      area_sqm: { type: 'NUMBER', nullable: true }, total_debt: { type: 'NUMBER', nullable: true },
-      czynsz_miesieczny: { type: 'NUMBER', nullable: true }, rok_budowy: { type: 'INTEGER', nullable: true },
-      pietro: { type: 'INTEGER', nullable: true }, uklad: { type: 'STRING', nullable: true },
-      wycena_szacunkowa: { type: 'NUMBER', nullable: true },
+      adres: S(), kod_pocztowy: S(), miasto: S(), owner_name: S(),
+      phone: S(), kw_number: S(),
+      area_sqm: N(), total_debt: N(), czynsz_miesieczny: N(),
+      rok_budowy: I(), pietro: I(), pietro_z_ilu: I(),
+      uklad: S(), balkon_metraz: N(), strony_swiata: S(),
+      wycena_szacunkowa: N(),
     },
   },
   lead: {
     properties: {
-      phone: { type: 'STRING', nullable: true }, email: { type: 'STRING', nullable: true },
-      location: { type: 'STRING', nullable: true },
+      phone: S(), email: S(), location: S(),
     },
   },
   kontakt: {
     properties: {
-      telefon: { type: 'STRING', nullable: true }, email: { type: 'STRING', nullable: true },
-      miasto: { type: 'STRING', nullable: true }, ulica: { type: 'STRING', nullable: true },
-      wojewodztwo: { type: 'STRING', nullable: true },
+      telefon: S(), email: S(), miasto: S(), ulica: S(), wojewodztwo: S(),
+      nip: S(), krs: S(), rozmiar: S(), www: S(), oddzial: S(),
+      godziny_otwarcia: GODZINY_SCHEMA,
+      ustalona_prowizja: S(),
+      wizyta_osobista: B(), chec_wspolpracy: B(), niezainteresowani: B(),
+      wyslany_mail_oferta: B(), zgoda_ulotki: B(), zgoda_plakat: B(),
+      operator_budowy_zainteresowani: B(),
     },
   },
 }
@@ -243,15 +291,33 @@ const AI_PROMPTS: Record<string, string> = {
 Z treści karty Trello (nazwa + opis + komentarze) wyciągnij dane nieruchomości.
 Zasady: adres = ulica z numerem (bez miasta i kodu). kw_number = numer księgi wieczystej (format XX0X/00000000/0).
 owner_name = imię i nazwisko dłużnika/właściciela. total_debt = łączne zadłużenie w PLN (sama liczba).
-area_sqm = metraż w m2. pietro = piętro (0 = parter). uklad = układ mieszkania (np. "2 pokoje z kuchnią").
+area_sqm = metraż w m2. pietro = piętro (0 = parter), pietro_z_ilu = z ilu pięter budynek.
+uklad = układ mieszkania (np. "2 pokoje z kuchnią"). balkon_metraz = metraż balkonu w m2.
+strony_swiata = ekspozycja okien (np. "południe", "wschód-zachód").
 wycena_szacunkowa = szacowana wartość nieruchomości w PLN. phone = telefon do właściciela/kontaktu (9 cyfr, bez +48).
 Pole, którego nie ma w tekście = null. NIE zgaduj, NIE wymyślaj.`,
   lead: `Jesteś parserem danych CRM nieruchomości. Z treści karty Trello wyciągnij dane kontaktowe leada:
 phone (9 cyfr bez +48), email, location (miasto/dzielnica/adres nieruchomości, o której mowa).
 Pole, którego nie ma w tekście = null. NIE zgaduj.`,
   kontakt: `Jesteś parserem danych CRM nieruchomości. Karta Trello opisuje instytucję/osobę
-(spółdzielnia, zarządca, komornik, pośrednik). Wyciągnij: telefon (9 cyfr bez +48), email,
-miasto, ulica (z numerem), wojewodztwo. Pole, którego nie ma w tekście = null. NIE zgaduj.`,
+(spółdzielnia, zarządca, komornik, pośrednik) i historię kontaktów z nią (komentarze agentów).
+Wyciągnij:
+- telefon (9 cyfr bez +48), email, miasto, ulica (z numerem), www (adres strony),
+- nip (10 cyfr, bez kresek), krs (10 cyfr, z zerami wiodącymi), oddzial (oddział/filia, jeśli wymieniony),
+- wojewodztwo: jeśli nie podano wprost, WYWNIOSKUJ z miasta (np. Warszawa → mazowieckie,
+  Kraków → małopolskie); dozwolone tylko: ${WOJEWODZTWA.join(', ')},
+- rozmiar: wielkość instytucji, tylko 'mala' | 'srednia' | 'duza' (micro/small → mala,
+  medium → srednia, big/large → duza); nic nie wskazuje → null,
+- godziny_otwarcia: godziny pracy/przyjęć per dzień tygodnia w formacie "9:00-17:00"
+  (dni bez informacji = null),
+- ustalona_prowizja: ustalona prowizja za polecenia (np. "2%", "3000 zł"), jeśli była mowa,
+- flagi (true TYLKO gdy jednoznacznie wynika z tekstu, w razie wątpliwości null):
+  wizyta_osobista = ktoś z zespołu BYŁ tam osobiście; chec_wspolpracy = zadeklarowali
+  chęć współpracy/polecania; niezainteresowani = odmówili współpracy;
+  wyslany_mail_oferta = oferta została im WYSŁANA (nie "do wysłania");
+  zgoda_ulotki = zgodzili się na ulotki; zgoda_plakat = zgodzili się na plakat;
+  operator_budowy_zainteresowani = zainteresowani operatorem budowy na gruncie.
+Pozostałe pola, których nie ma w tekście = null. NIE zgaduj (poza województwem z miasta).`,
 }
 
 let aiCache: Record<string, unknown> = {}
@@ -264,9 +330,12 @@ function saveAiCache() {
   try { writeFileSync(AI_CACHE_PATH, JSON.stringify(aiCache)) } catch { /* ignore */ }
 }
 
+// Wersja schematu per cel — podbicie unieważnia stary cache (nowe pola wymagają ponownego zapytania)
+const AI_SCHEMA_VERSION: Record<string, number> = { property: 2, lead: 1, kontakt: 3 }
+
 async function aiExtract<T>(target: 'property' | 'lead' | 'kontakt', cardId: string, content: string, retriesLeft = 3): Promise<T | null> {
   if (!geminiKey) return null
-  const cacheKey = `${target}:${cardId}`
+  const cacheKey = `${target}.v${AI_SCHEMA_VERSION[target]}:${cardId}`
   if (cacheKey in aiCache) return aiCache[cacheKey] as T | null
 
   try {
@@ -553,16 +622,18 @@ async function main() {
              adres, kod_pocztowy, miasto, phone, status_dluznika, notes, checklist,
              assigned_to, created_by, lat, lng,
              owner_name, kw_number, area_sqm, total_debt, czynsz_miesieczny,
-             rok_budowy, pietro, uklad, wycena_szacunkowa)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
+             rok_budowy, pietro, pietro_z_ilu, uklad, balkon_metraz, strony_swiata,
+             wycena_szacunkowa)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
            RETURNING id`,
           [
             adres.slice(0, 300), kod, miasto,
             str(ai?.phone) ?? extractPhone(text),
             rule.status_dluznika ?? 'brak', notes, JSON.stringify(checklist), assigneeId, lat, lng,
             str(ai?.owner_name), str(ai?.kw_number), num(ai?.area_sqm), num(ai?.total_debt) ?? 0,
-            num(ai?.czynsz_miesieczny), num(ai?.rok_budowy), ai?.pietro ?? null,
-            str(ai?.uklad), num(ai?.wycena_szacunkowa),
+            num(ai?.czynsz_miesieczny), num(ai?.rok_budowy), ai?.pietro ?? null, ai?.pietro_z_ilu ?? null,
+            str(ai?.uklad), num(ai?.balkon_metraz), str(ai?.strony_swiata),
+            num(ai?.wycena_szacunkowa),
           ],
         )
         for (const c of comments) {
@@ -648,15 +719,57 @@ async function main() {
       if (commit && db) {
         const linkLines = (card.attachments ?? []).filter(a => !a.isUpload).map(a => `🔗 ${a.name}: ${a.url}`).join('\n')
         const opis = [card.desc?.trim(), linkLines, marker(card.id)].filter(Boolean).join('\n\n')
+        // Województwo tylko z dozwolonej listy (AI mogło zwrócić wariację)
+        const woj = str(ai?.wojewodztwo)?.toLowerCase() ?? null
+        const wojValid = woj && WOJEWODZTWA.includes(woj) ? woj : null
+        // Rozmiar: etykieta Trello (micro/small/medium/big) wygrywa nad AI
+        const rozmiarAi = ['mala', 'srednia', 'duza'].includes(ai?.rozmiar ?? '') ? ai!.rozmiar : null
+        const rozmiar = rozmiarFromLabels(card.labels) ?? rozmiarAi
+        // NIP/KRS: same cyfry, sensowna długość — inaczej odrzucamy
+        const nip = str(ai?.nip)?.replace(/\D/g, '') ?? null
+        const krs = str(ai?.krs)?.replace(/\D/g, '') ?? null
+        // Godziny otwarcia: tylko znane dni tygodnia, wartości tekstowe
+        const godziny: Record<string, string> = {}
+        if (ai?.godziny_otwarcia && typeof ai.godziny_otwarcia === 'object') {
+          for (const day of ['poniedzialek', 'wtorek', 'sroda', 'czwartek', 'piatek', 'sobota', 'niedziela'] as const) {
+            const v = ai.godziny_otwarcia[day]
+            if (typeof v === 'string' && v.trim()) godziny[day] = v.trim()
+          }
+        }
+        // Flagi: etykiety Trello wygrywają nad AI (są jawną decyzją agenta)
+        const labelNames = new Set((card.labels ?? []).map(l => (l.name || '').toLowerCase().trim()))
+        const hasLabel = (...names: string[]) => names.some(n => labelNames.has(n))
+        const flag = (aiVal: boolean | null | undefined, fromLabel: boolean) => fromLabel || aiVal === true
+        const chec_wspolpracy = flag(ai?.chec_wspolpracy, hasLabel('współpraca', 'wspolpraca'))
+        const niezainteresowani = flag(ai?.niezainteresowani, hasLabel('niezainteresowani'))
+        const wizyta_osobista = flag(ai?.wizyta_osobista, hasLabel('była wizyta', 'byla wizyta', 'wizyta teren'))
+
         const { rows: [kontakt] } = await db.query<{ id: string }>(
-          `INSERT INTO kontakty (typ, nazwa, telefon, email, opis, miasto, ulica, wojewodztwo, assigned_to, created_by)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$9) RETURNING id`,
+          `INSERT INTO kontakty (
+             typ, nazwa, telefon, email, opis, miasto, ulica, wojewodztwo,
+             nip, krs, rozmiar, www, oddzial, godziny_otwarcia, ustalona_prowizja,
+             wizyta_osobista, chec_wspolpracy, niezainteresowani,
+             wyslany_mail_oferta, zgoda_ulotki, zgoda_plakat, operator_budowy_zainteresowani,
+             assigned_to, created_by)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$23)
+           RETURNING id`,
           [
             rule.typ ?? 'klient', card.name.slice(0, 200),
             str(ai?.telefon) ?? extractPhone(text),
             str(ai?.email) ?? extractEmail(text),
             opis,
-            str(ai?.miasto), str(ai?.ulica), str(ai?.wojewodztwo),
+            str(ai?.miasto), str(ai?.ulica), wojValid,
+            nip?.length === 10 ? nip : null,
+            krs?.length === 10 ? krs : null,
+            rozmiar,
+            str(ai?.www), str(ai?.oddzial),
+            JSON.stringify(godziny),
+            str(ai?.ustalona_prowizja),
+            wizyta_osobista, chec_wspolpracy, niezainteresowani,
+            ai?.wyslany_mail_oferta === true,
+            ai?.zgoda_ulotki === true,
+            ai?.zgoda_plakat === true,
+            ai?.operator_budowy_zainteresowani === true,
             assigneeId,
           ],
         )
