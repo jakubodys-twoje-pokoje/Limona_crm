@@ -28,7 +28,7 @@ export default function KontaktyPage() {
   const denied = activeTyp === 'inwestor' && !canSeeInvestors(profile?.role)
   const { visibleIds } = useVisibleUserIds(user?.id, profile?.role)
   const filters = useMemo(() => ({ visibleIds, typ: denied ? undefined : (activeTyp || undefined) }), [visibleIds, activeTyp, denied])
-  const { kontakty, loading, createKontakt } = useKontakty(filters)
+  const { kontakty, loading, createKontakt, fetchKontakty } = useKontakty(filters)
   const { showToast } = useToast()
   const [profiles, setProfiles] = useState<Profile[]>([])
   const [showAddModal, setShowAddModal] = useState(false)
@@ -106,6 +106,7 @@ export default function KontaktyPage() {
             loading={loading}
             profiles={profiles}
             onAdd={() => setShowAddModal(true)}
+            onRefresh={fetchKontakty}
           />
         </div>
       ) : (

@@ -2,9 +2,11 @@
 
 import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Search, Filter, ChevronUp, ChevronDown, X } from 'lucide-react'
+import { Plus, Search, Filter, ChevronUp, ChevronDown, X, Layers } from 'lucide-react'
 import { Avatar } from '@/components/ui/Avatar'
 import { Skeleton } from '@/components/ui/Skeleton'
+import { KontaktyBatchEditModal } from '@/components/kontakty/KontaktyBatchEditModal'
+import { useToast } from '@/components/ui/Toast'
 import { cn } from '@/lib/utils'
 import { isOpenNow, hasAnyHours } from '@/lib/godziny'
 import { useAuth } from '@/hooks/useAuth'
@@ -26,6 +28,8 @@ interface Props {
   loading: boolean
   profiles: Profile[]
   onAdd: () => void
+  /** Odświeżenie listy po edycji zbiorczej */
+  onRefresh?: () => void
 }
 
 function StatusDot({ active, label }: { active: boolean; label: string }) {
@@ -71,10 +75,24 @@ function FilterSection({ title, children }: { title: string; children: React.Rea
   )
 }
 
-export function KontaktyTable({ kontakty, loading, profiles, onAdd }: Props) {
+export function KontaktyTable({ kontakty, loading, profiles, onAdd, onRefresh }: Props) {
   const router = useRouter()
   const { profile } = useAuth()
+  const { showToast } = useToast()
   const visibleTypy = canSeeInvestors(profile?.role) ? KONTAKT_TYPY : KONTAKT_TYPY.filter(t => t !== 'inwestor')
+
+  // Edycja zbiorcza — tylko admin
+  const isAdmin = profile?.role === 'admin'
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [showBatchModal, setShowBatchModal] = useState(false)
+
+  function toggleSelected(id: string) {
+    setSelected(prev => {
+      const n = new Set(prev)
+      if (n.has(id)) n.delete(id); else n.add(id)
+      return n
+    })
+  }
 
   // Dropdown / text filters
   const [search,         setSearch]         = useState('')
@@ -289,11 +307,38 @@ export function KontaktyTable({ kontakty, loading, profiles, onAdd }: Props) {
         </div>
       )}
 
+      {/* Pasek edycji zbiorczej (admin) */}
+      {isAdmin && selected.size > 0 && (
+        <div className="flex items-center gap-3 px-4 py-2.5 rounded-lg border border-limona-lime/50 bg-limona-lime/5">
+          <span className="text-sm text-limona-lime font-bold">{selected.size} zaznaczonych</span>
+          <button onClick={() => setShowBatchModal(true)} className="limona-btn-sm flex items-center gap-1.5 text-xs">
+            <Layers size={12} /> Edytuj zbiorczo
+          </button>
+          <button onClick={() => setSelected(new Set())} className="text-xs text-limona-text-muted hover:text-limona-red transition-colors uppercase tracking-wider">
+            Wyczyść zaznaczenie
+          </button>
+        </div>
+      )}
+
       {/* Table */}
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-limona-border">
+              {isAdmin && (
+                <th className="py-3 px-3 w-8">
+                  <input
+                    type="checkbox"
+                    title="Zaznacz wszystkie przefiltrowane"
+                    className="w-3.5 h-3.5 accent-limona-lime cursor-pointer"
+                    checked={filtered.length > 0 && filtered.every(k => selected.has(k.id))}
+                    onChange={e => {
+                      if (e.target.checked) setSelected(new Set(filtered.map(k => k.id)))
+                      else setSelected(new Set())
+                    }}
+                  />
+                </th>
+              )}
               {([
                 ['nazwa',       'Nazwa'],
                 ['typ',         'Typ'],
@@ -318,14 +363,14 @@ export function KontaktyTable({ kontakty, loading, profiles, onAdd }: Props) {
             {loading ? (
               [...Array(5)].map((_, i) => (
                 <tr key={i} className="border-b border-limona-border/40">
-                  {[...Array(6)].map((_, j) => (
+                  {[...Array(isAdmin ? 7 : 6)].map((_, j) => (
                     <td key={j} className="py-3 px-3"><Skeleton className="h-4" /></td>
                   ))}
                 </tr>
               ))
             ) : filtered.length === 0 ? (
               <tr>
-                <td colSpan={6} className="py-12 text-center text-limona-text-muted text-sm">
+                <td colSpan={isAdmin ? 7 : 6} className="py-12 text-center text-limona-text-muted text-sm">
                   Brak kontaktów spełniających kryteria
                 </td>
               </tr>
@@ -336,8 +381,21 @@ export function KontaktyTable({ kontakty, loading, profiles, onAdd }: Props) {
                   <tr
                     key={k.id}
                     onClick={() => router.push(`/kontakty/${k.id}`)}
-                    className="border-b border-limona-border/40 hover:bg-limona-surface-2 cursor-pointer transition-colors"
+                    className={cn(
+                      'border-b border-limona-border/40 hover:bg-limona-surface-2 cursor-pointer transition-colors',
+                      selected.has(k.id) && 'bg-limona-lime/5',
+                    )}
                   >
+                    {isAdmin && (
+                      <td className="py-3 px-3 w-8" onClick={e => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          className="w-3.5 h-3.5 accent-limona-lime cursor-pointer"
+                          checked={selected.has(k.id)}
+                          onChange={() => toggleSelected(k.id)}
+                        />
+                      </td>
+                    )}
                     <td className="py-3 px-3">
                       <div className="flex items-center gap-2">
                         <span className="font-medium text-limona-white">{k.nazwa}</span>
@@ -379,6 +437,20 @@ export function KontaktyTable({ kontakty, loading, profiles, onAdd }: Props) {
         <p className="text-xs text-limona-text-dim text-right">
           {filtered.length} z {kontakty.length} kontaktów
         </p>
+      )}
+
+      {isAdmin && (
+        <KontaktyBatchEditModal
+          isOpen={showBatchModal}
+          onClose={() => setShowBatchModal(false)}
+          selectedIds={[...selected]}
+          profiles={profiles}
+          onDone={updated => {
+            showToast(`Zaktualizowano ${updated} kontaktów`, 'success')
+            setSelected(new Set())
+            onRefresh?.()
+          }}
+        />
       )}
     </div>
   )

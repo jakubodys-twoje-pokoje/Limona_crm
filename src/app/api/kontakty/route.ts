@@ -20,7 +20,6 @@ export async function GET(req: NextRequest) {
   const supabase = await createClient()
 
   const sp = req.nextUrl.searchParams
-  let query = supabase.from('kontakty').select(SELECT_WITH_RELATIONS).order('created_at', { ascending: false })
 
   const typ = sp.get('typ')
   const wojewodztwo = sp.get('wojewodztwo')
@@ -30,41 +29,58 @@ export async function GET(req: NextRequest) {
   const visibleIds = sp.get('visibleIds')?.split(',').filter(Boolean)
 
   // Inwestorzy — dane wrażliwe handlowo, widoczne tylko dla centrali i adminów
-  if (!canSeeInvestors(user.role)) {
-    if (typ === 'inwestor') return forbidden()
-    query = query.neq('typ', 'inwestor')
-  }
+  if (typ === 'inwestor' && !canSeeInvestors(user.role)) return forbidden()
 
   // Widoczność: admin/manager/kierownik_centrali widzą wszystko; reszta —
   // tylko własne kontakty (assigned_to/created_by wśród visibleIds) plus
   // to, co zostało im jawnie udostępnione (kontakt_shares).
+  let sharedIds: string[] = []
   if (!canSeeAllTeams(user.role) && visibleIds?.length) {
     const { data: shares } = await supabase
       .from('kontakt_shares')
       .select('kontakt_id')
       .eq('shared_with_user_id', user.id)
-    const sharedIds = (shares ?? []).map(s => s.kontakt_id)
-    const ids = visibleIds.join(',')
-    const clauses = [`assigned_to.in.(${ids})`, `created_by.in.(${ids})`]
-    if (sharedIds.length) clauses.push(`id.in.(${sharedIds.join(',')})`)
-    query = query.or(clauses.join(','))
+    sharedIds = (shares ?? []).map(s => s.kontakt_id)
   }
 
-  if (typ) query = query.eq('typ', typ)
-  if (wojewodztwo) query = query.eq('wojewodztwo', wojewodztwo)
-  if (miasto) query = query.eq('miasto', miasto)
-  if (assignedTo) query = query.eq('assigned_to', assignedTo)
-  for (const flag of BOOL_FLAGS) {
-    if (sp.get(flag) === '1') query = query.eq(flag, true)
-  }
-  if (search) {
-    const s = search.replace(/[%,()]/g, ' ')
-    query = query.or(`nazwa.ilike.%${s}%,miasto.ilike.%${s}%,ulica.ilike.%${s}%,wojewodztwo.ilike.%${s}%`)
+  // Supabase ucina pojedyncze zapytanie do 1000 wierszy — po imporcie z Trello
+  // kontaktów jest znacznie więcej, więc stronicujemy po stronie serwera
+  // i zwracamy komplet (filtry muszą być nakładane na KAŻDĄ stronę od nowa).
+  function buildQuery(from: number, to: number) {
+    let query = supabase.from('kontakty').select(SELECT_WITH_RELATIONS)
+      .order('created_at', { ascending: false })
+      .range(from, to)
+    if (!canSeeInvestors(user!.role)) query = query.neq('typ', 'inwestor')
+    if (!canSeeAllTeams(user!.role) && visibleIds?.length) {
+      const ids = visibleIds.join(',')
+      const clauses = [`assigned_to.in.(${ids})`, `created_by.in.(${ids})`]
+      if (sharedIds.length) clauses.push(`id.in.(${sharedIds.join(',')})`)
+      query = query.or(clauses.join(','))
+    }
+    if (typ) query = query.eq('typ', typ)
+    if (wojewodztwo) query = query.eq('wojewodztwo', wojewodztwo)
+    if (miasto) query = query.eq('miasto', miasto)
+    if (assignedTo) query = query.eq('assigned_to', assignedTo)
+    for (const flag of BOOL_FLAGS) {
+      if (sp.get(flag) === '1') query = query.eq(flag, true)
+    }
+    if (search) {
+      const s = search.replace(/[%,()]/g, ' ')
+      query = query.or(`nazwa.ilike.%${s}%,miasto.ilike.%${s}%,ulica.ilike.%${s}%,wojewodztwo.ilike.%${s}%`)
+    }
+    return query
   }
 
-  const { data, error } = await query
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json(data)
+  const PAGE = 1000
+  const MAX_ROWS = 20000 // bezpiecznik — przy takiej skali czas na prawdziwą paginację w UI
+  const all: unknown[] = []
+  for (let from = 0; from < MAX_ROWS; from += PAGE) {
+    const { data, error } = await buildQuery(from, from + PAGE - 1)
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    all.push(...(data ?? []))
+    if (!data || data.length < PAGE) break
+  }
+  return NextResponse.json(all)
 }
 
 export async function POST(req: NextRequest) {
