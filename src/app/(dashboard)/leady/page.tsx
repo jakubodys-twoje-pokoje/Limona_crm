@@ -393,7 +393,7 @@ export default function LeadyPage() {
           isOpen={!!selectedLead}
           onClose={() => setSelectedLead(null)}
           onUpdate={updateLead}
-          onDelete={canManage ? deleteLead : null}
+          onDelete={deleteLead}
           onConvert={() => { setConvertLead(selectedLead); setSelectedLead(null) }}
           userId={user?.id || ''}
           userName={profile?.full_name || ''}

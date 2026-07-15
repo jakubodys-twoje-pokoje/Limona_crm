@@ -91,9 +91,6 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getSessionUser()
   if (!user) return unauthorized()
-  // Usuwanie leadów tylko dla ról zarządzających — agent odrzuca (rejected),
-  // nie kasuje; historia leadów to dane firmy, nie prywatna lista
-  if (!canSeeAllTeams(user.role)) return forbidden()
   const supabase = await createClient()
   const { id } = await params
 
