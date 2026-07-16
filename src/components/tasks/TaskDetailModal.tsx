@@ -112,7 +112,11 @@ export function TaskDetailModal({
     setOutcome(task.outcome || '')
     setRejectionReason(task.rejection_reason || '')
     setRejectionNote(task.rejection_note || '')
-  }, [task])
+    // Zależność TYLKO od task.id — inaczej odświeżenie listy co 15 s (nowy
+    // obiekt task o tym samym id) resetowałoby pola i kasowało tekst, który
+    // ktoś właśnie wpisuje w opisie/tytule (błąd zgłoszony przez Bartłomieja).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [task.id])
 
   useEffect(() => {
     if (isOpen) document.body.style.overflow = 'hidden'
@@ -373,6 +377,13 @@ export function TaskDetailModal({
                 className="flex items-center gap-1 text-xs text-limona-blue hover:text-limona-blue/80 mt-1">
                 <LinkIcon size={10} />
                 {formatPropertyAddress(task.property)}
+              </a>
+            )}
+            {task.kontakt && (
+              <a href={`/kontakty/${task.kontakt_id}`}
+                className="flex items-center gap-1 text-xs text-limona-lime hover:text-limona-lime/80 mt-1">
+                <LinkIcon size={10} />
+                {task.kontakt.nazwa}
               </a>
             )}
           </div>

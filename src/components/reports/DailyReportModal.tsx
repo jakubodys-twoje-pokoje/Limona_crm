@@ -167,6 +167,11 @@ export function DailyReportModal({ isOpen, onClose, onSubmitted, viewUserId, vie
                           {t.property.location}
                         </Link>
                       )}
+                      {t.kontakt && (
+                        <Link href={`/kontakty/${t.kontakt.id}`} className="text-xs text-limona-lime hover:underline">
+                          {t.kontakt.nazwa}
+                        </Link>
+                      )}
                       {t.outcome && (
                         <span className={cn(
                           'text-[10px] uppercase tracking-wider font-bold',

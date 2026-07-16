@@ -64,6 +64,7 @@ export interface ReportDayTask {
   contact_category: ContactCategory | null
   outcome: TaskOutcome | null
   property: { id: string; location: string } | null
+  kontakt: { id: string; nazwa: string; typ: string } | null
   note: string
 }
 

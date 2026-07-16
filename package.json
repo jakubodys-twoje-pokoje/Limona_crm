@@ -14,7 +14,8 @@
     "db:types": "supabase gen types typescript --local > src/types/supabase.ts",
     "migrate:users": "tsx scripts/migrate-users.ts",
     "migrate:data": "tsx scripts/migrate-data.ts",
-    "import:trello": "tsx scripts/import-trello.ts"
+    "import:trello": "tsx scripts/import-trello.ts",
+    "geocode:kontakty": "tsx scripts/geocode-kontakty.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.0",

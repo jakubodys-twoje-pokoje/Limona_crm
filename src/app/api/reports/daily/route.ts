@@ -68,7 +68,7 @@ export async function GET(req: NextRequest) {
   const [dayTasksRes, newPropsRes, planRes, noteRes] = await Promise.all([
     supabase
       .from('tasks')
-      .select('id, title, status, priority, due_time, task_type, contact_category, outcome, rejection_reason, property:properties!tasks_property_id_fkey(id,adres,kod_pocztowy,miasto)')
+      .select('id, title, status, priority, due_time, task_type, contact_category, outcome, rejection_reason, kontakt_id, property:properties!tasks_property_id_fkey(id,adres,kod_pocztowy,miasto), kontakt:kontakty!tasks_kontakt_id_fkey(id,nazwa,typ)')
       .or(mine)
       .or(dayClause)
       .order('due_time', { ascending: true, nullsFirst: false }),
@@ -102,11 +102,24 @@ export async function GET(req: NextRequest) {
     .map(withLocation)
     .map(t => ({ ...t, note: taskNotes[t.id as string] ?? '' })) as unknown as ReportDayTask[]
 
+  // Kategoria kontaktu do statystyki: wprost z zadania, a jeśli nie ustawiono —
+  // wyprowadzona z typu powiązanego kontaktu (spółdzielnia/wspólnota). Dzięki
+  // temu domknięte zadanie na karcie spółdzielni liczy się jako wykonane, nawet
+  // gdy agent zaznaczył tylko typ i wynik, bez ręcznego wyboru kategorii.
+  function categoryOf(t: ReportDayTask): ContactCategory | null {
+    if (t.contact_category) return t.contact_category
+    if (t.kontakt?.typ === 'spoldzielnia') return 'spoldzielnia'
+    if (t.kontakt?.typ === 'wspolnota') return 'wspolnota'
+    return null
+  }
+
   // Liczniki kategoria kontaktu × wynik (tylko domknięte zadania kontaktowe)
   const categories: Partial<Record<ContactCategory, CategoryCounters>> = {}
   for (const t of dayTasks) {
-    if (t.status !== 'done' || !t.contact_category) continue
-    const c = (categories[t.contact_category] ??= {
+    if (t.status !== 'done') continue
+    const cat = categoryOf(t)
+    if (!cat) continue
+    const c = (categories[cat] ??= {
       total: 0, zainteresowany: 0, oczekuje_na_materialy: 0, niezainteresowany: 0, brak_kontaktu: 0,
     })
     c.total++
