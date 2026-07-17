@@ -283,7 +283,7 @@ export default function MapaPage() {
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div className="-mx-4 lg:-mx-8 -mt-4 lg:-mt-8 flex flex-col" style={{ height: 'calc(100vh - 56px)' }}>
+    <div className="-mx-4 lg:-mx-8 -mt-4 lg:-mt-8 flex flex-col h-[calc(100dvh-120px)] lg:h-[calc(100vh-56px)]">
 
       {/* ── Top bar ── */}
       <div className="flex items-center gap-2 px-4 lg:px-6 py-2.5 bg-limona-surface border-b border-limona-border flex-shrink-0 flex-wrap">
