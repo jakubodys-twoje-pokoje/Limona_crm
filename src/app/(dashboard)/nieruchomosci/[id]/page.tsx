@@ -415,15 +415,17 @@ export default function PropertyDetailPage() {
             <Edit size={14} />
             Edytuj
           </button>
-          <button
-            onClick={() => {
-              if (confirm(`Na pewno usunąć nieruchomość ${formatPropertyAddress(property)}? Zadania, dokumenty i komentarze przepadną.`)) handleDelete()
-            }}
-            className="p-2.5 rounded-full border border-limona-border text-limona-text-muted hover:border-limona-red hover:text-limona-red transition-colors"
-            title="Usuń nieruchomość"
-          >
-            <Trash2 size={14} />
-          </button>
+          {(canAssign || property.assigned_to === user?.id || property.created_by === user?.id) && (
+            <button
+              onClick={() => {
+                if (confirm(`Na pewno usunąć nieruchomość ${formatPropertyAddress(property)}? Zadania, dokumenty i komentarze przepadną.`)) handleDelete()
+              }}
+              className="p-2.5 rounded-full border border-limona-border text-limona-text-muted hover:border-limona-red hover:text-limona-red transition-colors"
+              title="Usuń nieruchomość"
+            >
+              <Trash2 size={14} />
+            </button>
+          )}
         </div>
       </div>
 

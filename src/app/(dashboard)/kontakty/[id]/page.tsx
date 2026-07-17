@@ -340,13 +340,15 @@ export default function KontaktDetailPage() {
           >
             <Edit size={13} /> Edytuj
           </button>
-          <button
-            onClick={() => setShowDeleteModal(true)}
-            title="Usuń kontakt"
-            className="p-2 rounded border border-limona-border text-limona-text-muted hover:border-limona-red hover:text-limona-red transition-colors"
-          >
-            <Trash2 size={14} />
-          </button>
+          {(canAssign || kontakt.assigned_to === user?.id || kontakt.created_by === user?.id) && (
+            <button
+              onClick={() => setShowDeleteModal(true)}
+              title="Usuń kontakt"
+              className="p-2 rounded border border-limona-border text-limona-text-muted hover:border-limona-red hover:text-limona-red transition-colors"
+            >
+              <Trash2 size={14} />
+            </button>
+          )}
         </div>
       </div>
 

@@ -94,6 +94,17 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   const supabase = await createClient()
   const { id } = await params
 
+  // Usuwać może właściciel (przypisany/twórca) oraz role zarządzające zespołem
+  if (!canSeeAllTeams(user.role)) {
+    const { data: existing } = await supabase
+      .from('leads')
+      .select('assigned_to, created_by')
+      .eq('id', id)
+      .maybeSingle()
+    if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    if (existing.assigned_to !== user.id && existing.created_by !== user.id) return forbidden()
+  }
+
   const { error } = await supabase.from('leads').delete().eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true })
