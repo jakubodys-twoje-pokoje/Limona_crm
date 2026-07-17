@@ -3,18 +3,20 @@
 import { memo } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Building2, LayoutDashboard, ListTodo, MessageSquare, User, BookUser } from 'lucide-react'
+import { Building2, LayoutDashboard, ListTodo, MessageSquare, Map, BookUser } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { useWallContext } from '@/hooks/useWallProvider'
 import { cn } from '@/lib/utils'
 
+// Profil jest dostępny przez avatar w górnym pasku, więc w dolnym pasku
+// zamiast niego jest skrót do Mapy (częściej używany w terenie).
 const tabs = [
   { href: '/dashboard',     icon: LayoutDashboard, label: 'Home' },
   { href: '/komunikacja',   icon: MessageSquare,   label: 'Kom.', showCounter: true },
   { href: '/zadania',       icon: ListTodo,        label: 'Zadania' },
   { href: '/kontakty',      icon: BookUser,        label: 'Kontakty' },
   { href: '/nieruchomosci', icon: Building2,       label: 'Nieru.' },
-  { href: '/profil',        icon: User,            label: 'Profil' },
+  { href: '/mapa',          icon: Map,             label: 'Mapa' },
 ]
 
 export const MobileNav = memo(function MobileNav() {
