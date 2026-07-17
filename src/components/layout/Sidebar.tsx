@@ -64,7 +64,7 @@ export const Sidebar = memo(function Sidebar() {
   return (
     <aside className="hidden lg:flex flex-col w-64 h-screen bg-limona-surface border-r border-limona-border fixed left-0 top-0 z-40">
       {/* Logo */}
-      <div className="p-6 border-b border-limona-border">
+      <div className="p-6 border-b border-limona-border flex-shrink-0">
         <Link href="/dashboard" className="flex items-center gap-3">
           <div className="w-10 h-10 rounded bg-limona-lime/10 flex items-center justify-center">
             <Building2 size={22} className="text-limona-lime" />
@@ -76,8 +76,11 @@ export const Sidebar = memo(function Sidebar() {
         </Link>
       </div>
 
-      {/* Navigation */}
-      <nav className="flex-1 p-4 space-y-1">
+      {/* Navigation — min-h-0 + overflow-y-auto: przy większym skalowaniu ekranu
+          (mniejsza efektywna wysokość okna) pozycje nie mieszczą się w h-screen;
+          bez tego były ucinane. Teraz menu przewija się, a sekcja użytkownika
+          i logo zostają przyklejone na górze/dole. */}
+      <nav className="flex-1 min-h-0 overflow-y-auto p-4 space-y-1">
         {allItems.map(item => {
           const hasChildActive = item.children?.some(isChildActive) ?? false
           const isActive = pathname.startsWith(item.href)
@@ -140,7 +143,7 @@ export const Sidebar = memo(function Sidebar() {
       </nav>
 
       {/* User section */}
-      <div className="p-4 border-t border-limona-border">
+      <div className="p-4 border-t border-limona-border flex-shrink-0">
         <div className="flex items-center gap-3 mb-3">
           <NotificationBell userId={user?.id} />
           <Link href="/profil" className="flex items-center gap-3 flex-1 min-w-0 hover:opacity-80 transition-opacity">
