@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { getSessionUser, unauthorized, forbidden } from '@/lib/api-auth'
+import { getSessionUser, unauthorized } from '@/lib/api-auth'
 import { geocodeAddress } from '@/lib/geocode'
 import { getStatusDluznikaLabel, getStatusInwestoraLabel } from '@/lib/stages'
 import { formatStatusChangeComment } from '@/lib/status-comments'
@@ -91,7 +91,6 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getSessionUser()
   if (!user) return unauthorized()
-  if (user.role !== 'admin') return forbidden()
   const supabase = await createClient()
   const { id } = await params
 
