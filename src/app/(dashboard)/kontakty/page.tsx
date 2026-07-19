@@ -3,13 +3,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { useSearchParams } from 'next/navigation'
-import { List, Map, ShieldAlert } from 'lucide-react'
+import { List, Map, Share2, ShieldAlert } from 'lucide-react'
 import { useKontakty } from '@/hooks/useKontakty'
 import { useAuth } from '@/hooks/useAuth'
 import { useVisibleUserIds } from '@/hooks/useTeamVisibility'
-import { canSeeInvestors } from '@/lib/roles'
+import { canSeeInvestors, canManageTeams } from '@/lib/roles'
 import { KontaktyTable } from '@/components/kontakty/KontaktyTable'
 import { KontaktForm } from '@/components/kontakty/KontaktForm'
+import { ShareCityModal } from '@/components/kontakty/ShareCityModal'
 import { Modal } from '@/components/ui/Modal'
 import { useToast } from '@/components/ui/Toast'
 import { cn } from '@/lib/utils'
@@ -32,7 +33,9 @@ export default function KontaktyPage() {
   const { showToast } = useToast()
   const [profiles, setProfiles] = useState<Profile[]>([])
   const [showAddModal, setShowAddModal] = useState(false)
+  const [showShareCityModal, setShowShareCityModal] = useState(false)
   const [view, setView] = useState<ViewMode>('lista')
+  const canBulkShare = canManageTeams(profile?.role)
 
   useEffect(() => {
     fetch('/api/profiles').then(r => r.ok ? r.json() : []).then(setProfiles)
@@ -68,6 +71,17 @@ export default function KontaktyPage() {
           </p>
         </div>
 
+        <div className="flex items-center gap-2 flex-wrap justify-end">
+        {canBulkShare && (
+          <button
+            onClick={() => setShowShareCityModal(true)}
+            className="flex items-center gap-1.5 px-3 py-2 rounded text-xs uppercase tracking-wider font-medium border border-limona-border text-limona-text-muted hover:border-limona-lime hover:text-limona-lime transition-colors"
+            title="Udostępnij wszystkie kontakty z miasta wybranej osobie"
+          >
+            <Share2 size={13} /> Udostępnij miasto
+          </button>
+        )}
+
         {/* View toggle */}
         <div className="flex items-center gap-1 p-1 bg-limona-bg rounded border border-limona-border">
           {([
@@ -87,6 +101,7 @@ export default function KontaktyPage() {
               <Icon size={13} /> {label}
             </button>
           ))}
+        </div>
         </div>
       </div>
 
@@ -134,6 +149,15 @@ export default function KontaktyPage() {
           submitLabel="Dodaj"
         />
       </Modal>
+
+      {canBulkShare && (
+        <ShareCityModal
+          isOpen={showShareCityModal}
+          onClose={() => setShowShareCityModal(false)}
+          kontakty={kontakty}
+          profiles={profiles}
+        />
+      )}
     </div>
   )
 }

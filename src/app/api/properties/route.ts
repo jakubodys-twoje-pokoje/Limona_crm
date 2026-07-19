@@ -23,7 +23,8 @@ export async function GET(req: NextRequest) {
 
   if (visibleIds?.length) {
     const ids = visibleIds.join(',')
-    query = query.or(`assigned_to.in.(${ids}),created_by.in.(${ids})`)
+    // widać też nieruchomości, gdzie user jest dodatkowym opiekunem (co_assignees[])
+    query = query.or(`assigned_to.in.(${ids}),created_by.in.(${ids}),co_assignees.ov.{${ids}}`)
   }
 
   const { data, error } = await query

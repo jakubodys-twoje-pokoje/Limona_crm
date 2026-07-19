@@ -238,21 +238,24 @@ export default function KontaktDetailPage() {
     return () => window.removeEventListener('keydown', handleKey)
   }, [lightboxIndex, kontakt?.zdjecia?.length])
 
-  async function patchField(updates: Partial<Kontakt> & { statusComment?: string }) {
-    if (!kontakt) return
+  async function patchField(updates: Partial<Kontakt> & { statusComment?: string }): Promise<{ error: string | null }> {
+    if (!kontakt) return { error: null }
     setSaving(true)
     const res = await fetch(`/api/kontakty/${kontaktId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updates),
     })
+    let error: string | null = null
     if (res.ok) {
       const updated: Kontakt = await res.json()
       setKontakt(updated)
     } else {
-      showToast((await res.json()).error || 'Błąd zapisu', 'error')
+      error = (await res.json()).error || 'Błąd zapisu'
+      showToast(error!, 'error')
     }
     setSaving(false)
+    return { error }
   }
 
   // Chęć współpracy / niezainteresowani = decyzje, które trzeba uzasadnić
@@ -271,10 +274,39 @@ export default function KontaktDetailPage() {
     await patchField({ [field]: newValue, statusComment: comment })
   }
 
+  // Edycja przez formularz może zmieniać też flagi decyzyjne — wtedy serwer
+  // wymaga komentarza uzasadniającego, więc dopytujemy o niego przed zapisem
+  // (wcześniej zapis kończył się cichym 400 i zmiana statusu ginęła).
+  const DECISION_FLAGS = ['chec_wspolpracy', 'niezainteresowani'] as const
+  const DECISION_FLAG_LABELS: Record<typeof DECISION_FLAGS[number], string> = {
+    chec_wspolpracy: 'Chęć współpracy',
+    niezainteresowani: 'Niezainteresowani',
+  }
+  const [pendingEdit, setPendingEdit] = useState<{ data: Partial<Kontakt>; label: string } | null>(null)
+
   async function handleEdit(data: Partial<Kontakt>) {
-    await patchField(data)
+    if (!kontakt) return
+    const changedFlags = DECISION_FLAGS.filter(f => f in data && !!data[f] !== !!kontakt[f])
+    if (changedFlags.length) {
+      const label = changedFlags
+        .map(f => `${DECISION_FLAG_LABELS[f]}: ${data[f] ? 'tak' : 'nie'}`)
+        .join(', ')
+      setShowEditModal(false)
+      setPendingEdit({ data, label })
+      return
+    }
+    const { error } = await patchField(data)
+    if (error) return
     showToast('Zaktualizowano kontakt', 'success')
     setShowEditModal(false)
+  }
+
+  async function confirmPendingEdit(comment: string) {
+    if (!pendingEdit) return
+    const { data } = pendingEdit
+    setPendingEdit(null)
+    const { error } = await patchField({ ...data, statusComment: comment })
+    if (!error) showToast('Zaktualizowano kontakt', 'success')
   }
 
   async function handleDelete() {
@@ -661,6 +693,14 @@ export default function KontaktDetailPage() {
         onClose={() => setPendingFlag(null)}
         onConfirm={confirmFlagChange}
         newStatusLabel={pendingFlag ? `${pendingFlag.label}: ${pendingFlag.newValue ? 'tak' : 'nie'}` : ''}
+        entityLabel="kontaktu"
+      />
+
+      <StatusChangeCommentModal
+        isOpen={!!pendingEdit}
+        onClose={() => setPendingEdit(null)}
+        onConfirm={confirmPendingEdit}
+        newStatusLabel={pendingEdit?.label || ''}
         entityLabel="kontaktu"
       />
 

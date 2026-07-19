@@ -33,5 +33,24 @@ export function useKontaktKomentarze(kontaktId: string) {
     return { error: null }
   }
 
-  return { komentarze, loading, addKomentarz, refetch: fetchKomentarze }
+  const editKomentarz = async (komentarzId: string, content: string): Promise<{ error: string | null }> => {
+    const res = await fetch(`/api/kontakty/${kontaktId}/komentarze/${komentarzId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content }),
+    })
+    if (!res.ok) return { error: (await res.json()).error || 'Błąd' }
+    const updated: KontaktKomentarz = await res.json()
+    setKomentarze(prev => prev.map(k => k.id === komentarzId ? updated : k))
+    return { error: null }
+  }
+
+  const deleteKomentarz = async (komentarzId: string): Promise<{ error: string | null }> => {
+    const res = await fetch(`/api/kontakty/${kontaktId}/komentarze/${komentarzId}`, { method: 'DELETE' })
+    if (!res.ok) return { error: (await res.json()).error || 'Błąd' }
+    setKomentarze(prev => prev.filter(k => k.id !== komentarzId))
+    return { error: null }
+  }
+
+  return { komentarze, loading, addKomentarz, editKomentarz, deleteKomentarz, refetch: fetchKomentarze }
 }

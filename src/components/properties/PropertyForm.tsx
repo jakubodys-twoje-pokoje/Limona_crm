@@ -398,7 +398,7 @@ export function PropertyForm({ initial = {}, onSubmit, onCancel, submitLabel = '
               onChange={e => set('wycena_szacunkowa', e.target.value)}
               placeholder="np. 520000"
               min="0"
-              step="1000"
+              step="any"
             />
           </div>
         </div>
@@ -449,7 +449,7 @@ export function PropertyForm({ initial = {}, onSubmit, onCancel, submitLabel = '
               onChange={e => set('value_per_sqm', e.target.value)}
               placeholder="656000"
               min="0"
-              step="1000"
+              step="any"
             />
           </div>
           <div>
@@ -461,7 +461,7 @@ export function PropertyForm({ initial = {}, onSubmit, onCancel, submitLabel = '
               onChange={e => set('wartosc_realna', e.target.value)}
               placeholder="700000"
               min="0"
-              step="1000"
+              step="any"
             />
           </div>
           <div>
@@ -473,7 +473,7 @@ export function PropertyForm({ initial = {}, onSubmit, onCancel, submitLabel = '
               onChange={e => set('czynsz_miesieczny', e.target.value)}
               placeholder="1500"
               min="0"
-              step="100"
+              step="any"
             />
           </div>
         </div>
@@ -497,7 +497,7 @@ export function PropertyForm({ initial = {}, onSubmit, onCancel, submitLabel = '
                   onChange={e => updateDlug(i, { value: parseFloat(e.target.value) || 0 })}
                   placeholder="0"
                   min="0"
-                  step="1000"
+                  step="any"
                 />
                 <button type="button" onClick={() => removeDlug(i)} className="p-2 text-limona-text-dim hover:text-limona-red transition-colors">
                   <X size={14} />
