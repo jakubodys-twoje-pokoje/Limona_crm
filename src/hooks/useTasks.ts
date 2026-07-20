@@ -4,13 +4,16 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { useDebouncedCallback } from '@/hooks/useDebouncedCallback'
 import type { Task } from '@/types/database'
 
-export function useTasks(propertyId?: string, visibleUserIds?: string[] | null, boardId?: string | null, kontaktId?: string) {
+export function useTasks(propertyId?: string, visibleUserIds?: string[] | null, boardId?: string | null, kontaktId?: string, enabled: boolean = true) {
   const [tasks, setTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
 
   const initializedRef = useRef(false)
 
   const fetchTasks = useCallback(async () => {
+    // enabled=false, dopóki nie znamy uprawnień widoczności — inaczej pierwszy
+    // fetch leci bez filtra i agent przez moment widzi cudze zadania
+    if (!enabled) return
     if (!initializedRef.current) setLoading(true)
     const params = new URLSearchParams()
     if (propertyId) params.set('propertyId', propertyId)
@@ -22,7 +25,7 @@ export function useTasks(propertyId?: string, visibleUserIds?: string[] | null, 
     if (res.ok) setTasks(await res.json())
     setLoading(false)
     initializedRef.current = true
-  }, [propertyId, visibleUserIds, boardId, kontaktId])
+  }, [propertyId, visibleUserIds, boardId, kontaktId, enabled])
 
   const debouncedFetch = useDebouncedCallback(fetchTasks, 500)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)

@@ -43,9 +43,9 @@ const statusLabels: Record<string, string> = STATUS_DLUZNIKA_LABELS
 
 export default function DashboardPage() {
   const { user, profile } = useAuth()
-  const { visibleIds } = useVisibleUserIds(profile?.id, profile?.role)
-  const { properties, loading: propsLoading } = useProperties(visibleIds)
-  const { tasks, loading: tasksLoading } = useTasks(undefined, visibleIds)
+  const { visibleIds, loading: visLoading } = useVisibleUserIds(profile?.id, profile?.role)
+  const { properties, loading: propsLoading } = useProperties(visibleIds, !visLoading)
+  const { tasks, loading: tasksLoading } = useTasks(undefined, visibleIds, undefined, undefined, !visLoading)
   const { leads, loading: leadsLoading } = useLeads()
   const { messages: wallMessages, loading: wallLoading, isRead } = useWall(user?.id)
   const { unreadCount: notifUnread } = useNotifications(user?.id)

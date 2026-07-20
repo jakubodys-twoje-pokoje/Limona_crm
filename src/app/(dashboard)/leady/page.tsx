@@ -294,7 +294,7 @@ export default function LeadyPage() {
       </div>
 
       {/* Modal dodawania */}
-      <Modal isOpen={showAddModal} onClose={() => setShowAddModal(false)} title="Nowy lead" size="md">
+      <Modal isOpen={showAddModal} onClose={() => setShowAddModal(false)} title="Nowy lead" size="md" confirmClose>
         <form onSubmit={e => handleAdd(e)} className="space-y-4">
           <div>
             <label className="limona-label block mb-2">Imię i nazwisko / nazwa *</label>

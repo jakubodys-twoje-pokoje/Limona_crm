@@ -11,6 +11,12 @@ interface ModalProps {
   children: React.ReactNode
   size?: 'sm' | 'md' | 'lg' | 'xl'
   className?: string
+  /**
+   * Formularze z wpisywanymi danymi: zamknięcie przez klik w tło, Escape
+   * lub ✕ pyta o potwierdzenie, żeby przypadkowy klik nie skasował pracy.
+   * Przycisk „Anuluj" wewnątrz formularza zamyka bez pytania (woła onClose rodzica).
+   */
+  confirmClose?: boolean
 }
 
 const sizeClasses = {
@@ -20,8 +26,13 @@ const sizeClasses = {
   xl: 'max-w-4xl',
 }
 
-export function Modal({ isOpen, onClose, title, children, size = 'md', className }: ModalProps) {
+export function Modal({ isOpen, onClose, title, children, size = 'md', className, confirmClose = false }: ModalProps) {
   const overlayRef = useRef<HTMLDivElement>(null)
+
+  const requestClose = useRef(onClose)
+  requestClose.current = confirmClose
+    ? () => { if (confirm('Zamknąć formularz? Wpisane dane przepadną.')) onClose() }
+    : onClose
 
   useEffect(() => {
     if (isOpen) {
@@ -34,13 +45,13 @@ export function Modal({ isOpen, onClose, title, children, size = 'md', className
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose()
+      if (e.key === 'Escape') requestClose.current()
     }
     if (isOpen) {
       window.addEventListener('keydown', handleKeyDown)
       return () => window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [isOpen, onClose])
+  }, [isOpen])
 
   if (!isOpen) return null
 
@@ -48,7 +59,7 @@ export function Modal({ isOpen, onClose, title, children, size = 'md', className
     <div
       ref={overlayRef}
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
-      onClick={(e) => { if (e.target === overlayRef.current) onClose() }}
+      onClick={(e) => { if (e.target === overlayRef.current) requestClose.current() }}
     >
       <div className={cn(
         'w-full limona-card p-6 max-h-[90vh] overflow-y-auto',
@@ -58,7 +69,7 @@ export function Modal({ isOpen, onClose, title, children, size = 'md', className
         <div className="flex items-center justify-between mb-6">
           <h2 className="limona-heading text-xl">{title}</h2>
           <button
-            onClick={onClose}
+            onClick={() => requestClose.current()}
             className="p-2 text-limona-text-muted hover:text-limona-lime transition-colors"
           >
             <X size={20} />

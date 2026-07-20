@@ -89,7 +89,7 @@ export interface DailyReportData {
   categories: Partial<Record<ContactCategory, CategoryCounters>>
   newProperties: ReportProperty[]
   planTomorrow: { id: string; title: string; property: { id: string; location: string } | null }[]
-  note: { content: string; submitted_at: string | null }
+  note: { content: string; submitted_at: string | null; edited_at: string | null }
 }
 
 // ---------------------------------------------------------------

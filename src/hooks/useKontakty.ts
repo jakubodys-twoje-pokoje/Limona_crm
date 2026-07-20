@@ -20,7 +20,7 @@ export interface KontaktyFilters {
   visibleIds?: string[] | null
 }
 
-export function useKontakty(filters?: KontaktyFilters) {
+export function useKontakty(filters?: KontaktyFilters, enabled: boolean = true) {
   const [kontakty, setKontakty] = useState<Kontakt[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -51,13 +51,16 @@ export function useKontakty(filters?: KontaktyFilters) {
   const initializedRef = useRef(false)
 
   const fetchKontakty = useCallback(async () => {
+    // enabled=false, dopóki nie znamy uprawnień widoczności — inaczej pierwszy
+    // fetch leci bez filtra i agent przez moment widzi cudze kontakty
+    if (!enabled) return
     if (!initializedRef.current) setLoading(true)
     const res = await fetch(`/api/kontakty?${buildParams()}`)
     if (!res.ok) { setError('Błąd pobierania danych'); setLoading(false); return }
     setKontakty(await res.json())
     setLoading(false)
     initializedRef.current = true
-  }, [buildParams])
+  }, [buildParams, enabled])
 
   const debouncedFetch = useDebouncedCallback(fetchKontakty, 500)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)

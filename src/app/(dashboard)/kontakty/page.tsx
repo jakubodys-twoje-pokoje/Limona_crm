@@ -27,9 +27,9 @@ export default function KontaktyPage() {
   const typParam = searchParams.get('typ')
   const activeTyp: KontaktTyp | null = typParam && (KONTAKT_TYPY as string[]).includes(typParam) ? typParam as KontaktTyp : null
   const denied = activeTyp === 'inwestor' && !canSeeInvestors(profile?.role)
-  const { visibleIds } = useVisibleUserIds(user?.id, profile?.role)
+  const { visibleIds, loading: visLoading } = useVisibleUserIds(user?.id, profile?.role)
   const filters = useMemo(() => ({ visibleIds, typ: denied ? undefined : (activeTyp || undefined) }), [visibleIds, activeTyp, denied])
-  const { kontakty, loading, createKontakt, fetchKontakty } = useKontakty(filters)
+  const { kontakty, loading, createKontakt, fetchKontakty } = useKontakty(filters, !visLoading)
   const { showToast } = useToast()
   const [profiles, setProfiles] = useState<Profile[]>([])
   const [showAddModal, setShowAddModal] = useState(false)
@@ -140,6 +140,7 @@ export default function KontaktyPage() {
         onClose={() => setShowAddModal(false)}
         title="Dodaj kontakt"
         size="xl"
+        confirmClose
       >
         <KontaktForm
           initial={activeTyp ? { typ: activeTyp } : undefined}

@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { useDebouncedCallback } from '@/hooks/useDebouncedCallback'
 import type { Property } from '@/types/database'
 
-export function useProperties(visibleUserIds?: string[] | null) {
+export function useProperties(visibleUserIds?: string[] | null, enabled: boolean = true) {
   const [properties, setProperties] = useState<Property[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -12,6 +12,9 @@ export function useProperties(visibleUserIds?: string[] | null) {
   const initializedRef = useRef(false)
 
   const fetchProperties = useCallback(async () => {
+    // enabled=false, dopóki nie znamy uprawnień widoczności — inaczej pierwszy
+    // fetch leci bez filtra i agent przez moment widzi cudze karty
+    if (!enabled) return
     if (!initializedRef.current) setLoading(true)
     const params = new URLSearchParams()
     if (visibleUserIds?.length) params.set('visibleIds', visibleUserIds.join(','))
@@ -22,7 +25,7 @@ export function useProperties(visibleUserIds?: string[] | null) {
     setProperties(data)
     setLoading(false)
     initializedRef.current = true
-  }, [visibleUserIds])
+  }, [visibleUserIds, enabled])
 
   const debouncedFetch = useDebouncedCallback(fetchProperties, 500)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)

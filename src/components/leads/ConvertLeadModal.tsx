@@ -66,6 +66,7 @@ export function ConvertLeadModal({ lead, isOpen, onClose, onConverted }: Convert
       })
       const data = await res.json()
       if (!res.ok) { setError(data.error || 'Błąd konwersji'); return }
+      if (data.driveWarning) alert(data.driveWarning)
       onConverted({ propertyId: data.propertyId, kontaktId: data.kontaktId })
       onClose()
     } finally {

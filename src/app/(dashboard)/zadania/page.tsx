@@ -19,7 +19,9 @@ import { BoardView, BOARD_COLORS } from '@/components/tasks/BoardView'
 import { TASK_TYPE_LABELS, CONTACT_CATEGORY_LABELS } from '@/lib/reports'
 import { canSeeAllTeams } from '@/lib/roles'
 import { cn, formatPropertyAddress, isOverdueDate } from '@/lib/utils'
-import type { Task, TaskStatus, TaskPriority, TaskType, ContactCategory, Profile, RecurrenceFreq } from '@/types/database'
+import type { Task, TaskStatus, TaskPriority, TaskType, ContactCategory, Profile, RecurrenceFreq, KontaktTyp } from '@/types/database'
+import { KONTAKT_TYP_LABELS } from '@/types/database'
+import { EntityPicker, type EntityPickerItem } from '@/components/shared/EntityPicker'
 
 const columns: { status: TaskStatus; label: string; icon: React.ReactNode; color: string }[] = [
   { status: 'todo', label: 'Do zrobienia', icon: <Circle16 />, color: 'border-t-gray-500' },
@@ -49,6 +51,8 @@ interface TaskFormData {
   recurrence_freq: RecurrenceFreq | ''
   recurrence_interval: number
   recurrence_until: string
+  property_id: string | null
+  kontakt_id: string | null
 }
 
 const EMPTY_FORM: TaskFormData = {
@@ -64,6 +68,8 @@ const EMPTY_FORM: TaskFormData = {
   recurrence_freq: '',
   recurrence_interval: 1,
   recurrence_until: '',
+  property_id: null,
+  kontakt_id: null,
 }
 
 const RECURRENCE_FREQ_LABELS: Record<RecurrenceFreq, string> = {
@@ -79,7 +85,7 @@ interface NewBoardForm {
 export default function ZadaniaPage() {
   const { user, profile } = useAuth()
   const canAssign = canSeeAllTeams(profile?.role)
-  const { visibleIds } = useVisibleUserIds(user?.id, profile?.role)
+  const { visibleIds, loading: visLoading } = useVisibleUserIds(user?.id, profile?.role)
   const { boards, loading: boardsLoading, createBoard, updateBoard, deleteBoard } = useBoards()
 
   // selectedBoardId === null means Ogólne (tasks without board_id)
@@ -87,7 +93,7 @@ export default function ZadaniaPage() {
 
   // For Ogólne mode, pass 'none' so tasks API filters board_id IS NULL
   const boardIdFilter = selectedBoardId === null ? 'none' : selectedBoardId
-  const { tasks, loading, createTask, updateTask, deleteTask } = useTasks(undefined, visibleIds, boardIdFilter)
+  const { tasks, loading, createTask, updateTask, deleteTask } = useTasks(undefined, visibleIds, boardIdFilter, undefined, !visLoading)
   const { showToast } = useToast()
 
   const [view, setView] = useState<'kanban' | 'list'>('kanban')
@@ -96,6 +102,33 @@ export default function ZadaniaPage() {
   const [form, setForm] = useState<TaskFormData>({ ...EMPTY_FORM, assigned_to: canAssign ? '' : (user?.id ?? '') })
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   const [profiles, setProfiles] = useState<Profile[]>([])
+
+  // Listy do powiązania zadania z nieruchomością/kontaktem — ładowane
+  // leniwie przy pierwszym otwarciu formularza (prawie 2000 kontaktów)
+  const [pickProperties, setPickProperties] = useState<EntityPickerItem[]>([])
+  const [pickKontakty, setPickKontakty] = useState<EntityPickerItem[]>([])
+  const pickersFetched = useRef(false)
+  useEffect(() => {
+    if (!showAddModal || pickersFetched.current || visLoading) return
+    pickersFetched.current = true
+    const visParam = visibleIds?.length ? `?visibleIds=${visibleIds.join(',')}` : ''
+    fetch(`/api/properties${visParam}`)
+      .then(r => r.ok ? r.json() : [])
+      .then((data: { id: string; adres: string; kod_pocztowy: string | null; miasto: string | null }[]) => {
+        setPickProperties(data.map(p => ({ id: p.id, label: formatPropertyAddress(p), sublabel: p.miasto })))
+      })
+      .catch(() => {})
+    fetch(`/api/kontakty${visParam}`)
+      .then(r => r.ok ? r.json() : [])
+      .then((data: { id: string; nazwa: string; typ: string; miasto: string | null }[]) => {
+        setPickKontakty(data.map(k => ({
+          id: k.id,
+          label: k.nazwa,
+          sublabel: [KONTAKT_TYP_LABELS[k.typ as KontaktTyp] || k.typ, k.miasto].filter(Boolean).join(' · '),
+        })))
+      })
+      .catch(() => {})
+  }, [showAddModal, visibleIds, visLoading])
 
   // New board modal state
   const [showNewBoardModal, setShowNewBoardModal] = useState(false)
@@ -119,7 +152,19 @@ export default function ZadaniaPage() {
     }
   }, [tasks, selectedTask])
 
-  const byStatus = (status: TaskStatus) => tasks.filter(t => t.status === status)
+  // Jednolite sortowanie zadań (desktop i mobile): najbliższy/zaległy termin
+  // u góry, w ramach dnia po godzinie, zadania bez terminu na końcu,
+  // remis rozstrzyga nowsze utworzenie.
+  const sortedTasks = useMemo(() => {
+    const key = (t: Task) => t.due_date ? `${t.due_date} ${t.due_time ?? '99:99'}` : '9999-99-99'
+    return [...tasks].sort((a, b) => {
+      const ak = key(a), bk = key(b)
+      if (ak !== bk) return ak < bk ? -1 : 1
+      return a.created_at < b.created_at ? 1 : -1
+    })
+  }, [tasks])
+
+  const byStatus = (status: TaskStatus) => sortedTasks.filter(t => t.status === status)
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault()
@@ -138,6 +183,8 @@ export default function ZadaniaPage() {
       recurrence_freq: form.due_date ? (form.recurrence_freq || null) : null,
       recurrence_interval: form.recurrence_interval || 1,
       recurrence_until: form.recurrence_until || null,
+      property_id: form.property_id,
+      kontakt_id: form.kontakt_id,
     }, user.id)
 
     if (error) { showToast(error, 'error'); return }
@@ -370,10 +417,10 @@ export default function ZadaniaPage() {
               </tr>
             </thead>
             <tbody>
-              {tasks.length === 0 ? (
+              {sortedTasks.length === 0 ? (
                 <tr><td colSpan={6} className="text-center text-limona-text-muted py-12">Brak zadań</td></tr>
               ) : (
-                tasks.map(task => (
+                sortedTasks.map(task => (
                   <tr key={task.id}
                     className="border-b border-limona-border/50 hover:bg-limona-surface-2/50 transition-colors cursor-pointer"
                     onClick={() => setSelectedTask(task)}>
@@ -421,7 +468,7 @@ export default function ZadaniaPage() {
       )}
 
       {/* Add Modal */}
-      <Modal isOpen={showAddModal} onClose={() => setShowAddModal(false)} title="Dodaj zadanie" size="md">
+      <Modal isOpen={showAddModal} onClose={() => setShowAddModal(false)} title="Dodaj zadanie" size="md" confirmClose>
         <form onSubmit={handleAdd} className="space-y-4">
           <div>
             <label className="limona-label block mb-2">Tytuł *</label>
@@ -451,6 +498,23 @@ export default function ZadaniaPage() {
               </select>
             </div>
           </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <EntityPicker
+              label="Powiąż z nieruchomością"
+              placeholder="Wpisz adres lub miasto..."
+              items={pickProperties}
+              value={form.property_id}
+              onChange={id => setForm(f => ({ ...f, property_id: id }))}
+              accentClass="text-limona-blue"
+            />
+            <EntityPicker
+              label="Powiąż z kontaktem"
+              placeholder="Wpisz nazwę lub miasto..."
+              items={pickKontakty}
+              value={form.kontakt_id}
+              onChange={id => setForm(f => ({ ...f, kontakt_id: id }))}
+            />
+          </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="limona-label block mb-2">Priorytet</label>
@@ -466,35 +530,37 @@ export default function ZadaniaPage() {
               <input type="date" className="limona-input" value={form.due_date} onChange={e => setForm(f => ({ ...f, due_date: e.target.value }))} />
             </div>
           </div>
-          {form.due_date && (
-            <div className="grid grid-cols-2 gap-4 items-end">
-              <div>
-                <label className="limona-label block mb-2">Powtarzaj</label>
-                <select
-                  className="limona-select"
-                  value={form.recurrence_freq}
-                  onChange={e => setForm(f => ({ ...f, recurrence_freq: e.target.value as RecurrenceFreq | '' }))}
-                >
-                  <option value="">Nie powtarzaj</option>
-                  {(Object.keys(RECURRENCE_FREQ_LABELS) as RecurrenceFreq[]).map(f => (
-                    <option key={f} value={f}>{RECURRENCE_FREQ_LABELS[f]}</option>
-                  ))}
-                </select>
-              </div>
-              {form.recurrence_freq && (
-                <div>
-                  <label className="limona-label block mb-2">Powtarzaj do (opcjonalnie)</label>
-                  <input
-                    type="date"
-                    className="limona-input"
-                    value={form.recurrence_until}
-                    min={form.due_date}
-                    onChange={e => setForm(f => ({ ...f, recurrence_until: e.target.value }))}
-                  />
-                </div>
+          <div className="grid grid-cols-2 gap-4 items-end">
+            <div>
+              <label className="limona-label block mb-2">Powtarzaj (zadanie cykliczne)</label>
+              <select
+                className="limona-select disabled:opacity-50"
+                value={form.recurrence_freq}
+                disabled={!form.due_date}
+                onChange={e => setForm(f => ({ ...f, recurrence_freq: e.target.value as RecurrenceFreq | '' }))}
+              >
+                <option value="">Nie powtarzaj</option>
+                {(Object.keys(RECURRENCE_FREQ_LABELS) as RecurrenceFreq[]).map(f => (
+                  <option key={f} value={f}>{RECURRENCE_FREQ_LABELS[f]}</option>
+                ))}
+              </select>
+              {!form.due_date && (
+                <p className="text-[10px] text-limona-text-dim mt-1">Ustaw najpierw termin, aby móc powtarzać zadanie.</p>
               )}
             </div>
-          )}
+            {form.due_date && form.recurrence_freq && (
+              <div>
+                <label className="limona-label block mb-2">Powtarzaj do (opcjonalnie)</label>
+                <input
+                  type="date"
+                  className="limona-input"
+                  value={form.recurrence_until}
+                  min={form.due_date}
+                  onChange={e => setForm(f => ({ ...f, recurrence_until: e.target.value }))}
+                />
+              </div>
+            )}
+          </div>
           {form.recurrence_freq && (
             <p className="text-xs text-limona-text-dim -mt-2">
               Każde wystąpienie to osobne zadanie z własnymi komentarzami i statusem — nie wpływają na siebie nawzajem.

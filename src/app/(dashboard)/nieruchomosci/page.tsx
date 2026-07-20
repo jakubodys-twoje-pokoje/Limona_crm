@@ -15,8 +15,8 @@ import type { Property } from '@/types/database'
 
 export default function NieruchomosciPage() {
   const { user, profile } = useAuth()
-  const { visibleIds } = useVisibleUserIds(user?.id, profile?.role)
-  const { properties, loading, createProperty, updateProperty, deleteProperty } = useProperties(visibleIds)
+  const { visibleIds, loading: visLoading } = useVisibleUserIds(user?.id, profile?.role)
+  const { properties, loading, createProperty, updateProperty, deleteProperty } = useProperties(visibleIds, !visLoading)
   const { showToast } = useToast()
 
   const [showAddModal, setShowAddModal] = useState(false)
@@ -84,6 +84,7 @@ export default function NieruchomosciPage() {
         onClose={() => setShowAddModal(false)}
         title="Dodaj nieruchomość"
         size="xl"
+        confirmClose
       >
         <PropertyForm
           onSubmit={handleAdd}
@@ -98,6 +99,7 @@ export default function NieruchomosciPage() {
         onClose={() => setEditProperty(null)}
         title="Edytuj nieruchomość"
         size="xl"
+        confirmClose
       >
         {editProperty && (
           <PropertyForm

@@ -12,6 +12,7 @@ import { createNotification } from '@/hooks/useNotifications'
 import { LEAD_STATUS_LABELS } from '@/lib/status-comments'
 import { LEAD_TRANSITIONS } from '@/lib/lead-rules'
 import { cn, isOverdueDate, sortByCreatedAt, type SortDirection } from '@/lib/utils'
+import { DriveFiles } from '@/components/shared/DriveFiles'
 import type { Lead, LeadComment, LeadStatus, LeadTemperature, Profile } from '@/types/database'
 
 export const TEMPERATURE_CONFIG: Record<LeadTemperature, { label: string; color: string; icon: React.ReactNode }> = {
@@ -269,6 +270,9 @@ export function LeadDetailModal({
                   </div>
                 )}
               </div>
+
+              {/* Dokumenty w Google Drive */}
+              <DriveFiles entity="lead" id={lead.id} />
 
               {/* Komentarze */}
               <div>

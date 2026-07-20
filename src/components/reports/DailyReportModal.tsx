@@ -103,9 +103,9 @@ export function DailyReportModal({ isOpen, onClose, onSubmitted, viewUserId, vie
       showToast((await res.json()).error || 'Błąd przesyłania raportu', 'error')
       return
     }
-    const { submitted_at } = await res.json()
-    setData(d => d ? { ...d, note: { ...d.note, submitted_at } } : d)
-    showToast('Raport dzienny przesłany', 'success')
+    const { submitted_at, edited_at } = await res.json()
+    setData(d => d ? { ...d, note: { ...d.note, submitted_at, edited_at } } : d)
+    showToast(edited_at ? 'Raport nadpisany' : 'Raport dzienny przesłany', 'success')
     onSubmitted?.()
   }
 
@@ -128,6 +128,11 @@ export function DailyReportModal({ isOpen, onClose, onSubmitted, viewUserId, vie
               <span className="flex items-center gap-1.5 text-xs text-limona-green">
                 <CheckCircle size={13} />
                 Przesłano {new Date(data.note.submitted_at!).toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' })}
+                {data.note.edited_at && (
+                  <span className="text-limona-yellow">
+                    · edytowano {new Date(data.note.edited_at).toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                )}
               </span>
             ) : readOnly ? (
               <span className="text-xs text-limona-text-dim">Nie przesłano</span>
@@ -264,21 +269,28 @@ export function DailyReportModal({ isOpen, onClose, onSubmitted, viewUserId, vie
           </section>
 
           {/* Akcje */}
-          <div className="flex gap-3 justify-end pt-2 border-t border-limona-border">
-            <button onClick={handleCopy} className="limona-btn-outline flex items-center gap-2">
-              <Copy size={14} />
-              Kopiuj raport
-            </button>
-            {!readOnly && (
-              <button
-                onClick={handleSubmit}
-                disabled={submitting}
-                className="limona-btn flex items-center gap-2 disabled:opacity-50"
-              >
-                <Send size={14} />
-                {submitting ? 'Przesyłanie...' : submitted ? 'Prześlij ponownie' : 'Prześlij raport'}
-              </button>
+          <div className="pt-2 border-t border-limona-border space-y-2">
+            {!readOnly && submitted && (
+              <p className="text-[11px] text-limona-text-dim text-right">
+                Raport można nadpisywać do północy — nowe zadania z dnia dołączą same, notatki zostają.
+              </p>
             )}
+            <div className="flex gap-3 justify-end">
+              <button onClick={handleCopy} className="limona-btn-outline flex items-center gap-2">
+                <Copy size={14} />
+                Kopiuj raport
+              </button>
+              {!readOnly && (
+                <button
+                  onClick={handleSubmit}
+                  disabled={submitting}
+                  className="limona-btn flex items-center gap-2 disabled:opacity-50"
+                >
+                  <Send size={14} />
+                  {submitting ? 'Przesyłanie...' : submitted ? 'Nadpisz raport' : 'Prześlij raport'}
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}

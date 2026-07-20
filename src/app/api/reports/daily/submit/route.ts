@@ -17,15 +17,34 @@ export async function POST(req: NextRequest) {
   if (!DATE_RE.test(date)) {
     return NextResponse.json({ error: 'Nieprawidłowa data (YYYY-MM-DD)' }, { status: 400 })
   }
+  // Okno edycji: raport da się przesłać/nadpisać tylko do północy tego dnia
+  if (date !== warsawToday()) {
+    return NextResponse.json({ error: 'Raport można przesłać lub nadpisać tylko do północy dnia, którego dotyczy' }, { status: 400 })
+  }
 
-  const submitted_at = new Date().toISOString()
+  const now = new Date().toISOString()
+
+  // Ponowne przesłanie = nadpisanie: submitted_at zostaje pierwotne (widać,
+  // o której raport wysłano), edited_at znaczy raport jako zmieniony.
+  const { data: existing } = await supabase
+    .from('daily_reports')
+    .select('submitted_at')
+    .eq('user_id', user.id)
+    .eq('date', date)
+    .maybeSingle()
+
+  const payload: Record<string, string> = { user_id: user.id, date }
+  if (existing?.submitted_at) payload.edited_at = now
+  else payload.submitted_at = now
+
   const { error } = await supabase
     .from('daily_reports')
-    .upsert(
-      { user_id: user.id, date, submitted_at },
-      { onConflict: 'user_id,date' }
-    )
+    .upsert(payload, { onConflict: 'user_id,date' })
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  return NextResponse.json({ ok: true, submitted_at })
+  return NextResponse.json({
+    ok: true,
+    submitted_at: existing?.submitted_at ?? now,
+    edited_at: existing?.submitted_at ? now : null,
+  })
 }

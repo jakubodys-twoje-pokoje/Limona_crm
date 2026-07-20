@@ -4,6 +4,8 @@ import { createClient } from '@/lib/supabase/server'
 import { getSessionUser, unauthorized } from '@/lib/api-auth'
 import { geocodeAddress } from '@/lib/geocode'
 import { formatStatusChangeComment, LEAD_STATUS_LABELS } from '@/lib/status-comments'
+import { driveConfigured } from '@/lib/drive'
+import { migrateLeadFolderOnConvert } from '@/lib/driveEntities'
 
 /**
  * Konwersja leada — jedyna droga do statusu 'converted'.
@@ -134,5 +136,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     ),
   })
 
-  return NextResponse.json({ lead: updated, propertyId, kontaktId })
+  // Google Drive: pliki leada wędrują do folderu nieruchomości/klienta,
+  // folder leada trafia do Leady/Archiwum. Best-effort — awaria Drive
+  // nie może zablokować samej konwersji.
+  let driveWarning: string | null = null
+  if (driveConfigured()) {
+    try {
+      await migrateLeadFolderOnConvert(supabase, id, lead.name, { propertyId, kontaktId })
+    } catch (e) {
+      driveWarning = `Konwersja OK, ale nie udało się przenieść plików w Google Drive: ${e instanceof Error ? e.message : e}`
+    }
+  }
+
+  return NextResponse.json({ lead: updated, propertyId, kontaktId, driveWarning })
 }

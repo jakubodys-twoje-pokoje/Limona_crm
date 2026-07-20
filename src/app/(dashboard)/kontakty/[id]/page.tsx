@@ -18,6 +18,7 @@ import { Avatar } from '@/components/ui/Avatar'
 import { Badge } from '@/components/ui/Badge'
 import { KontaktForm } from '@/components/kontakty/KontaktForm'
 import { KontaktKomentarze } from '@/components/kontakty/KontaktKomentarze'
+import { DriveFiles } from '@/components/shared/DriveFiles'
 import { StatusChangeCommentModal } from '@/components/shared/StatusChangeCommentModal'
 import { TaskDetailModal } from '@/components/tasks/TaskDetailModal'
 import { cn } from '@/lib/utils'
@@ -488,6 +489,9 @@ export default function KontaktDetailPage() {
             </p>
           </div>
 
+          {/* Dokumenty w Google Drive */}
+          <DriveFiles entity="kontakt" id={currentKontaktId} />
+
           {/* Zadania */}
           <div className="limona-card p-5">
             <p className="limona-eyebrow mb-4 flex items-center gap-2">
@@ -656,7 +660,7 @@ export default function KontaktDetailPage() {
       </div>
 
       {/* Edit Modal */}
-      <Modal isOpen={showEditModal} onClose={() => setShowEditModal(false)} title="Edytuj kontakt" size="xl">
+      <Modal isOpen={showEditModal} onClose={() => setShowEditModal(false)} title="Edytuj kontakt" size="xl" confirmClose>
         <KontaktForm
           initial={kontakt}
           profiles={profiles}

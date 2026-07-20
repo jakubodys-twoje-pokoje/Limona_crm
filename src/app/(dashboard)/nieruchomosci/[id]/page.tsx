@@ -22,6 +22,7 @@ import { SortToggle } from '@/components/ui/SortToggle'
 import { TaskDetailModal } from '@/components/tasks/TaskDetailModal'
 import { InvestorOfferCard } from '@/components/properties/InvestorOfferCard'
 import { PropertyComments } from '@/components/properties/PropertyComments'
+import { DriveFiles } from '@/components/shared/DriveFiles'
 import { sumLineItems } from '@/lib/calculator'
 import { canSeeInvestors, canSeeAllTeams } from '@/lib/roles'
 import type { Property, Task, Document, PropertyNegotiationNote, PropertyInvestor, StatusDluznika, StatusInwestora, InvestorPropertyStatus, ChecklistItemState, Profile } from '@/types/database'
@@ -716,6 +717,9 @@ export default function PropertyDetailPage() {
 
       {activeTab === 'docs' && (
         <div className="space-y-4">
+          {/* Folder Google Drive tej nieruchomości */}
+          <DriveFiles entity="property" id={currentPropertyId} />
+
           {/* Komentarze do działów KW */}
           <div className="limona-card p-4 space-y-3">
             <p className="text-xs text-limona-lime uppercase tracking-wider font-bold">Komentarze do działów KW</p>
@@ -1093,7 +1097,7 @@ export default function PropertyDetailPage() {
         </div>
       )}
 
-      <Modal isOpen={showEditModal} onClose={() => setShowEditModal(false)} title="Edytuj nieruchomość" size="xl">
+      <Modal isOpen={showEditModal} onClose={() => setShowEditModal(false)} title="Edytuj nieruchomość" size="xl" confirmClose>
         <PropertyForm
           initial={property}
           onSubmit={handleEdit}

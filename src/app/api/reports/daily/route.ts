@@ -88,7 +88,7 @@ export async function GET(req: NextRequest) {
       .order('created_at', { ascending: true }),
     supabase
       .from('daily_reports')
-      .select('content, submitted_at, task_notes')
+      .select('content, submitted_at, edited_at, task_notes')
       .eq('user_id', userId)
       .eq('date', date)
       .maybeSingle(),
@@ -140,6 +140,7 @@ export async function GET(req: NextRequest) {
     note: {
       content: noteRes.data?.content ?? '',
       submitted_at: noteRes.data?.submitted_at ?? null,
+      edited_at: noteRes.data?.edited_at ?? null,
     },
   }
 
