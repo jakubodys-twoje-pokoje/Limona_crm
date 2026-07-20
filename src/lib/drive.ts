@@ -1,14 +1,23 @@
 import crypto from 'crypto'
+import { getSetting, setSetting } from '@/lib/appSettings'
 
 /**
- * Niskopoziomowy klient Google Drive (service account, bez zewnętrznych
- * zależności — JWT RS256 podpisywany node:crypto).
+ * Niskopoziomowy klient Google Drive (bez zewnętrznych zależności).
+ * Dwa tryby uwierzytelnienia — wybierany automatycznie z env:
  *
- * Wymagane zmienne środowiskowe:
- *  - GOOGLE_SERVICE_ACCOUNT_EMAIL  — email konta serwisowego (…@…iam.gserviceaccount.com)
- *  - GOOGLE_SERVICE_ACCOUNT_KEY   — private_key z pliku JSON konta (z \n jako literalne "\n" lub prawdziwe nowe linie)
- *  - GOOGLE_DRIVE_ROOT_FOLDER_ID  — ID folderu-korzenia CRM w Drive,
- *    udostępnionego kontu serwisowemu z uprawnieniem „Edytujący"
+ * 1. OAuth (zalecany dla zwykłych kont Google): admin łączy konto
+ *    jednym kliknięciem w panelu Admin, refresh token ląduje w tabeli
+ *    app_settings (service role only). Pliki należą do połączonego
+ *    konta i liczą się do jego miejsca. Zakres drive.file — CRM widzi
+ *    wyłącznie foldery/pliki, które sam utworzył. Env:
+ *      GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET
+ *      (opcjonalnie GOOGLE_OAUTH_REDIRECT_URL, gdy origin za proxy)
+ *    Folder-korzeń „Limona CRM" tworzy się sam na Dysku połączonego
+ *    konta (ID w app_settings) — GOOGLE_DRIVE_ROOT_FOLDER_ID zbędne.
+ *
+ * 2. Konto serwisowe (Workspace/Dysk współdzielony). Env:
+ *      GOOGLE_SERVICE_ACCOUNT_EMAIL, GOOGLE_SERVICE_ACCOUNT_KEY,
+ *      GOOGLE_DRIVE_ROOT_FOLDER_ID (+ ew. GOOGLE_DRIVE_IMPERSONATE_USER)
  *
  * Oszczędzanie limitów API: token cache'owany w pamięci procesu (~55 min),
  * ID folderów kategorii cache'owane w tabeli drive_folders, ID folderu
@@ -33,16 +42,43 @@ export interface DriveFile {
   size: string | null
 }
 
-export function driveConfigured(): boolean {
-  return !!(
+export type DriveAuthMode = 'oauth' | 'sa' | null
+
+/** Który tryb uwierzytelnienia jest skonfigurowany w env (OAuth ma pierwszeństwo) */
+export function driveAuthMode(): DriveAuthMode {
+  if (process.env.GOOGLE_OAUTH_CLIENT_ID && process.env.GOOGLE_OAUTH_CLIENT_SECRET) return 'oauth'
+  if (
     process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL &&
     process.env.GOOGLE_SERVICE_ACCOUNT_KEY &&
     process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID
-  )
+  ) return 'sa'
+  return null
 }
 
-export function driveRootId(): string {
-  return process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID!
+export function driveConfigured(): boolean {
+  return driveAuthMode() !== null
+}
+
+const REFRESH_TOKEN_KEY = 'google_oauth_refresh_token'
+const OAUTH_ROOT_KEY = 'google_drive_root_folder_id'
+
+/** Tryb OAuth: czy admin połączył już konto Google (refresh token w bazie) */
+export async function driveOAuthConnected(): Promise<boolean> {
+  return !!(await getSetting(REFRESH_TOKEN_KEY))
+}
+
+/**
+ * ID folderu-korzenia CRM. Tryb SA: z env. Tryb OAuth: folder „Limona CRM"
+ * tworzony przez aplikację na Dysku połączonego konta (zakres drive.file
+ * widzi tylko własne pliki, więc korzeń musi utworzyć sama aplikacja).
+ */
+export async function resolveRootFolderId(): Promise<string> {
+  if (driveAuthMode() === 'sa') return process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID!
+  const stored = await getSetting(OAUTH_ROOT_KEY)
+  if (stored) return stored
+  const folderId = await createFolder('Limona CRM', 'root')
+  await setSetting(OAUTH_ROOT_KEY, folderId)
+  return folderId
 }
 
 export function driveFolderUrl(folderId: string): string {
@@ -61,7 +97,35 @@ let cachedToken: { token: string; expiresAt: number } | null = null
 
 async function getAccessToken(): Promise<string> {
   if (cachedToken && Date.now() < cachedToken.expiresAt) return cachedToken.token
+  if (driveAuthMode() === 'oauth') return getOAuthAccessToken()
+  return getServiceAccountAccessToken()
+}
 
+/** Tryb OAuth: access token z refresh tokena zapisanego w app_settings */
+async function getOAuthAccessToken(): Promise<string> {
+  const refreshToken = await getSetting(REFRESH_TOKEN_KEY)
+  if (!refreshToken) {
+    throw new Error('Google Drive: konto nie jest połączone — administrator musi kliknąć „Połącz z Google Drive" w panelu Admin')
+  }
+  const res = await fetch(TOKEN_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'refresh_token',
+      refresh_token: refreshToken,
+      client_id: process.env.GOOGLE_OAUTH_CLIENT_ID!,
+      client_secret: process.env.GOOGLE_OAUTH_CLIENT_SECRET!,
+    }),
+  })
+  if (!res.ok) {
+    throw new Error(`Google OAuth refresh: ${res.status} ${await res.text()}`)
+  }
+  const data = await res.json()
+  cachedToken = { token: data.access_token, expiresAt: Date.now() + (data.expires_in - 300) * 1000 }
+  return cachedToken.token
+}
+
+async function getServiceAccountAccessToken(): Promise<string> {
   const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL!
   const key = process.env.GOOGLE_SERVICE_ACCOUNT_KEY!.replace(/\\n/g, '\n')
   // Opcjonalna delegacja domenowa (Workspace): token działa jako wskazany

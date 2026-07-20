@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getSessionUser, unauthorized } from '@/lib/api-auth'
-import { driveConfigured, listFiles, createFolder, trashItem } from '@/lib/drive'
+import { driveConfigured, driveAuthMode, driveOAuthConnected, listFiles, createFolder, trashItem } from '@/lib/drive'
 import {
   ensureEntityFolder, getEntityFolderId, isInsideFolder, safeFolderName, type DriveEntity,
 } from '@/lib/driveEntities'
@@ -34,6 +34,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ enti
     return NextResponse.json({ error: 'Nieznany typ rekordu' }, { status: 400 })
   }
   if (!driveConfigured()) return NextResponse.json({ configured: false })
+  // OAuth skonfigurowany w env, ale admin nie połączył jeszcze konta Google
+  if (driveAuthMode() === 'oauth' && !(await driveOAuthConnected())) {
+    return NextResponse.json({ configured: false, oauthPending: true })
+  }
 
   try {
     const { res } = await resolveRoot(entity, id)

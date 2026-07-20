@@ -2,9 +2,9 @@
 
 export const dynamic = 'force-dynamic'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { Shield, Trash2, Edit, UserPlus, Database, UsersRound } from 'lucide-react'
+import { Shield, Trash2, Edit, UserPlus, Database, UsersRound, HardDrive } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { useTeams } from '@/hooks/useTeams'
 import { useToast } from '@/components/ui/Toast'
@@ -36,6 +36,32 @@ export default function AdminPage() {
   const [cleanupPreview, setCleanupPreview] = useState<{ directMessages: number; groupMessages: number; wallMessages: number; readNotifications: number } | null>(null)
   const [cleanupRunning, setCleanupRunning] = useState(false)
   const [cleanupResult, setCleanupResult] = useState<string | null>(null)
+
+  // Integracja Google Drive (OAuth)
+  const [driveStatus, setDriveStatus] = useState<{ mode: 'oauth' | 'sa' | null; connected: boolean; email: string | null } | null>(null)
+  const [driveBusy, setDriveBusy] = useState(false)
+
+  useEffect(() => {
+    if (!isAdmin) return
+    fetch('/api/drive/oauth/status').then(r => r.ok ? r.json() : null).then(setDriveStatus).catch(() => {})
+    // Powrót z ekranu zgody Google (?drive=connected / error_*)
+    const flag = new URLSearchParams(window.location.search).get('drive')
+    if (flag === 'connected') showToast('Google Drive połączony', 'success')
+    else if (flag?.startsWith('error')) showToast(`Łączenie z Google nie powiodło się (${flag})`, 'error')
+    if (flag) window.history.replaceState(null, '', '/admin')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAdmin])
+
+  async function disconnectDrive() {
+    if (!confirm('Rozłączyć konto Google? Sekcje Dokumenty przestaną działać do ponownego połączenia.')) return
+    setDriveBusy(true)
+    const res = await fetch('/api/drive/oauth/status', { method: 'DELETE' })
+    setDriveBusy(false)
+    if (res.ok) {
+      showToast('Rozłączono konto Google', 'success')
+      setDriveStatus(s => s ? { ...s, connected: false, email: null } : s)
+    }
+  }
 
   async function fetchCleanupPreview() {
     const res = await fetch('/api/cleanup')
@@ -229,6 +255,52 @@ export default function AdminPage() {
             {cleanupRunning ? 'Czyszczenie...' : 'Wyczyść stare dane'}
           </button>
         </div>
+      </div>
+
+      {/* Integracje — Google Drive */}
+      <div className="limona-card p-4 lg:p-6">
+        <div className="flex items-center gap-3 mb-4">
+          <HardDrive size={18} className="text-limona-text-muted" />
+          <h2 className="limona-heading text-lg">Integracje — Google Drive</h2>
+        </div>
+        {!driveStatus ? (
+          <Skeleton className="h-10" />
+        ) : driveStatus.mode === null ? (
+          <p className="text-sm text-limona-text-muted">
+            Brak konfiguracji w env — ustaw <code className="text-xs">GOOGLE_OAUTH_CLIENT_ID</code> i{' '}
+            <code className="text-xs">GOOGLE_OAUTH_CLIENT_SECRET</code> (patrz .env.example), zrestartuj aplikację i wróć tutaj.
+          </p>
+        ) : driveStatus.mode === 'sa' ? (
+          <p className="text-sm text-limona-text-muted">
+            Tryb: konto serwisowe (konfiguracja w env). Dokumenty działają — nic nie trzeba łączyć.
+          </p>
+        ) : driveStatus.connected ? (
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <p className="text-sm text-limona-text">
+              Połączono konto:{' '}
+              <span className="text-limona-lime font-medium">{driveStatus.email || 'konto Google'}</span>
+              <span className="block text-xs text-limona-text-dim mt-1">
+                Dokumenty CRM zapisują się na Dysku tego konta w folderze „Limona CRM".
+              </span>
+            </p>
+            <button
+              onClick={disconnectDrive}
+              disabled={driveBusy}
+              className="text-xs border border-limona-red/40 text-limona-red hover:bg-limona-red/10 rounded-full px-4 py-2 font-medium uppercase tracking-wider transition-colors disabled:opacity-40"
+            >
+              Rozłącz
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <p className="text-sm text-limona-text-muted">
+              Konto Google nie jest połączone — sekcje „Dokumenty" czekają na to połączenie.
+            </p>
+            <a href="/api/drive/oauth/start" className="limona-btn-sm flex items-center gap-2">
+              <HardDrive size={13} /> Połącz z Google Drive
+            </a>
+          </div>
+        )}
       </div>
 
       {/* Create User Modal */}

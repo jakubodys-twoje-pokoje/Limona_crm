@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import {
-  driveRootId, findOrCreateFolder, listFiles, moveItem, renameItem, getParents,
+  resolveRootFolderId, findOrCreateFolder, listFiles, moveItem, renameItem, getParents,
 } from '@/lib/drive'
 import { formatPropertyAddress } from '@/lib/utils'
 
@@ -55,7 +55,7 @@ export async function getCategoryFolderId(
     .maybeSingle()
   if (cached?.folder_id) return cached.folder_id
 
-  const folderId = await findOrCreateFolder(name, parentId ?? driveRootId())
+  const folderId = await findOrCreateFolder(name, parentId ?? await resolveRootFolderId())
   await supabase.from('drive_folders').upsert({ key, folder_id: folderId }, { onConflict: 'key' })
   return folderId
 }

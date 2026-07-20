@@ -19,6 +19,7 @@ interface DriveFile {
 
 interface DriveData {
   configured: boolean
+  oauthPending?: boolean
   connected?: boolean
   rootFolderId?: string
   folderId?: string
@@ -156,7 +157,9 @@ export function DriveFiles({ entity, id }: Props) {
           <HardDrive size={13} /> Dokumenty (Google Drive)
         </p>
         <p className="text-xs text-limona-text-dim">
-          Integracja Google Drive nie jest jeszcze skonfigurowana (brak kluczy API na serwerze).
+          {data.oauthPending
+            ? 'Administrator musi połączyć konto Google — panel Admin → Integracje → „Połącz z Google Drive".'
+            : 'Integracja Google Drive nie jest jeszcze skonfigurowana (brak kluczy API na serwerze).'}
         </p>
       </div>
     )
