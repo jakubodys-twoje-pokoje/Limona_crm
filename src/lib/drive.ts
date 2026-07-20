@@ -16,10 +16,12 @@ import crypto from 'crypto'
  * JEDEN request (files.list).
  */
 
+import { FOLDER_MIME } from '@/lib/driveShared'
+export { FOLDER_MIME }
+
 const TOKEN_URL = 'https://oauth2.googleapis.com/token'
 const API = 'https://www.googleapis.com/drive/v3'
 const SCOPE = 'https://www.googleapis.com/auth/drive'
-export const FOLDER_MIME = 'application/vnd.google-apps.folder'
 
 export interface DriveFile {
   id: string
@@ -62,10 +64,17 @@ async function getAccessToken(): Promise<string> {
 
   const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL!
   const key = process.env.GOOGLE_SERVICE_ACCOUNT_KEY!.replace(/\\n/g, '\n')
+  // Opcjonalna delegacja domenowa (Workspace): token działa jako wskazany
+  // użytkownik — pliki wgrywane z CRM należą wtedy do niego i liczą się do
+  // jego miejsca (konto serwisowe samo nie ma quoty na Dysku).
+  const impersonate = process.env.GOOGLE_DRIVE_IMPERSONATE_USER
   const now = Math.floor(Date.now() / 1000)
 
   const header = b64url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }))
-  const claims = b64url(JSON.stringify({ iss: email, scope: SCOPE, aud: TOKEN_URL, iat: now, exp: now + 3600 }))
+  const claims = b64url(JSON.stringify({
+    iss: email, scope: SCOPE, aud: TOKEN_URL, iat: now, exp: now + 3600,
+    ...(impersonate ? { sub: impersonate } : {}),
+  }))
   const signer = crypto.createSign('RSA-SHA256')
   signer.update(`${header}.${claims}`)
   const jwt = `${header}.${claims}.${b64url(signer.sign(key))}`
@@ -153,4 +162,57 @@ export async function renameItem(itemId: string, name: string): Promise<void> {
     method: 'PATCH',
     body: JSON.stringify({ name }),
   })
+}
+
+/** Rodzice pliku/folderu — do weryfikacji, że element leży w drzewie rekordu */
+export async function getParents(itemId: string): Promise<string[]> {
+  const res = await driveFetch(`/files/${itemId}?fields=parents`)
+  return (await res.json()).parents ?? []
+}
+
+/** Przenosi do kosza Drive (nie kasuje trwale — da się odzyskać) */
+export async function trashItem(itemId: string): Promise<void> {
+  await driveFetch(`/files/${itemId}?fields=id`, {
+    method: 'PATCH',
+    body: JSON.stringify({ trashed: true }),
+  })
+}
+
+const FILE_FIELDS = 'id,name,mimeType,webViewLink,iconLink,modifiedTime,size'
+
+/** Upload pliku (multipart) do wskazanego folderu */
+export async function uploadFile(
+  name: string,
+  mimeType: string,
+  data: Buffer,
+  parentId: string,
+): Promise<DriveFile> {
+  const token = await getAccessToken()
+  const boundary = `limona-${crypto.randomBytes(12).toString('hex')}`
+  const metadata = JSON.stringify({ name, parents: [parentId] })
+
+  const body = Buffer.concat([
+    Buffer.from(
+      `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metadata}\r\n` +
+      `--${boundary}\r\nContent-Type: ${mimeType || 'application/octet-stream'}\r\n\r\n`
+    ),
+    data,
+    Buffer.from(`\r\n--${boundary}--`),
+  ])
+
+  const res = await fetch(
+    `https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true&fields=${encodeURIComponent(FILE_FIELDS)}`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': `multipart/related; boundary=${boundary}`,
+      },
+      body: new Uint8Array(body),
+    }
+  )
+  if (!res.ok) {
+    throw new Error(`Google Drive upload: ${res.status} ${await res.text()}`)
+  }
+  return res.json()
 }

@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import {
-  driveRootId, findOrCreateFolder, listFiles, moveItem, renameItem,
+  driveRootId, findOrCreateFolder, listFiles, moveItem, renameItem, getParents,
 } from '@/lib/drive'
 import { formatPropertyAddress } from '@/lib/utils'
 
@@ -83,6 +83,37 @@ async function loadEntity(supabase: SupabaseClient, entity: DriveEntity, id: str
   if (!data) return null
   const categoryName = KONTAKT_CATEGORY[data.typ] || 'Kontakty inne'
   return { id: data.id, drive_folder_id: data.drive_folder_id, folderName: sanitizeName(data.nazwa), categoryKey: `kontakty:${data.typ}`, categoryName }
+}
+
+/** ID folderu rekordu BEZ tworzenia — null, gdy połączenie jeszcze nie istnieje */
+export async function getEntityFolderId(
+  supabase: SupabaseClient,
+  entity: DriveEntity,
+  id: string,
+): Promise<{ folderId: string | null } | { error: string; status: number }> {
+  const record = await loadEntity(supabase, entity, id)
+  if (!record) return { error: 'Not found', status: 404 }
+  return { folderId: record.drive_folder_id }
+}
+
+/**
+ * Czy element (plik/folder) leży w drzewie pod folderem rekordu — chroni
+ * endpointy przed operowaniem na dowolnych ID spoza folderu CRM.
+ */
+export async function isInsideFolder(itemId: string, rootFolderId: string): Promise<boolean> {
+  if (itemId === rootFolderId) return true
+  let frontier = [itemId]
+  for (let depth = 0; depth < 12 && frontier.length; depth++) {
+    const parents = (await Promise.all(frontier.map(f => getParents(f).catch(() => [] as string[])))).flat()
+    if (parents.includes(rootFolderId)) return true
+    frontier = [...new Set(parents)]
+  }
+  return false
+}
+
+/** Nazwa folderu bezpieczna dla Drive (bez /) */
+export function safeFolderName(name: string): string {
+  return sanitizeName(name)
 }
 
 /**
