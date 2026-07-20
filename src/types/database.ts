@@ -94,6 +94,7 @@ export interface Property {
   pokazywania_count: number
   decision: string | null
   notes: string | null
+  zrodlo: string | null
   created_by: string | null
   assigned_to: string | null
   kontakt_id: string | null

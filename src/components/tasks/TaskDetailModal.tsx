@@ -494,10 +494,12 @@ export function TaskDetailModal({
                       onChange={setNewComment}
                       profiles={profiles}
                       tasks={tasks}
-                      placeholder="Dodaj komentarz... (@osoba #zadanie)"
+                      placeholder="Dodaj komentarz... (@osoba #zadanie, Shift+Enter to nowa linia)"
                       maxLength={2000}
                       className="text-xs py-2"
                       onSubmit={handleAddComment}
+                      multiline
+                      rows={2}
                     />
                   </div>
                   <button onClick={handleAddComment} disabled={sendingComment || !newComment.trim()}

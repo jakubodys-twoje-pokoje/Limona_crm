@@ -2,16 +2,19 @@
 
 import { useState, useEffect } from 'react'
 import { Plus, X } from 'lucide-react'
-import type { Property, PropertyType, DealType, PropertyLineItem } from '@/types/database'
+import type { Property, PropertyType, DealType, PropertyLineItem, KontaktTyp } from '@/types/database'
+import { KONTAKT_TYP_LABELS } from '@/types/database'
 import { DEAL_TYPE_LABELS } from '@/lib/stages'
 import { sumLineItems } from '@/lib/calculator'
 import { formatMoney } from '@/lib/utils'
+import { ZRODLO_OPTIONS } from '@/lib/zrodla'
 import { useAuth } from '@/hooks/useAuth'
 
 interface KontaktOption {
   id: string
   nazwa: string
   typ: string
+  miasto: string | null
 }
 
 interface UserOption {
@@ -65,6 +68,7 @@ export function PropertyForm({ initial = {}, onSubmit, onCancel, submitLabel = '
     kw_dzial4_komentarz: initial.kw_dzial4_komentarz || '',
     czynsz_miesieczny: initial.czynsz_miesieczny?.toString() || '',
     notes: initial.notes || '',
+    zrodlo: initial.zrodlo || '',
     kontakt_id: initial.kontakt_id || '',
     uklad: initial.uklad || '',
     pietro: initial.pietro?.toString() || '',
@@ -78,14 +82,15 @@ export function PropertyForm({ initial = {}, onSubmit, onCancel, submitLabel = '
   const [loading, setLoading] = useState(false)
   const [kontakty, setKontakty] = useState<KontaktOption[]>([])
   const [kontaktSearch, setKontaktSearch] = useState('')
+  const [kontaktFocused, setKontaktFocused] = useState(false)
   const [users, setUsers] = useState<UserOption[]>([])
   const [coAssignees, setCoAssignees] = useState<string[]>(initial.co_assignees || [])
 
   useEffect(() => {
     fetch('/api/kontakty?limit=500')
       .then(r => r.json())
-      .then((data: Array<{ id: string; nazwa: string; typ?: string }>) => {
-        setKontakty(data.map(k => ({ id: k.id, nazwa: k.nazwa, typ: k.typ || '' })))
+      .then((data: Array<{ id: string; nazwa: string; typ?: string; miasto?: string | null }>) => {
+        setKontakty(data.map(k => ({ id: k.id, nazwa: k.nazwa, typ: k.typ || '', miasto: k.miasto || null })))
       })
       .catch(() => {})
     fetch('/api/profiles')
@@ -147,6 +152,7 @@ export function PropertyForm({ initial = {}, onSubmit, onCancel, submitLabel = '
         kw_dzial4_komentarz: form.kw_dzial4_komentarz || null,
         czynsz_miesieczny: form.czynsz_miesieczny ? parseFloat(form.czynsz_miesieczny) : null,
         notes: form.notes || null,
+        zrodlo: form.zrodlo || null,
         kontakt_id: form.kontakt_id || null,
         uklad: form.uklad || null,
         pietro: form.pietro ? parseInt(form.pietro) : null,
@@ -248,6 +254,13 @@ export function PropertyForm({ initial = {}, onSubmit, onCancel, submitLabel = '
             </select>
           </div>
           <div>
+            <label className="limona-label block mb-2">Źródło tematu</label>
+            <select className="limona-select" value={form.zrodlo} onChange={e => set('zrodlo', e.target.value)}>
+              <option value="">Wybierz...</option>
+              {ZRODLO_OPTIONS.map(z => <option key={z} value={z}>{z}</option>)}
+            </select>
+          </div>
+          <div>
             <label className="limona-label block mb-2">Metraż (m²)</label>
             <input
               type="number"
@@ -291,27 +304,51 @@ export function PropertyForm({ initial = {}, onSubmit, onCancel, submitLabel = '
             </div>
           )}
           <div className="md:col-span-2">
-            <label className="limona-label block mb-2">Powiązany kontakt</label>
-            <input
-              list="kontakt-options"
-              className="limona-input"
-              placeholder="Wpisz nazwę kontaktu..."
-              value={kontaktSearch || (form.kontakt_id ? (kontakty.find(k => k.id === form.kontakt_id)?.nazwa || '') : '')}
-              onChange={e => {
-                setKontaktSearch(e.target.value)
-                const match = kontakty.find(k => k.nazwa === e.target.value)
-                if (match) { set('kontakt_id', match.id); setKontaktSearch('') }
-                else if (e.target.value === '') set('kontakt_id', '')
-              }}
-            />
-            <datalist id="kontakt-options">
-              {kontakty.map(k => (
-                <option key={k.id} value={k.nazwa}>{k.typ}</option>
-              ))}
-            </datalist>
+            <label className="limona-label block mb-2">Powiązany kontakt <span className="normal-case font-normal text-limona-text-dim">(spółdzielnia / zarządca / komornik, który dał temat — opcjonalnie)</span></label>
+            <div className="relative">
+              <input
+                className="limona-input"
+                placeholder="Zacznij pisać nazwę lub miasto, np. SM Piast albo Kraków..."
+                value={kontaktSearch}
+                onChange={e => setKontaktSearch(e.target.value)}
+                onFocus={() => setKontaktFocused(true)}
+                onBlur={() => setTimeout(() => setKontaktFocused(false), 150)}
+              />
+              {kontaktFocused && kontaktSearch.trim().length >= 2 && (() => {
+                const q = kontaktSearch.trim().toLowerCase()
+                const matches = kontakty
+                  .filter(k => k.id !== form.kontakt_id)
+                  .filter(k => k.nazwa.toLowerCase().includes(q) || (k.miasto || '').toLowerCase().includes(q))
+                  .slice(0, 8)
+                return (
+                  <div className="absolute top-full left-0 right-0 mt-1 max-h-64 overflow-y-auto bg-limona-surface border border-limona-border rounded-lg shadow-xl z-50">
+                    {matches.length === 0 ? (
+                      <p className="px-3 py-2.5 text-xs text-limona-text-dim">Brak kontaktów pasujących do „{kontaktSearch.trim()}"</p>
+                    ) : matches.map(k => (
+                      <button
+                        key={k.id}
+                        type="button"
+                        onMouseDown={e => {
+                          e.preventDefault()
+                          set('kontakt_id', k.id)
+                          setKontaktSearch('')
+                          setKontaktFocused(false)
+                        }}
+                        className="w-full px-3 py-2 text-left hover:bg-limona-surface-2 transition-colors"
+                      >
+                        <span className="block text-sm text-limona-text font-medium truncate">{k.nazwa}</span>
+                        <span className="block text-[11px] text-limona-text-dim">
+                          {[KONTAKT_TYP_LABELS[k.typ as KontaktTyp] || k.typ, k.miasto].filter(Boolean).join(' · ')}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )
+              })()}
+            </div>
             {form.kontakt_id && (
               <p className="text-xs text-limona-lime mt-1">
-                Wybrany: {kontakty.find(k => k.id === form.kontakt_id)?.nazwa}{' '}
+                Wybrany: {kontakty.find(k => k.id === form.kontakt_id)?.nazwa || '…'}{' '}
                 <button type="button" className="text-limona-text-dim hover:text-limona-red ml-1" onClick={() => { set('kontakt_id', ''); setKontaktSearch('') }}>✕</button>
               </p>
             )}
@@ -546,7 +583,7 @@ export function PropertyForm({ initial = {}, onSubmit, onCancel, submitLabel = '
       <div>
         <label className="limona-label block mb-2">Notatki</label>
         <textarea
-          className="limona-input min-h-[80px] resize-y"
+          className="limona-input min-h-[200px] resize-y"
           value={form.notes}
           onChange={e => set('notes', e.target.value)}
           placeholder="Dodatkowe informacje..."

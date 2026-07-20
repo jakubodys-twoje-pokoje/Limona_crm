@@ -7,6 +7,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { useToast } from '@/components/ui/Toast'
 import { Avatar } from '@/components/ui/Avatar'
 import { Skeleton } from '@/components/ui/Skeleton'
+import { sortByCreatedAt } from '@/lib/utils'
 
 interface Props {
   kontaktId: string
@@ -74,7 +75,33 @@ export function KontaktKomentarze({ kontaktId }: Props) {
         Komentarze ({komentarze.length})
       </h3>
 
-      {/* Timeline */}
+      {/* Add comment form — na górze, żeby nie scrollować pod długą listę */}
+      <form onSubmit={handleSubmit} className="flex gap-2 pb-2 border-b border-limona-border">
+        <textarea
+          className="limona-input flex-1 text-sm resize-none"
+          rows={2}
+          placeholder="Dodaj wpis do osi czasu…"
+          value={newComment}
+          onChange={e => setNewComment(e.target.value)}
+          maxLength={4000}
+          onKeyDown={e => {
+            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+              e.preventDefault()
+              handleSubmit(e as unknown as React.FormEvent)
+            }
+          }}
+        />
+        <button
+          type="submit"
+          disabled={sending || !newComment.trim()}
+          className="self-end p-2 text-limona-text-muted hover:text-limona-lime disabled:opacity-30 transition-colors"
+          title="Dodaj (Ctrl+Enter)"
+        >
+          <Send size={16} />
+        </button>
+      </form>
+
+      {/* Timeline — najnowsze u góry, długa lista przewija się we własnym oknie */}
       {loading ? (
         <div className="space-y-3">
           {[...Array(2)].map((_, i) => <Skeleton key={i} className="h-16" />)}
@@ -84,10 +111,10 @@ export function KontaktKomentarze({ kontaktId }: Props) {
           Brak komentarzy. Dodaj pierwszy wpis do osi czasu.
         </p>
       ) : (
-        <div className="relative space-y-0">
+        <div className="relative space-y-0 max-h-[60vh] overflow-y-auto pr-1">
           {/* Vertical line */}
           <div className="absolute left-[15px] top-2 bottom-2 w-px bg-limona-border" />
-          {komentarze.map(k => {
+          {sortByCreatedAt(komentarze, 'desc').map(k => {
             const canTouch = k.user_id === user?.id || isAdmin
             const isEditing = editingId === k.id
             return (
@@ -176,32 +203,6 @@ export function KontaktKomentarze({ kontaktId }: Props) {
           })}
         </div>
       )}
-
-      {/* Add comment form */}
-      <form onSubmit={handleSubmit} className="flex gap-2 pt-2 border-t border-limona-border">
-        <textarea
-          className="limona-input flex-1 text-sm resize-none"
-          rows={2}
-          placeholder="Dodaj wpis do osi czasu…"
-          value={newComment}
-          onChange={e => setNewComment(e.target.value)}
-          maxLength={4000}
-          onKeyDown={e => {
-            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-              e.preventDefault()
-              handleSubmit(e as unknown as React.FormEvent)
-            }
-          }}
-        />
-        <button
-          type="submit"
-          disabled={sending || !newComment.trim()}
-          className="self-end p-2 text-limona-text-muted hover:text-limona-lime disabled:opacity-30 transition-colors"
-          title="Dodaj (Ctrl+Enter)"
-        >
-          <Send size={16} />
-        </button>
-      </form>
     </div>
   )
 }

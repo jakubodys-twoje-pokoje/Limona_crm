@@ -244,8 +244,8 @@ export function KontaktForm({ initial, profiles, onSubmit, onCancel, submitLabel
 
           <Field label="Opis" className="sm:col-span-2">
             <textarea
-              className="limona-input w-full resize-none"
-              rows={3}
+              className="limona-input w-full resize-y"
+              rows={7}
               value={form.opis || ''}
               onChange={e => set('opis', e.target.value)}
               placeholder="Dodatkowe informacje o kontakcie…"

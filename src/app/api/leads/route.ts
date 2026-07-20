@@ -45,14 +45,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Imię/nazwa jest wymagana' }, { status: 400 })
   }
 
-  // Ironproof: lead bez żadnego namiaru na kontakt jest martwy — a bez
-  // telefonu/emaila nie zadziała też deduplikacja
-  if (!body.phone?.trim() && !body.email?.trim()) {
-    return NextResponse.json({ error: 'Podaj telefon lub email — lead bez namiaru na kontakt jest bezużyteczny' }, { status: 400 })
-  }
-
+  // Telefon/email są opcjonalne (temat z oszacowań bywa bez namiaru) —
+  // ale bez nich nie zadziała deduplikacja, więc duplikaty pilnują się
+  // tylko dla leadów z podanym kontaktem.
   // Deduplikacja — `force: true` pozwala świadomie dodać mimo ostrzeżenia
-  if (!body.force) {
+  if (!body.force && (body.phone?.trim() || body.email?.trim())) {
     const dup = await findDuplicateLead(body.phone || null, body.email || null)
     if (dup) {
       const assigneeName = duplicateAssigneeName(dup)

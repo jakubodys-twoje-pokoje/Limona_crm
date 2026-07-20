@@ -20,11 +20,7 @@ import { LEAD_TRANSITIONS } from '@/lib/lead-rules'
 import { canSeeAllTeams } from '@/lib/roles'
 import { cn, isOverdueDate } from '@/lib/utils'
 import type { Lead, LeadStatus, LeadTemperature, Profile } from '@/types/database'
-
-const SOURCE_OPTIONS = [
-  'OLX', 'Otodom', 'Morizon', 'Gratka', 'Allegro', 'Polecenie',
-  'Wolne źródło', 'Komornik', 'Licytacja', 'Spis dłużników', 'Inne',
-]
+import { ZRODLO_OPTIONS as SOURCE_OPTIONS } from '@/lib/zrodla'
 
 // Aktywny pipeline — kolumny kanbanu; converted/rejected to sekcje archiwum
 const PIPELINE: LeadStatus[] = ['new', 'contacted', 'qualified', 'assigned']
@@ -317,7 +313,7 @@ export default function LeadyPage() {
                 onChange={e => setForm(f => ({ ...f, email: e.target.value }))} />
             </div>
           </div>
-          <p className="text-[10px] text-limona-text-dim -mt-2">Telefon lub email jest wymagany — po nich pilnujemy duplikatów.</p>
+          <p className="text-[10px] text-limona-text-dim -mt-2">Telefon i email są opcjonalne — ale po nich pilnujemy duplikatów, więc podaj, jeśli masz.</p>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="limona-label block mb-2">Lokalizacja</label>

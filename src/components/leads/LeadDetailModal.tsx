@@ -245,7 +245,7 @@ export function LeadDetailModal({
                 {editingNotes && !isFrozen ? (
                   <div>
                     <textarea
-                      className="limona-input w-full min-h-[80px] resize-y text-sm"
+                      className="limona-input w-full min-h-[180px] resize-y text-sm"
                       value={notes}
                       onChange={e => setNotes(e.target.value)}
                       autoFocus
@@ -302,15 +302,22 @@ export function LeadDetailModal({
 
                 {!isFrozen && (
                   <div className="flex gap-2 items-start">
-                    <input
-                      className="limona-input flex-1 text-xs py-2"
-                      placeholder="Dodaj komentarz..."
+                    <textarea
+                      className="limona-input flex-1 text-xs py-2 resize-y"
+                      rows={2}
+                      placeholder="Dodaj komentarz... (Ctrl+Enter wysyła, Enter to nowa linia)"
                       value={newComment}
                       maxLength={2000}
                       onChange={e => setNewComment(e.target.value)}
-                      onKeyDown={e => { if (e.key === 'Enter') handleAddComment() }}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                          e.preventDefault()
+                          handleAddComment()
+                        }
+                      }}
                     />
                     <button onClick={handleAddComment} disabled={sending || !newComment.trim()}
+                      title="Wyślij (Ctrl+Enter)"
                       className="p-2 text-limona-text-muted hover:text-limona-lime disabled:opacity-30 transition-colors mt-0.5">
                       <Send size={14} />
                     </button>

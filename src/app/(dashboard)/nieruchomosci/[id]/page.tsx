@@ -111,6 +111,9 @@ export default function PropertyDetailPage() {
   // Status change (dłużnik/inwestor)
   const [statusChange, setStatusChange] = useState<{ field: 'status_dluznika' | 'status_inwestora'; value: string; label: string } | null>(null)
 
+  // Długa notatka domyślnie zwinięta do kilku linijek
+  const [notesExpanded, setNotesExpanded] = useState(false)
+
   // Negocjacja
   const [negNotes, setNegNotes] = useState<PropertyNegotiationNote[]>([])
   const [negLoading, setNegLoading] = useState(false)
@@ -474,12 +477,18 @@ export default function PropertyDetailPage() {
       </div>
 
       {/* Extended property info */}
-      {(property.owner_name || property.kw_number || property.czynsz_miesieczny) && (
+      {(property.owner_name || property.kw_number || property.czynsz_miesieczny || property.zrodlo) && (
         <div className="limona-card p-4 grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm">
           {property.owner_name && (
             <div>
               <p className="text-[10px] text-limona-text-dim uppercase tracking-wider">Właściciel</p>
               <p className="text-limona-text">{property.owner_name}</p>
+            </div>
+          )}
+          {property.zrodlo && (
+            <div>
+              <p className="text-[10px] text-limona-text-dim uppercase tracking-wider">Źródło tematu</p>
+              <p className="text-limona-text">{property.zrodlo}</p>
             </div>
           )}
           {property.kw_number && (
@@ -561,12 +570,25 @@ export default function PropertyDetailPage() {
         </div>
       )}
 
-      {property.notes && (
-        <div className="limona-card-accent p-4">
-          <p className="text-xs text-limona-text-muted uppercase tracking-wider mb-2">Notatki</p>
-          <p className="text-limona-text text-sm whitespace-pre-wrap">{property.notes}</p>
-        </div>
-      )}
+      {property.notes && (() => {
+        const isLong = property.notes.length > 300 || property.notes.split('\n').length > 4
+        return (
+          <div className="limona-card-accent p-4">
+            <p className="text-xs text-limona-text-muted uppercase tracking-wider mb-2">Notatki</p>
+            <p className={cn('text-limona-text text-sm whitespace-pre-wrap', isLong && !notesExpanded && 'line-clamp-4')}>
+              {property.notes}
+            </p>
+            {isLong && (
+              <button
+                onClick={() => setNotesExpanded(v => !v)}
+                className="mt-2 text-xs text-limona-lime hover:text-limona-lime-hover transition-colors font-medium"
+              >
+                {notesExpanded ? 'Zwiń ▲' : 'Rozwiń ▼'}
+              </button>
+            )}
+          </div>
+        )
+      })()}
 
       <div className="flex gap-1 border-b border-limona-border overflow-x-auto">
         {([

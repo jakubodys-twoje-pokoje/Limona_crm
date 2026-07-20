@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Plus, Search, Filter, ChevronUp, ChevronDown, X, Layers } from 'lucide-react'
 import { Avatar } from '@/components/ui/Avatar'
@@ -398,7 +399,14 @@ export function KontaktyTable({ kontakty, loading, profiles, onAdd, onRefresh }:
                     )}
                     <td className="py-3 px-3">
                       <div className="flex items-center gap-2">
-                        <span className="font-medium text-limona-white">{k.nazwa}</span>
+                        {/* Prawdziwy link — prawy/środkowy przycisk otwiera kontakt w nowej karcie */}
+                        <Link
+                          href={`/kontakty/${k.id}`}
+                          onClick={e => e.stopPropagation()}
+                          className="font-medium text-limona-white hover:text-limona-lime transition-colors"
+                        >
+                          {k.nazwa}
+                        </Link>
                         {openNow === true  && <span title="Otwarte teraz" className="w-2 h-2 rounded-full bg-limona-green flex-shrink-0" />}
                         {openNow === false && hasAnyHours(k.godziny_otwarcia) && <span title="Zamknięte" className="w-2 h-2 rounded-full bg-limona-red/60 flex-shrink-0" />}
                       </div>
