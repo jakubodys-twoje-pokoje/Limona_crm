@@ -34,28 +34,26 @@ export async function GET(req: NextRequest) {
   // Widoczność: admin/manager/kierownik_centrali widzą wszystko; reszta —
   // tylko własne kontakty (assigned_to/created_by wśród visibleIds) plus
   // to, co zostało im jawnie udostępnione (kontakt_shares).
-  let sharedIds: string[] = []
-  if (!canSeeAllTeams(user.role) && visibleIds?.length) {
-    const { data: shares } = await supabase
-      .from('kontakt_shares')
-      .select('kontakt_id')
-      .eq('shared_with_user_id', user.id)
-    sharedIds = (shares ?? []).map(s => s.kontakt_id)
-  }
+  //
+  // Udostępnienia idą przez złączenie kontakt_shares!inner, a NIE przez
+  // listę id.in.(...) — po „Udostępnij miasto" agent ma setki udostępnień
+  // i lista ID rozsadzała URL zapytania do PostgREST (błąd 500 → agentowi
+  // „znikała" cała baza kontaktów, łącznie z własnymi).
+  const restricted = !canSeeAllTeams(user.role) && !!visibleIds?.length
 
-  // Supabase ucina pojedyncze zapytanie do 1000 wierszy — po imporcie z Trello
-  // kontaktów jest znacznie więcej, więc stronicujemy po stronie serwera
-  // i zwracamy komplet (filtry muszą być nakładane na KAŻDĄ stronę od nowa).
-  function buildQuery(from: number, to: number) {
-    let query = supabase.from('kontakty').select(SELECT_WITH_RELATIONS)
+  function buildQuery(from: number, to: number, variant: 'all' | 'own' | 'shared') {
+    const select = variant === 'shared'
+      ? `${SELECT_WITH_RELATIONS}, kontakt_shares!inner(shared_with_user_id)`
+      : SELECT_WITH_RELATIONS
+    let query = supabase.from('kontakty').select(select)
       .order('created_at', { ascending: false })
       .range(from, to)
     if (!canSeeInvestors(user!.role)) query = query.neq('typ', 'inwestor')
-    if (!canSeeAllTeams(user!.role) && visibleIds?.length) {
-      const ids = visibleIds.join(',')
-      const clauses = [`assigned_to.in.(${ids})`, `created_by.in.(${ids})`]
-      if (sharedIds.length) clauses.push(`id.in.(${sharedIds.join(',')})`)
-      query = query.or(clauses.join(','))
+    if (variant === 'own') {
+      const ids = visibleIds!.join(',')
+      query = query.or(`assigned_to.in.(${ids}),created_by.in.(${ids})`)
+    } else if (variant === 'shared') {
+      query = query.eq('kontakt_shares.shared_with_user_id', user!.id)
     }
     if (typ) query = query.eq('typ', typ)
     if (wojewodztwo) query = query.eq('wojewodztwo', wojewodztwo)
@@ -71,15 +69,36 @@ export async function GET(req: NextRequest) {
     return query
   }
 
+  // Supabase ucina pojedyncze zapytanie do 1000 wierszy — po imporcie z Trello
+  // kontaktów jest znacznie więcej, więc stronicujemy po stronie serwera
+  // i zwracamy komplet (filtry muszą być nakładane na KAŻDĄ stronę od nowa).
   const PAGE = 1000
   const MAX_ROWS = 20000 // bezpiecznik — przy takiej skali czas na prawdziwą paginację w UI
-  const all: unknown[] = []
-  for (let from = 0; from < MAX_ROWS; from += PAGE) {
-    const { data, error } = await buildQuery(from, from + PAGE - 1)
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-    all.push(...(data ?? []))
-    if (!data || data.length < PAGE) break
+
+  async function fetchAll(variant: 'all' | 'own' | 'shared'): Promise<{ rows: Record<string, unknown>[] } | { error: string }> {
+    const rows: Record<string, unknown>[] = []
+    for (let from = 0; from < MAX_ROWS; from += PAGE) {
+      const { data, error } = await buildQuery(from, from + PAGE - 1, variant)
+      if (error) return { error: error.message }
+      rows.push(...((data ?? []) as unknown as Record<string, unknown>[]))
+      if (!data || data.length < PAGE) break
+    }
+    return { rows }
   }
+
+  const variants: ('all' | 'own' | 'shared')[] = restricted ? ['own', 'shared'] : ['all']
+  const byId = new Map<string, Record<string, unknown>>()
+  for (const variant of variants) {
+    const res = await fetchAll(variant)
+    if ('error' in res) return NextResponse.json({ error: res.error }, { status: 500 })
+    for (const row of res.rows) {
+      delete row.kontakt_shares // techniczne pole złączenia — nie wystawiamy
+      if (!byId.has(row.id as string)) byId.set(row.id as string, row)
+    }
+  }
+  const all = [...byId.values()].sort((a, b) =>
+    String(a.created_at) < String(b.created_at) ? 1 : -1
+  )
   return NextResponse.json(all)
 }
 
