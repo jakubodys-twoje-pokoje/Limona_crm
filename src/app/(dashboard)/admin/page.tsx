@@ -8,6 +8,7 @@ import { Shield, Trash2, Edit, UserPlus, Database, UsersRound, HardDrive } from 
 import { useAuth } from '@/hooks/useAuth'
 import { useTeams } from '@/hooks/useTeams'
 import { useToast } from '@/components/ui/Toast'
+import { useConfirm } from '@/components/ui/Confirm'
 import { Avatar } from '@/components/ui/Avatar'
 import { Modal } from '@/components/ui/Modal'
 import { Skeleton } from '@/components/ui/Skeleton'
@@ -18,6 +19,7 @@ import type { Profile, UserRole } from '@/types/database'
 export default function AdminPage() {
   const { profile: myProfile } = useAuth()
   const { showToast } = useToast()
+  const confirmDialog = useConfirm()
   const isAdmin = myProfile?.role === 'admin'
 
   const { teams, profiles, loading, refetch } = useTeams()
@@ -53,7 +55,7 @@ export default function AdminPage() {
   }, [isAdmin])
 
   async function disconnectDrive() {
-    if (!confirm('Rozłączyć konto Google? Sekcje Dokumenty przestaną działać do ponownego połączenia.')) return
+    if (!(await confirmDialog({ message: 'Rozłączyć konto Google? Sekcje Dokumenty przestaną działać do ponownego połączenia.', confirmLabel: 'Rozłącz' }))) return
     setDriveBusy(true)
     const res = await fetch('/api/drive/oauth/status', { method: 'DELETE' })
     setDriveBusy(false)
@@ -72,7 +74,7 @@ export default function AdminPage() {
   }
 
   async function runCleanup() {
-    if (!window.confirm('Usunąć stare wiadomości (>90 dni) i przeczytane powiadomienia (>30 dni)?')) return
+    if (!(await confirmDialog({ message: 'Usunąć stare wiadomości (>90 dni) i przeczytane powiadomienia (>30 dni)?', confirmLabel: 'Wyczyść' }))) return
     setCleanupRunning(true)
     const res = await fetch('/api/cleanup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ target: 'all' }) })
     if (res.ok) {

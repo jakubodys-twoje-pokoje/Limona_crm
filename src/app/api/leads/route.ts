@@ -5,6 +5,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getSessionUser, unauthorized } from '@/lib/api-auth'
 import { canSeeAllTeams } from '@/lib/roles'
 import { findDuplicateLead, duplicateAssigneeName } from '@/lib/lead-dedupe'
+import { geocodeAddress } from '@/lib/geocode'
 
 const SELECT_WITH_RELATIONS = `*,
   assignee:profiles!leads_assigned_to_fkey(id,full_name,avatar_url),
@@ -60,6 +61,9 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // Geokodowanie lokalizacji — lead pojawia się na mapie (nieblokujące)
+  const coords = body.location ? await geocodeAddress(body.location, null, null) : null
+
   const { data: lead, error } = await supabase
     .from('leads')
     .insert({
@@ -67,6 +71,7 @@ export async function POST(req: NextRequest) {
       phone: body.phone?.trim() || null,
       email: body.email?.trim() || null,
       location: body.location || null,
+      ...(coords ?? {}),
       source: body.source || null,
       notes: body.notes || null,
       temperature: body.temperature || 'warm',

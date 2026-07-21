@@ -7,6 +7,7 @@ import { Sidebar } from '@/components/layout/Sidebar'
 import { MobileNav } from '@/components/layout/MobileNav'
 import { TopBar } from '@/components/layout/TopBar'
 import { ToastProvider } from '@/components/ui/Toast'
+import { ConfirmProvider } from '@/components/ui/Confirm'
 import { NotificationModal } from '@/components/ui/NotificationModal'
 import { WallProvider } from '@/hooks/useWallProvider'
 import { DailyReportCta } from '@/components/reports/DailyReportCta'
@@ -39,6 +40,7 @@ export default function DashboardLayout({
 
   return (
     <ToastProvider>
+      <ConfirmProvider>
       <WallProvider>
         <div className="min-h-screen bg-limona-bg">
           <Sidebar />
@@ -59,6 +61,7 @@ export default function DashboardLayout({
           {requiresDailyReport && <MissedReportGate />}
         </div>
       </WallProvider>
+      </ConfirmProvider>
     </ToastProvider>
   )
 }

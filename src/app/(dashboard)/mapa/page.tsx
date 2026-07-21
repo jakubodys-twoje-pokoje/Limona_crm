@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo, useRef } from 'react'
 import dynamic from 'next/dynamic'
-import { Search, X, Route, Navigation, Trash2, CheckSquare, Square, MapPin, ChevronUp, ChevronDown, Building2, Clock, AlertTriangle } from 'lucide-react'
+import { Search, X, Route, Navigation, Trash2, CheckSquare, Square, MapPin, ChevronUp, ChevronDown, Building2, Clock, AlertTriangle, Flame } from 'lucide-react'
 import { useKontakty } from '@/hooks/useKontakty'
 import { useProperties } from '@/hooks/useProperties'
 import { useAuth } from '@/hooks/useAuth'
@@ -10,7 +10,7 @@ import { cn, formatPropertyAddress } from '@/lib/utils'
 import { geocodeAddress } from '@/lib/geocode'
 import { isOpenAt } from '@/lib/godziny'
 import { buildRouteOrder, estimateArrivals, minutesToTimeLabel } from '@/lib/routePlanning'
-import type { Kontakt, KontaktTyp } from '@/types/database'
+import type { Kontakt, KontaktTyp, Lead } from '@/types/database'
 import { KONTAKT_TYP_LABELS, KONTAKT_TYPY, TOUR_PIN_COLOR } from '@/types/database'
 import { MAP_STATUS_HEX, MAP_STATUS_LABELS } from '@/lib/mapStatus'
 
@@ -44,6 +44,12 @@ export default function MapaPage() {
   const { kontakty, loading } = useKontakty()
   const { properties, loading: propertiesLoading } = useProperties()
 
+  // Leady na mapie — widoczność filtruje serwer (rola/przypisanie)
+  const [leads, setLeads] = useState<Lead[]>([])
+  useEffect(() => {
+    fetch('/api/leads').then(r => r.ok ? r.json() : []).then(setLeads).catch(() => {})
+  }, [])
+
   // Filters
   const [search,        setSearch]        = useState('')
   const [typFilter,     setTypFilter]     = useState('')
@@ -51,6 +57,7 @@ export default function MapaPage() {
   const [fNie,          setFNie]          = useState(false)
   const [fBezCoords,    setFBezCoords]    = useState(false)
   const [showProperties, setShowProperties] = useState(true)
+  const [showLeads, setShowLeads] = useState(true)
 
   // Tour — starts empty; loaded from localStorage once user ID is known
   const [tourIds,       setTourIds]       = useState<string[]>([])
@@ -142,6 +149,15 @@ export default function MapaPage() {
     const q = search.toLowerCase()
     return properties.filter(p => formatPropertyAddress(p).toLowerCase().includes(q))
   }, [properties, showProperties, tourMode, search])
+
+  // Leady na mapie — aktywne (bez skonwertowanych/odrzuconych), poza trybem objazdu
+  const mapLeads = useMemo(() => {
+    if (!showLeads || tourMode) return []
+    const active = leads.filter(l => l.status !== 'converted' && l.status !== 'rejected')
+    if (!search) return active
+    const q = search.toLowerCase()
+    return active.filter(l => l.name.toLowerCase().includes(q) || l.location?.toLowerCase().includes(q))
+  }, [leads, showLeads, tourMode, search])
 
   // Numbered pins for tour items
   const tourOrderMap = useMemo(() => {
@@ -345,6 +361,18 @@ export default function MapaPage() {
           Nieruchomości
         </label>
 
+        {/* Leads visibility toggle */}
+        <label className={cn(
+          'flex items-center gap-1.5 px-2.5 py-1.5 rounded border text-xs cursor-pointer transition-colors whitespace-nowrap select-none flex-shrink-0',
+          showLeads
+            ? 'border-purple-400 bg-purple-400/10 text-purple-300'
+            : 'border-limona-border text-limona-text-muted hover:border-limona-text-muted'
+        )}>
+          <input type="checkbox" className="sr-only" checked={showLeads} onChange={e => setShowLeads(e.target.checked)} />
+          <Flame size={12} />
+          Leady
+        </label>
+
         {hasFilters && (
           <button onClick={() => { setSearch(''); setTypFilter(''); setFCoop(false); setFNie(false); setFBezCoords(false) }}
             className="p-1.5 text-limona-text-dim hover:text-limona-red transition-colors flex-shrink-0" title="Wyczyść filtry">
@@ -398,6 +426,7 @@ export default function MapaPage() {
           <KontaktyMap
             kontakty={mapKontakty}
             properties={mapProperties}
+            leads={mapLeads}
             height="100%"
             tourOrder={tourOrderMap}
             onAddToTour={addToTour}

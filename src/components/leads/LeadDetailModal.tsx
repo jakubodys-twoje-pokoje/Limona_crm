@@ -13,6 +13,7 @@ import { LEAD_STATUS_LABELS } from '@/lib/status-comments'
 import { LEAD_TRANSITIONS } from '@/lib/lead-rules'
 import { cn, isOverdueDate, sortByCreatedAt, type SortDirection } from '@/lib/utils'
 import { DriveFiles } from '@/components/shared/DriveFiles'
+import { useConfirm } from '@/components/ui/Confirm'
 import type { Lead, LeadComment, LeadStatus, LeadTemperature, Profile } from '@/types/database'
 
 export const TEMPERATURE_CONFIG: Record<LeadTemperature, { label: string; color: string; icon: React.ReactNode }> = {
@@ -47,6 +48,7 @@ interface LeadDetailModalProps {
 export function LeadDetailModal({
   lead, isOpen, onClose, onUpdate, onDelete, onConvert, userId, userName, isAdmin, canAssign, profiles,
 }: LeadDetailModalProps) {
+  const confirmDialog = useConfirm()
   const [comments, setComments] = useState<LeadComment[]>([])
   const [commentsLoading, setCommentsLoading] = useState(true)
   const [newComment, setNewComment] = useState('')
@@ -224,7 +226,7 @@ export function LeadDetailModal({
           <div className="flex items-center gap-1 flex-shrink-0">
             {onDelete && (
               <button
-                onClick={async () => { if (confirm('Na pewno usunąć tego leada? Historia przepadnie.')) { await onDelete(lead.id); onClose() } }}
+                onClick={async () => { if (await confirmDialog({ message: 'Na pewno usunąć tego leada? Historia przepadnie.', confirmLabel: 'Usuń' })) { await onDelete(lead.id); onClose() } }}
                 className="p-2 text-limona-text-dim hover:text-limona-red transition-colors"
               >
                 <Trash2 size={16} />

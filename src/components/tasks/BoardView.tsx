@@ -5,6 +5,7 @@ import { Plus, Trash2, X } from 'lucide-react'
 import { useTasks } from '@/hooks/useTasks'
 import { Badge } from '@/components/ui/Badge'
 import { Avatar } from '@/components/ui/Avatar'
+import { useConfirm } from '@/components/ui/Confirm'
 import { TaskDetailModal } from '@/components/tasks/TaskDetailModal'
 import { cn, isOverdueDate } from '@/lib/utils'
 import type { Board, BoardList, Task, Profile } from '@/types/database'
@@ -26,6 +27,7 @@ interface BoardViewProps {
 }
 
 export function BoardView({ board, visibleIds, userId, userName, isAdmin, canAssign, profiles, onBoardUpdate, onBoardDelete }: BoardViewProps) {
+  const confirmDialog = useConfirm()
   const [lists, setLists] = useState<BoardList[]>([])
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   const [editingName, setEditingName] = useState(false)
@@ -142,7 +144,7 @@ export function BoardView({ board, visibleIds, userId, userName, isAdmin, canAss
             </div>
           )}
         </div>
-        <button onClick={() => { if (window.confirm(`Usunąć tablicę "${board.name}"? Zadania zostaną przeniesione do Ogólnych.`)) onBoardDelete() }}
+        <button onClick={async () => { if (await confirmDialog({ message: `Usunąć tablicę \"${board.name}\"? Zadania zostaną przeniesione do Ogólnych.`, confirmLabel: 'Usuń' })) onBoardDelete() }}
           className="ml-auto p-1.5 text-limona-text-dim hover:text-limona-red transition-colors text-xs flex items-center gap-1 uppercase tracking-wider">
           <Trash2 size={13} /> Usuń tablicę
         </button>
@@ -218,6 +220,7 @@ function BoardColumn({
   onDeleteTask: (id: string) => void
   isVirtual?: boolean
 }) {
+  const confirmDialog = useConfirm()
   const [isRenaming, setIsRenaming] = useState(false)
   const [colName, setColName] = useState(list.name)
   const [showQuickAdd, setShowQuickAdd] = useState(false)
@@ -271,7 +274,7 @@ function BoardColumn({
             <button onClick={() => setShowQuickAdd(true)} className="p-0.5 text-limona-text-dim hover:text-limona-lime transition-colors flex-shrink-0">
               <Plus size={14} />
             </button>
-            <button onClick={() => { if (window.confirm('Usunąć tę listę? Zadania zostaną odkategoryzowane.')) onDelete() }}
+            <button onClick={async () => { if (await confirmDialog({ message: 'Usunąć tę listę? Zadania zostaną odkategoryzowane.', confirmLabel: 'Usuń' })) onDelete() }}
               className="p-0.5 text-limona-text-dim hover:text-limona-red transition-colors flex-shrink-0">
               <Trash2 size={12} />
             </button>

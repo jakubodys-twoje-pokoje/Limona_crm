@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { cn, formatPropertyAddress } from '@/lib/utils'
-import type { Kontakt, KontaktTyp, Property } from '@/types/database'
+import type { Kontakt, KontaktTyp, Lead, Property } from '@/types/database'
 import { KONTAKT_TYP_LABELS, TOUR_PIN_COLOR } from '@/types/database'
 import {
   getKontaktMapStatusColor, getPropertyMapStatusColor,
@@ -13,6 +13,7 @@ import {
 interface Props {
   kontakty: Kontakt[]
   properties?: Property[]
+  leads?: Lead[]
   height?: string
   tourOrder?: Map<string, number>
   onAddToTour?: (k: Kontakt) => void
@@ -70,7 +71,19 @@ const MAP_CSS = `
 .lm-in-tour{color:#6b7280;background:transparent;cursor:default;font-size:10px}
 `
 
-export default function KontaktyMap({ kontakty, properties = [], height = '560px', tourOrder, onAddToTour, defaultCenter }: Props) {
+const LEAD_PIN_COLOR = '#a855f7' // fiolet — odróżnia leady od kontaktów i nieruchomości
+
+const LEAD_STATUS_MAP_LABELS: Record<string, string> = {
+  new: 'Nowy', contacted: 'Po kontakcie', qualified: 'Zakwalifikowany',
+  assigned: 'Przypisany', converted: 'Skonwertowany', rejected: 'Odrzucony',
+}
+
+function leadGmapsNav(l: Lead): string {
+  if (l.lat && l.lng) return `https://www.google.com/maps/dir/?api=1&destination=${l.lat},${l.lng}`
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(l.location || l.name)}`
+}
+
+export default function KontaktyMap({ kontakty, properties = [], leads = [], height = '560px', tourOrder, onAddToTour, defaultCenter }: Props) {
   const mapRef    = useRef<HTMLDivElement>(null)
   const mapObj    = useRef<unknown>(null)
   const onAddRef  = useRef(onAddToTour)
@@ -154,6 +167,7 @@ export default function KontaktyMap({ kontakty, properties = [], height = '560px
 
       const kWithC = kontakty.filter(k => k.lat && k.lng)
       const pWithC = properties.filter(p => p.lat && p.lng)
+      const lWithC = leads.filter(l => l.lat && l.lng)
 
       kWithC.forEach(k => {
         const num    = tourOrder?.get(k.id)
@@ -218,6 +232,32 @@ export default function KontaktyMap({ kontakty, properties = [], height = '560px
           .addTo(map)
       })
 
+      lWithC.forEach(l => {
+        const icon = L.divIcon({
+          html:        pinSvg('drop', LEAD_PIN_COLOR, 'L'),
+          className:   '',
+          iconSize:    [26, 36],
+          iconAnchor:  [13, 34],
+          popupAnchor: [0, -36],
+        })
+
+        const popupHtml = `
+          <div class="lm-p">
+            <div class="lm-name">${l.name}</div>
+            <div class="lm-sub">Lead · ${LEAD_STATUS_MAP_LABELS[l.status] || l.status}</div>
+            ${l.location ? `<div class="lm-sub">${l.location}</div>` : ''}
+            ${l.phone ? `<div class="lm-sub">${l.phone}</div>` : ''}
+            <div class="lm-actions">
+              <a href="/leady" class="lm-btn lm-open">Otwórz leady →</a>
+              <a href="${leadGmapsNav(l)}" target="_blank" rel="noopener noreferrer" class="lm-btn lm-nav">Nawiguj</a>
+            </div>
+          </div>`
+
+        L.marker([l.lat!, l.lng!], { icon })
+          .bindPopup(L.popup({ maxWidth: 300, className: '' }).setContent(popupHtml))
+          .addTo(map)
+      })
+
       // fitBounds only on the first load with actual markers.
       // Never on subsequent updates (polling refresh, tour toggle, etc.)
       // — otherwise the map would fight the user's manual zoom every 30s.
@@ -231,7 +271,7 @@ export default function KontaktyMap({ kontakty, properties = [], height = '560px
       }
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mapReady, kontakty, properties, tourOrder])
+  }, [mapReady, kontakty, properties, leads, tourOrder])
 
   const isFullHeight = height === '100%'
   const withCoords   = kontakty.filter(k => k.lat && k.lng).length + properties.filter(p => p.lat && p.lng).length

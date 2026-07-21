@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { findDuplicateLead } from '@/lib/lead-dedupe'
+import { geocodeAddress } from '@/lib/geocode'
 
 /**
  * Webhook przyjmujący leady z zewnątrz (n8n, formularze, landing page).
@@ -85,6 +86,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ created: false, duplicateOf: dup.id })
   }
 
+  // Geokodowanie lokalizacji — lead z webhooka też pojawia się na mapie
+  const coords = typeof body.location === 'string' && body.location.trim()
+    ? await geocodeAddress(body.location, null, null)
+    : null
+
   const { data: lead, error } = await admin
     .from('leads')
     .insert({
@@ -92,6 +98,7 @@ export async function POST(req: NextRequest) {
       phone: phone || null,
       email: email || null,
       location: typeof body.location === 'string' ? body.location : null,
+      ...(coords ?? {}),
       source: typeof body.source === 'string' ? body.source : 'webhook',
       notes: typeof body.notes === 'string' ? body.notes : null,
       temperature,

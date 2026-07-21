@@ -209,6 +209,8 @@ export interface Lead {
   phone: string | null
   email: string | null
   location: string | null
+  lat: number | null
+  lng: number | null
   source: string | null
   notes: string | null
   status: LeadStatus

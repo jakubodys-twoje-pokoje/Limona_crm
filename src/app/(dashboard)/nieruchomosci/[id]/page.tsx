@@ -11,6 +11,7 @@ import { useProperties } from '@/hooks/useProperties'
 import { useTasks } from '@/hooks/useTasks'
 import { useActivityLog } from '@/hooks/useActivityLog'
 import { useToast } from '@/components/ui/Toast'
+import { useConfirm } from '@/components/ui/Confirm'
 import { PropertyForm } from '@/components/properties/PropertyForm'
 import { StatusChangeCommentModal } from '@/components/shared/StatusChangeCommentModal'
 import { Badge } from '@/components/ui/Badge'
@@ -87,6 +88,7 @@ export default function PropertyDetailPage() {
   const { tasks, createTask, updateTask, deleteTask } = useTasks(propertyId)
   const { logs, loading: logsLoading } = useActivityLog(propertyId)
   const { showToast } = useToast()
+  const confirmDialog = useConfirm()
   const canAssign = canSeeAllTeams(profile?.role)
 
   const [property, setProperty] = useState<Property | null>(null)
@@ -421,8 +423,8 @@ export default function PropertyDetailPage() {
           </button>
           {(canAssign || property.assigned_to === user?.id || property.created_by === user?.id) && (
             <button
-              onClick={() => {
-                if (confirm(`Na pewno usunąć nieruchomość ${formatPropertyAddress(property)}? Zadania, dokumenty i komentarze przepadną.`)) handleDelete()
+              onClick={async () => {
+                if (await confirmDialog({ message: `Na pewno usunąć nieruchomość ${formatPropertyAddress(property)}? Zadania, dokumenty i komentarze przepadną.`, confirmLabel: 'Usuń' })) handleDelete()
               }}
               className="p-2.5 rounded-full border border-limona-border text-limona-text-muted hover:border-limona-red hover:text-limona-red transition-colors"
               title="Usuń nieruchomość"
@@ -944,7 +946,7 @@ export default function PropertyDetailPage() {
           <button
             onClick={async () => {
               if (!user || !propertyId) return
-              if (!confirm('Zresetować wszystkie punkty checklisty?')) return
+              if (!(await confirmDialog({ message: 'Zresetować wszystkie punkty checklisty?', confirmLabel: 'Resetuj' }))) return
               setProperty(prev => prev ? { ...prev, checklist: {} } : prev)
               const { error } = await updateProperty(propertyId, { checklist: {} }, user.id)
               if (error) showToast(error, 'error')

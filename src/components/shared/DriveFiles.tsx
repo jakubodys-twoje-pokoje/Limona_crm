@@ -6,6 +6,7 @@ import {
 } from 'lucide-react'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { useToast } from '@/components/ui/Toast'
+import { useConfirm } from '@/components/ui/Confirm'
 import { FOLDER_MIME } from '@/lib/driveShared'
 
 interface DriveFile {
@@ -40,6 +41,7 @@ interface Props {
  */
 export function DriveFiles({ entity, id }: Props) {
   const { showToast } = useToast()
+  const confirmDialog = useConfirm()
   const [data, setData] = useState<DriveData | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -108,8 +110,13 @@ export function DriveFiles({ entity, id }: Props) {
     load(path.length ? currentFolderId : undefined)
   }
 
-  async function handleMkdir() {
-    const name = prompt('Nazwa nowego folderu:')?.trim()
+  // Nazwa folderu przez inline formularz — prompt() nie działa w Safari/PWA
+  const [newFolderOpen, setNewFolderOpen] = useState(false)
+  const [newFolderName, setNewFolderName] = useState('')
+
+  async function handleMkdir(e: React.FormEvent) {
+    e.preventDefault()
+    const name = newFolderName.trim()
     if (!name || !currentFolderId) return
     setBusy('mkdir')
     const res = await fetch(`/api/drive/${entity}/${id}`, {
@@ -122,12 +129,17 @@ export function DriveFiles({ entity, id }: Props) {
       showToast((await res.json().catch(() => ({}))).error || 'Błąd tworzenia folderu', 'error')
       return
     }
+    setNewFolderOpen(false)
+    setNewFolderName('')
     load(path.length ? currentFolderId : undefined)
   }
 
   async function handleDelete(item: DriveFile) {
     const isFolder = item.mimeType === FOLDER_MIME
-    if (!confirm(`Przenieść ${isFolder ? 'folder' : 'plik'} „${item.name}" do kosza Drive?`)) return
+    if (!(await confirmDialog({
+      message: `Przenieść ${isFolder ? 'folder' : 'plik'} „${item.name}" do kosza Drive?`,
+      confirmLabel: 'Do kosza',
+    }))) return
     setBusy(item.id)
     const res = await fetch(`/api/drive/${entity}/${id}?itemId=${item.id}`, { method: 'DELETE' })
     setBusy(null)
@@ -206,7 +218,7 @@ export function DriveFiles({ entity, id }: Props) {
             <RefreshCw size={13} className={loading ? 'animate-spin' : undefined} />
           </button>
           <button
-            onClick={handleMkdir}
+            onClick={() => { setNewFolderOpen(v => !v); setNewFolderName('') }}
             disabled={!!busy}
             className="flex items-center gap-1.5 px-2.5 py-1.5 rounded text-[11px] uppercase tracking-wider font-medium border border-limona-border text-limona-text-muted hover:border-limona-text-muted hover:text-limona-white transition-colors disabled:opacity-50"
           >
@@ -228,6 +240,23 @@ export function DriveFiles({ entity, id }: Props) {
           />
         </div>
       </div>
+
+      {/* Nowy podfolder — inline */}
+      {newFolderOpen && (
+        <form onSubmit={handleMkdir} className="flex gap-2">
+          <input
+            autoFocus
+            className="limona-input flex-1 text-sm"
+            placeholder="Nazwa nowego folderu…"
+            value={newFolderName}
+            onChange={e => setNewFolderName(e.target.value)}
+          />
+          <button type="submit" disabled={busy === 'mkdir' || !newFolderName.trim()} className="limona-btn-sm disabled:opacity-40 whitespace-nowrap">
+            {busy === 'mkdir' ? 'Tworzenie…' : 'Utwórz'}
+          </button>
+          <button type="button" onClick={() => setNewFolderOpen(false)} className="limona-btn-outline text-xs">Anuluj</button>
+        </form>
+      )}
 
       {/* Breadcrumbs */}
       {path.length > 0 && (

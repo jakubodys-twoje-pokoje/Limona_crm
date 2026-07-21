@@ -5,6 +5,7 @@ import { Send, Pencil, Trash2, Check, X } from 'lucide-react'
 import { useKontaktKomentarze } from '@/hooks/useKontaktKomentarze'
 import { useAuth } from '@/hooks/useAuth'
 import { useToast } from '@/components/ui/Toast'
+import { useConfirm } from '@/components/ui/Confirm'
 import { Avatar } from '@/components/ui/Avatar'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { sortByCreatedAt } from '@/lib/utils'
@@ -32,6 +33,7 @@ export function KontaktKomentarze({ kontaktId }: Props) {
   const { komentarze, loading, addKomentarz, editKomentarz, deleteKomentarz } = useKontaktKomentarze(kontaktId)
   const { user, profile } = useAuth()
   const { showToast } = useToast()
+  const confirmDialog = useConfirm()
   const isAdmin = profile?.role === 'admin'
   const [newComment, setNewComment] = useState('')
   const [sending, setSending] = useState(false)
@@ -64,7 +66,7 @@ export function KontaktKomentarze({ kontaktId }: Props) {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm('Na pewno usunąć ten komentarz?')) return
+    if (!(await confirmDialog({ message: 'Na pewno usunąć ten komentarz?', confirmLabel: 'Usuń' }))) return
     const { error } = await deleteKomentarz(id)
     if (error) showToast(error, 'error')
   }

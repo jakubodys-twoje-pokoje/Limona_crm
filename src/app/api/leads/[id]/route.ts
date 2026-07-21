@@ -5,6 +5,7 @@ import { getSessionUser, unauthorized, forbidden } from '@/lib/api-auth'
 import { LEAD_STATUS_LABELS, formatStatusChangeComment } from '@/lib/status-comments'
 import { validateLeadTransition } from '@/lib/lead-rules'
 import { canSeeAllTeams } from '@/lib/roles'
+import { geocodeAddress } from '@/lib/geocode'
 import type { LeadStatus } from '@/types/database'
 
 const SELECT_WITH_RELATIONS = `*,
@@ -68,6 +69,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
   if (body.nextContactAt !== undefined) updates.next_contact_at = body.nextContactAt || null
   if (body.assignedTo !== undefined) updates.assigned_to = body.assignedTo || null
+
+  // Re-geokodowanie przy zmianie lokalizacji (edycja starego leada też
+  // dorabia mu współrzędne na mapę)
+  if (typeof body.location === 'string' && body.location.trim()) {
+    const coords = await geocodeAddress(body.location, null, null)
+    if (coords) Object.assign(updates, coords)
+  }
 
   const { data: lead, error } = await supabase
     .from('leads')

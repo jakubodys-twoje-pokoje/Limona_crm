@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
-import { X } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { X, AlertTriangle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface ModalProps {
@@ -29,10 +29,14 @@ const sizeClasses = {
 export function Modal({ isOpen, onClose, title, children, size = 'md', className, confirmClose = false }: ModalProps) {
   const overlayRef = useRef<HTMLDivElement>(null)
 
+  // Wewnętrzny dialog zamiast window.confirm — Safari (zwłaszcza jako
+  // aplikacja z ekranu głównego) potrafi wyciszać natywne confirm(),
+  // przez co formularz zamykał się bez pytania i dane przepadały.
+  const [confirmVisible, setConfirmVisible] = useState(false)
+  useEffect(() => { if (!isOpen) setConfirmVisible(false) }, [isOpen])
+
   const requestClose = useRef(onClose)
-  requestClose.current = confirmClose
-    ? () => { if (confirm('Zamknąć formularz? Wpisane dane przepadną.')) onClose() }
-    : onClose
+  requestClose.current = confirmClose ? () => setConfirmVisible(true) : onClose
 
   useEffect(() => {
     if (isOpen) {
@@ -77,6 +81,39 @@ export function Modal({ isOpen, onClose, title, children, size = 'md', className
         </div>
         {children}
       </div>
+
+      {/* Potwierdzenie porzucenia formularza (własny dialog, nie window.confirm) */}
+      {confirmVisible && (
+        <div
+          className="absolute inset-0 z-10 flex items-center justify-center p-4 bg-black/60"
+          onClick={e => { if (e.target === e.currentTarget) setConfirmVisible(false) }}
+        >
+          <div className="limona-card p-5 max-w-sm w-full space-y-4 border-limona-yellow/40">
+            <div className="flex items-start gap-3">
+              <div className="w-9 h-9 rounded-full bg-limona-yellow/10 flex items-center justify-center flex-shrink-0">
+                <AlertTriangle size={17} className="text-limona-yellow" />
+              </div>
+              <p className="text-sm text-limona-text">
+                Zamknąć formularz? <span className="text-limona-white font-medium">Wpisane dane przepadną.</span>
+              </p>
+            </div>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setConfirmVisible(false)}
+                className="limona-btn-outline text-xs"
+              >
+                Wróć do formularza
+              </button>
+              <button
+                onClick={() => { setConfirmVisible(false); onClose() }}
+                className="bg-limona-red text-white font-bold uppercase tracking-wider rounded-full px-5 py-2.5 text-xs hover:opacity-90 transition-opacity"
+              >
+                Zamknij i odrzuć
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

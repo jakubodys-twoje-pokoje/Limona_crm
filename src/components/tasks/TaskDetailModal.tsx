@@ -18,6 +18,7 @@ import { TASK_STATUS_LABELS } from '@/lib/status-comments'
 import { StatusChangeCommentModal } from '@/components/shared/StatusChangeCommentModal'
 import { cn, formatPropertyAddress, isOverdueDate, sortByCreatedAt, type SortDirection } from '@/lib/utils'
 import { SortToggle } from '@/components/ui/SortToggle'
+import { useConfirm } from '@/components/ui/Confirm'
 import type {
   Task, TaskStatus, TaskPriority, Profile,
   TaskType, ContactCategory, TaskOutcome, RejectionReason,
@@ -63,6 +64,7 @@ function CircleIcon() {
 export function TaskDetailModal({
   task, isOpen, onClose, onUpdate, onDelete, userId, userName, isAdmin, canAssign, profiles, tasks,
 }: TaskDetailModalProps) {
+  const confirmDialog = useConfirm()
   const [title, setTitle] = useState(task.title)
   const [description, setDescription] = useState(task.description || '')
   const [status, setStatus] = useState<TaskStatus>(task.status as TaskStatus)
@@ -313,7 +315,7 @@ export function TaskDetailModal({
 
   async function handleDeleteTask() {
     if (isRecurring) { setShowDeleteMenu(v => !v); return }
-    if (confirm('Na pewno usunąć to zadanie?')) {
+    if (await confirmDialog({ message: 'Na pewno usunąć to zadanie?', confirmLabel: 'Usuń' })) {
       await onDelete(task.id)
       onClose()
     }
@@ -322,7 +324,7 @@ export function TaskDetailModal({
   async function handleDeleteScoped(scope: 'one' | 'following' | 'series') {
     setShowDeleteMenu(false)
     const labels = { one: 'to jedno wystąpienie', following: 'to i kolejne wystąpienia', series: 'całą serię wystąpień' }
-    if (!confirm(`Na pewno usunąć ${labels[scope]}?`)) return
+    if (!(await confirmDialog({ message: `Na pewno usunąć ${labels[scope]}?`, confirmLabel: 'Usuń' }))) return
     await onDelete(task.id, scope)
     onClose()
   }
