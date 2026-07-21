@@ -4,17 +4,21 @@ export const dynamic = 'force-dynamic'
 
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { LayoutGrid } from 'lucide-react'
+import { LayoutGrid, CalendarRange, List } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { useVisibleUserIds } from '@/hooks/useTeamVisibility'
 import { useTasks } from '@/hooks/useTasks'
 import { CalendarView } from '@/components/tasks/CalendarView'
+import { AgendaView } from '@/components/tasks/AgendaView'
 import { TaskDetailModal } from '@/components/tasks/TaskDetailModal'
 import { canSeeAllTeams } from '@/lib/roles'
+import { cn } from '@/lib/utils'
 import type { Task, Profile } from '@/types/database'
 
-// Samodzielny widok kalendarza — agreguje zadania ze wszystkich tablic
-// (boardId pominięty w useTasks = brak filtra po stronie API), bez zakładek kanbanu
+type CalMode = 'agenda' | 'grid'
+
+// Samodzielny widok kalendarza — agreguje zadania ze wszystkich tablic.
+// Dwa tryby: Terminarz (agenda, domyślny na telefonie) i Siatka (3 dni/miesiąc).
 export default function ZadaniaKalendarzPage() {
   const { user, profile } = useAuth()
   const canAssign = canSeeAllTeams(profile?.role)
@@ -22,6 +26,18 @@ export default function ZadaniaKalendarzPage() {
   const { tasks, loading, createTask, updateTask, deleteTask } = useTasks(undefined, visibleIds, undefined, undefined, !visLoading)
   const [profiles, setProfiles] = useState<Profile[]>([])
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
+
+  // Tryb: zapamiętany wybór > telefon=terminarz, desktop=siatka
+  const [mode, setMode] = useState<CalMode | null>(null)
+  useEffect(() => {
+    const saved = localStorage.getItem('kalendarz-mode') as CalMode | null
+    if (saved === 'agenda' || saved === 'grid') { setMode(saved); return }
+    setMode(window.matchMedia('(max-width: 1023px)').matches ? 'agenda' : 'grid')
+  }, [])
+  function switchMode(m: CalMode) {
+    setMode(m)
+    localStorage.setItem('kalendarz-mode', m)
+  }
 
   const profilesFetched = useRef(false)
   useEffect(() => {
@@ -56,27 +72,63 @@ export default function ZadaniaKalendarzPage() {
     await updateTask(taskId, { due_date: dueDateKey, due_time: dueTime }, user.id)
   }
 
+  async function handleToggleDone(task: Task) {
+    if (!user) return
+    await updateTask(task.id, { status: task.status === 'done' ? 'todo' : 'done' }, user.id)
+  }
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-5">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
           <span className="limona-eyebrow">Workflow</span>
-          <h1 className="limona-heading text-3xl mt-1">Kalendarz zadań</h1>
+          <h1 className="limona-heading text-2xl lg:text-3xl mt-1">Terminarz</h1>
         </div>
-        <Link href="/zadania" className="limona-btn-outline flex items-center gap-2 text-xs">
-          <LayoutGrid size={14} />
-          Kanban
-        </Link>
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 p-1 bg-limona-bg rounded border border-limona-border">
+            {([
+              ['agenda', List, 'Terminarz'],
+              ['grid', CalendarRange, 'Siatka'],
+            ] as [CalMode, React.ElementType, string][]).map(([m, Icon, label]) => (
+              <button
+                key={m}
+                onClick={() => switchMode(m)}
+                className={cn(
+                  'flex items-center gap-1.5 px-3 py-1.5 rounded text-xs uppercase tracking-wider font-medium transition-colors',
+                  mode === m ? 'bg-limona-lime text-black' : 'text-limona-text-muted hover:text-limona-white'
+                )}
+              >
+                <Icon size={13} /> {label}
+              </button>
+            ))}
+          </div>
+          <Link href="/zadania" className="limona-btn-outline flex items-center gap-2 text-xs">
+            <LayoutGrid size={14} />
+            Kanban
+          </Link>
+        </div>
       </div>
 
-      <CalendarView
-        tasks={tasks}
-        loading={loading}
-        profiles={profiles}
-        onOpenTask={setSelectedTask}
-        onQuickAddTask={handleQuickAddTask}
-        onMoveTask={handleMoveTask}
-      />
+      {mode === 'agenda' && (
+        <AgendaView
+          tasks={tasks}
+          loading={loading}
+          onOpenTask={setSelectedTask}
+          onToggleDone={handleToggleDone}
+          onQuickAdd={handleQuickAddTask}
+        />
+      )}
+
+      {mode === 'grid' && (
+        <CalendarView
+          tasks={tasks}
+          loading={loading}
+          profiles={profiles}
+          onOpenTask={setSelectedTask}
+          onQuickAddTask={handleQuickAddTask}
+          onMoveTask={handleMoveTask}
+        />
+      )}
 
       {selectedTask && (
         <TaskDetailModal

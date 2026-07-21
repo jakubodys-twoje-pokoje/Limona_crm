@@ -352,7 +352,7 @@ export default function ZadaniaPage() {
           </div>
           <Link href="/zadania/kalendarz" className="limona-btn-outline px-4 py-2 text-xs flex items-center gap-2">
             <CalendarDays size={14} />
-            Kalendarz
+            Terminarz
           </Link>
           <button onClick={() => openAdd('todo')} className="limona-btn-sm flex items-center gap-2">
             <Plus size={14} />

@@ -19,7 +19,7 @@ const navItems: NavItem[] = [
   { href: '/komunikacja',  icon: MessageSquare,   label: 'Komunikacja', showCounter: true },
   { href: '/zadania',      icon: ListTodo,        label: 'Zadania', children: [
     { href: '/zadania',           icon: ListTodo,     label: 'Kanban' },
-    { href: '/zadania/kalendarz', icon: CalendarDays, label: 'Kalendarz' },
+    { href: '/zadania/kalendarz', icon: CalendarDays, label: 'Terminarz' },
   ] },
   { href: '/kontakty',     icon: BookUser,        label: 'Baza kontaktów', children: [
     { href: '/kontakty',                 icon: BookUser,    label: 'Wszystkie' },
