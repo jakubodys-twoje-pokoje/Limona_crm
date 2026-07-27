@@ -114,7 +114,7 @@ export function LeadDetailModal({
           type: 'comment_added',
           title: `${userName} skomentował/a leada`,
           body: newComment.trim().slice(0, 100),
-          link: '/leady',
+          link: `/leady?lead=${lead.id}`,
           referenceId: lead.id,
         })
       }
@@ -140,7 +140,7 @@ export function LeadDetailModal({
         type: 'new_lead',
         title: `${userName} przypisał/a Ci leada`,
         body: lead.name,
-        link: '/leady',
+        link: `/leady?lead=${lead.id}`,
         referenceId: lead.id,
       })
     }

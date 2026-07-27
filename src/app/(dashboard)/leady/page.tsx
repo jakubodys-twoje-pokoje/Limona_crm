@@ -3,6 +3,7 @@
 export const dynamic = 'force-dynamic'
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import {
   Plus, Phone, MapPin, Tag, Search, AlertTriangle, ChevronDown, ChevronRight,
   Copy, Check, Webhook,
@@ -46,6 +47,8 @@ export default function LeadyPage() {
   const { user, profile } = useAuth()
   const { showToast } = useToast()
   const canManage = canSeeAllTeams(profile?.role)
+  const router = useRouter()
+  const searchParams = useSearchParams()
 
   const [leads, setLeads] = useState<Lead[]>([])
   const [loading, setLoading] = useState(true)
@@ -99,6 +102,24 @@ export default function LeadyPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [leads])
+
+  // Deep-link z powiadomienia: /leady?lead=<id> otwiera od razu tego leada
+  // (działa też, gdy klikniemy powiadomienie będąc już na liście leadów).
+  // Gdy leada nie ma na przefiltrowanej liście (np. manager), dociągamy go
+  // pojedynczo. Po otwarciu czyścimy parametr z URL, by zamknięcie modala nie
+  // zostawiało śladu ani nie otwierało leada ponownie.
+  useEffect(() => {
+    if (loading) return
+    const id = searchParams.get('lead')
+    if (!id) return
+    const found = leads.find(l => l.id === id)
+    if (found) {
+      setSelectedLead(found)
+    } else {
+      fetch(`/api/leads/${id}`).then(r => r.ok ? r.json() : null).then(l => { if (l) setSelectedLead(l) }).catch(() => {})
+    }
+    router.replace('/leady', { scroll: false })
+  }, [loading, leads, searchParams, router])
 
   const filtered = useMemo(() => leads.filter(l => {
     if (tempFilter && l.temperature !== tempFilter) return false

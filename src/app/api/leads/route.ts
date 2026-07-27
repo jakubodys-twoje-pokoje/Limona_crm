@@ -102,7 +102,7 @@ export async function POST(req: NextRequest) {
           type: 'new_lead',
           title: id === body.assignedTo ? 'Przypisano Ci nowego leada' : 'Nowy lead',
           body: `${body.name.trim()}${body.location ? ` — ${body.location}` : ''}`,
-          link: '/leady',
+          link: `/leady?lead=${lead.id}`,
           reference_id: lead.id,
         }))
       )

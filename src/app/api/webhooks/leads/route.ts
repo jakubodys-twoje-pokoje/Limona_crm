@@ -79,7 +79,7 @@ export async function POST(req: NextRequest) {
         type: 'new_lead',
         title: 'Lead zgłosił się ponownie',
         body: `${dup.name} — kolejne zgłoszenie (${body.source || 'webhook'})`,
-        link: '/leady',
+        link: `/leady?lead=${dup.id}`,
         reference_id: dup.id,
       })
     }
@@ -124,7 +124,7 @@ export async function POST(req: NextRequest) {
           type: 'new_lead',
           title: `Nowy lead (${body.source || 'webhook'})`,
           body: `${lead.name}${lead.location ? ` — ${lead.location}` : ''}`,
-          link: '/leady',
+          link: `/leady?lead=${lead.id}`,
           reference_id: lead.id,
         }))
       )
