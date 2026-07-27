@@ -43,6 +43,7 @@ interface TaskFormData {
   description: string
   priority: TaskPriority
   due_date: string
+  due_time: string
   status: TaskStatus
   assigned_to: string
   co_assignees: string[]
@@ -60,6 +61,7 @@ const EMPTY_FORM: TaskFormData = {
   description: '',
   priority: 'medium',
   due_date: '',
+  due_time: '',
   status: 'todo',
   assigned_to: '',
   co_assignees: [],
@@ -175,6 +177,7 @@ export default function ZadaniaPage() {
       description: form.description || null,
       priority: form.priority,
       due_date: form.due_date || null,
+      due_time: form.due_date ? (form.due_time || null) : null,
       status: addStatus,
       assigned_to: form.assigned_to || null,
       co_assignees: form.co_assignees,
@@ -527,7 +530,17 @@ export default function ZadaniaPage() {
             </div>
             <div>
               <label className="limona-label block mb-2">Termin</label>
-              <input type="date" className="limona-input" value={form.due_date} onChange={e => setForm(f => ({ ...f, due_date: e.target.value }))} />
+              <div className="flex gap-2">
+                <input type="date" className="limona-input flex-1" value={form.due_date} onChange={e => setForm(f => ({ ...f, due_date: e.target.value }))} />
+                <input
+                  type="time"
+                  className="limona-input w-28 disabled:opacity-50"
+                  value={form.due_time}
+                  disabled={!form.due_date}
+                  title={form.due_date ? 'Godzina (opcjonalnie)' : 'Ustaw najpierw datę'}
+                  onChange={e => setForm(f => ({ ...f, due_time: e.target.value }))}
+                />
+              </div>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4 items-end">
