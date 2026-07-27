@@ -38,15 +38,23 @@ function pinSvg(shape: 'drop' | 'house', color: string, glyph: string): string {
   )
 }
 
+// Nawigacja Google Maps — preferuje PEŁNY ADRES (Google sam go geokoduje,
+// pokazuje czytelny cel i trasę), a współrzędne z Nominatim są tylko zapasem,
+// gdy adresu brak. Adres jako destination w /dir/ zachowuje tryb „prowadź".
+function gmapsNav(address: string | null | undefined, lat: number | null, lng: number | null): string {
+  const q = (address || '').trim()
+  if (q) return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(q)}`
+  if (lat && lng) return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`
+  return 'https://www.google.com/maps'
+}
+
 function kontaktGmapsNav(k: Kontakt): string {
-  if (k.lat && k.lng) return `https://www.google.com/maps/dir/?api=1&destination=${k.lat},${k.lng}`
-  const addr = [k.nazwa, k.ulica, k.miasto].filter(Boolean).join(', ')
-  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}`
+  const addr = [k.ulica, k.miasto].filter(Boolean).join(', ')
+  return gmapsNav(addr || k.nazwa, k.lat, k.lng)
 }
 
 function propertyGmapsNav(p: Property): string {
-  if (p.lat && p.lng) return `https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}`
-  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(formatPropertyAddress(p))}`
+  return gmapsNav(formatPropertyAddress(p), p.lat, p.lng)
 }
 
 const MAP_CSS = `
@@ -79,8 +87,8 @@ const LEAD_STATUS_MAP_LABELS: Record<string, string> = {
 }
 
 function leadGmapsNav(l: Lead): string {
-  if (l.lat && l.lng) return `https://www.google.com/maps/dir/?api=1&destination=${l.lat},${l.lng}`
-  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(l.location || l.name)}`
+  // lead ma tylko wolny tekst `location` (pełny adres uzupełnia agent w CRM)
+  return gmapsNav(l.location, l.lat, l.lng)
 }
 
 export default function KontaktyMap({ kontakty, properties = [], leads = [], height = '560px', tourOrder, onAddToTour, defaultCenter }: Props) {
