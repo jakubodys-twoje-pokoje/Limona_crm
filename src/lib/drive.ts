@@ -61,6 +61,11 @@ export function driveConfigured(): boolean {
 
 const REFRESH_TOKEN_KEY = 'google_oauth_refresh_token'
 const OAUTH_ROOT_KEY = 'google_drive_root_folder_id'
+// Zapamiętany poziom publicznego dostępu ustawiony na korzeniu — pozwala
+// nie odpytywać Drive przy każdym otwarciu Dokumentów (patrz ensureRootShared)
+const PUBLIC_ACCESS_KEY = 'drive_public_access_role'
+
+export type DriveShareRole = 'reader' | 'writer'
 
 /** Tryb OAuth: czy admin połączył już konto Google (refresh token w bazie) */
 export async function driveOAuthConnected(): Promise<boolean> {
@@ -240,6 +245,47 @@ export async function trashItem(itemId: string): Promise<void> {
     method: 'PATCH',
     body: JSON.stringify({ trashed: true }),
   })
+}
+
+/**
+ * Ustawia uprawnienie „każdy z linkiem" na pliku/folderze (idempotentnie).
+ * allowFileDiscovery=false → link działa, ale element nie wyskakuje w
+ * wyszukiwarce Google. Gdy uprawnienie już istnieje z inną rolą — podmienia.
+ */
+export async function shareAnyone(fileId: string, role: DriveShareRole): Promise<void> {
+  const res = await driveFetch(`/files/${fileId}/permissions?fields=permissions(id,type,role)`)
+  const perms: { id: string; type: string; role: string }[] = (await res.json()).permissions ?? []
+  const existing = perms.find(p => p.type === 'anyone')
+  if (existing) {
+    if (existing.role !== role) {
+      await driveFetch(`/files/${fileId}/permissions/${existing.id}?fields=id`, {
+        method: 'PATCH',
+        body: JSON.stringify({ role }),
+      })
+    }
+    return
+  }
+  await driveFetch(`/files/${fileId}/permissions?fields=id`, {
+    method: 'POST',
+    body: JSON.stringify({ type: 'anyone', role, allowFileDiscovery: false }),
+  })
+}
+
+/**
+ * Gwarantuje, że folder-korzeń CRM jest udostępniony „każdemu z linkiem".
+ * Uprawnienia w Drive dziedziczą się w dół, więc jedno ustawienie na
+ * korzeniu obejmuje wszystkie foldery rekordów i pliki (również przyszłe) —
+ * dzięki temu linki webViewLink otwierają się każdemu użytkownikowi CRM bez
+ * logowania na konto Google właściciela dysku.
+ *
+ * Tani no-op przy kolejnych wywołaniach: zapamiętany poziom w app_settings
+ * pozwala pominąć odpytywanie Drive, dopóki żądana rola się nie zmieni.
+ */
+export async function ensureRootShared(role: DriveShareRole = 'writer'): Promise<void> {
+  if ((await getSetting(PUBLIC_ACCESS_KEY)) === role) return
+  const rootId = await resolveRootFolderId()
+  await shareAnyone(rootId, role)
+  await setSetting(PUBLIC_ACCESS_KEY, role)
 }
 
 const FILE_FIELDS = 'id,name,mimeType,webViewLink,iconLink,modifiedTime,size'

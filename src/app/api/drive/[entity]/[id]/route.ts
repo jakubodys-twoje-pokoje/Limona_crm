@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getSessionUser, unauthorized } from '@/lib/api-auth'
-import { driveConfigured, driveAuthMode, driveOAuthConnected, listFiles, createFolder, trashItem } from '@/lib/drive'
+import { driveConfigured, driveAuthMode, driveOAuthConnected, listFiles, createFolder, trashItem, ensureRootShared } from '@/lib/drive'
 import {
   ensureEntityFolder, getEntityFolderId, isInsideFolder, safeFolderName, type DriveEntity,
 } from '@/lib/driveEntities'
@@ -43,6 +43,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ enti
     const { res } = await resolveRoot(entity, id)
     if ('error' in res) return NextResponse.json({ error: res.error }, { status: res.status })
     if (!res.folderId) return NextResponse.json({ configured: true, connected: false })
+
+    // Dostęp „każdy z linkiem" dla wszystkich użytkowników CRM — jednorazowo
+    // na korzeniu, dziedziczy się na foldery rekordów i pliki. Best-effort:
+    // błąd udostępnienia nie może blokować listowania dokumentów
+    await ensureRootShared('writer').catch(() => {})
 
     const requested = req.nextUrl.searchParams.get('folderId')
     let target = res.folderId
@@ -92,6 +97,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ent
     if (body.action === 'connect') {
       const created = await ensureEntityFolder(supabase, entity as DriveEntity, id)
       if ('error' in created) return NextResponse.json({ error: created.error }, { status: created.status })
+      await ensureRootShared('writer').catch(() => {})
       return NextResponse.json({ connected: true, folderId: created.folderId })
     }
 
