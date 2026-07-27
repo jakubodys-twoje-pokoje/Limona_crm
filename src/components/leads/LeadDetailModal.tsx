@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   X, Phone, Mail, MapPin, Tag, Flame, Snowflake, Sun, Calendar, User,
-  MessageCircle, Send, Trash2, ChevronDown, ArrowRight, AlertTriangle, ExternalLink,
+  MessageCircle, Send, Trash2, ChevronDown, ArrowRight, AlertTriangle, ExternalLink, Pencil,
 } from 'lucide-react'
 import { Avatar } from '@/components/ui/Avatar'
 import { SortToggle } from '@/components/ui/SortToggle'
@@ -59,6 +59,10 @@ export function LeadDetailModal({
   const [pendingStatus, setPendingStatus] = useState<LeadStatus | null>(null)
   const [editingNotes, setEditingNotes] = useState(false)
   const [notes, setNotes] = useState(lead.notes || '')
+  const [editingInfo, setEditingInfo] = useState(false)
+  const [infoForm, setInfoForm] = useState({
+    name: lead.name || '', phone: lead.phone || '', email: lead.email || '', location: lead.location || '',
+  })
 
   const overlayRef = useRef<HTMLDivElement>(null)
 
@@ -147,6 +151,23 @@ export function LeadDetailModal({
     if (notes !== (lead.notes || '')) await onUpdate(lead.id, { notes: notes || null })
   }
 
+  function cancelInfo() {
+    setEditingInfo(false)
+    setInfoForm({ name: lead.name || '', phone: lead.phone || '', email: lead.email || '', location: lead.location || '' })
+  }
+
+  async function saveInfo() {
+    const name = infoForm.name.trim()
+    if (!name) return // imię/nazwa jest wymagane
+    setEditingInfo(false)
+    const updates: Record<string, unknown> = {}
+    if (name !== lead.name) updates.name = name
+    if (infoForm.phone.trim() !== (lead.phone || '')) updates.phone = infoForm.phone.trim() || null
+    if (infoForm.email.trim() !== (lead.email || '')) updates.email = infoForm.email.trim() || null
+    if (infoForm.location.trim() !== (lead.location || '')) updates.location = infoForm.location.trim() || null
+    if (Object.keys(updates).length) await onUpdate(lead.id, updates)
+  }
+
   function formatTime(dateStr: string) {
     const d = new Date(dateStr)
     const now = new Date()
@@ -173,38 +194,77 @@ export function LeadDetailModal({
         {/* Header */}
         <div className="flex items-start justify-between p-5 pb-3 gap-3">
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <h2 className="text-lg font-bold text-limona-white leading-snug">{lead.name}</h2>
-              <span className={cn('limona-badge text-[10px]', LEAD_STATUS_COLORS[lead.status])}>
-                {LEAD_STATUS_LABELS[lead.status]}
-              </span>
-              <span className={cn('flex items-center gap-1 text-[10px] uppercase tracking-wider font-bold', TEMPERATURE_CONFIG[lead.temperature].color)}>
-                {TEMPERATURE_CONFIG[lead.temperature].icon}
-                {TEMPERATURE_CONFIG[lead.temperature].label}
-              </span>
-            </div>
-            <div className="flex items-center gap-3 flex-wrap mt-1.5 text-xs">
-              {lead.phone && (
-                <a href={`tel:${lead.phone}`} className="flex items-center gap-1 text-limona-lime hover:underline">
-                  <Phone size={11} /> {lead.phone}
-                </a>
-              )}
-              {lead.email && (
-                <a href={`mailto:${lead.email}`} className="flex items-center gap-1 text-limona-blue hover:underline">
-                  <Mail size={11} /> {lead.email}
-                </a>
-              )}
-              {lead.location && (
-                <span className="flex items-center gap-1 text-limona-text-muted">
-                  <MapPin size={11} /> {lead.location}
-                </span>
-              )}
-              {lead.source && (
-                <span className="flex items-center gap-1 text-limona-text-dim">
-                  <Tag size={11} /> {lead.source}
-                </span>
-              )}
-            </div>
+            {editingInfo && !isFrozen ? (
+              <div className="space-y-2">
+                <input
+                  className="limona-input w-full text-sm font-bold"
+                  placeholder="Imię i nazwisko / nazwa *"
+                  value={infoForm.name}
+                  onChange={e => setInfoForm(f => ({ ...f, name: e.target.value }))}
+                  autoFocus
+                />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <input
+                    className="limona-input text-sm"
+                    placeholder="Telefon"
+                    value={infoForm.phone}
+                    onChange={e => setInfoForm(f => ({ ...f, phone: e.target.value }))}
+                  />
+                  <input
+                    className="limona-input text-sm"
+                    placeholder="E-mail"
+                    value={infoForm.email}
+                    onChange={e => setInfoForm(f => ({ ...f, email: e.target.value }))}
+                  />
+                </div>
+                <input
+                  className="limona-input w-full text-sm"
+                  placeholder="Lokalizacja / pełny adres"
+                  value={infoForm.location}
+                  onChange={e => setInfoForm(f => ({ ...f, location: e.target.value }))}
+                />
+                <div className="flex gap-2 items-center">
+                  <button onClick={saveInfo} disabled={!infoForm.name.trim()} className="limona-btn-sm text-xs disabled:opacity-40">Zapisz</button>
+                  <button onClick={cancelInfo} className="limona-btn-outline text-xs px-3 py-1.5">Anuluj</button>
+                  <span className="text-[10px] text-limona-text-dim">Zmiana lokalizacji odświeży pozycję na mapie.</span>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h2 className="text-lg font-bold text-limona-white leading-snug">{lead.name}</h2>
+                  <span className={cn('limona-badge text-[10px]', LEAD_STATUS_COLORS[lead.status])}>
+                    {LEAD_STATUS_LABELS[lead.status]}
+                  </span>
+                  <span className={cn('flex items-center gap-1 text-[10px] uppercase tracking-wider font-bold', TEMPERATURE_CONFIG[lead.temperature].color)}>
+                    {TEMPERATURE_CONFIG[lead.temperature].icon}
+                    {TEMPERATURE_CONFIG[lead.temperature].label}
+                  </span>
+                </div>
+                <div className="flex items-center gap-3 flex-wrap mt-1.5 text-xs">
+                  {lead.phone && (
+                    <a href={`tel:${lead.phone}`} className="flex items-center gap-1 text-limona-lime hover:underline">
+                      <Phone size={11} /> {lead.phone}
+                    </a>
+                  )}
+                  {lead.email && (
+                    <a href={`mailto:${lead.email}`} className="flex items-center gap-1 text-limona-blue hover:underline">
+                      <Mail size={11} /> {lead.email}
+                    </a>
+                  )}
+                  {lead.location && (
+                    <span className="flex items-center gap-1 text-limona-text-muted">
+                      <MapPin size={11} /> {lead.location}
+                    </span>
+                  )}
+                  {lead.source && (
+                    <span className="flex items-center gap-1 text-limona-text-dim">
+                      <Tag size={11} /> {lead.source}
+                    </span>
+                  )}
+                </div>
+              </>
+            )}
             {isFrozen && (
               <div className="flex items-center gap-3 flex-wrap mt-2">
                 <span className="text-[10px] uppercase tracking-wider text-limona-green font-bold">
@@ -224,6 +284,18 @@ export function LeadDetailModal({
             )}
           </div>
           <div className="flex items-center gap-1 flex-shrink-0">
+            {!isFrozen && !editingInfo && (
+              <button
+                onClick={() => {
+                  setInfoForm({ name: lead.name || '', phone: lead.phone || '', email: lead.email || '', location: lead.location || '' })
+                  setEditingInfo(true)
+                }}
+                title="Edytuj dane leada"
+                className="p-2 text-limona-text-dim hover:text-limona-lime transition-colors"
+              >
+                <Pencil size={15} />
+              </button>
+            )}
             {onDelete && (
               <button
                 onClick={async () => { if (await confirmDialog({ message: 'Na pewno usunąć tego leada? Historia przepadnie.', confirmLabel: 'Usuń' })) { await onDelete(lead.id); onClose() } }}
