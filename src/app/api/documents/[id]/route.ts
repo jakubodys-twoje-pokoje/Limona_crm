@@ -3,6 +3,32 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getSessionUser, unauthorized } from '@/lib/api-auth'
 
+// Otwarcie pliku: dla dokumentów wgranych do CRM (storage_path) generujemy
+// krótkotrwały podpisany link do prywatnego bucketa i przekierowujemy — plik
+// jest więc dostępny tylko dla zalogowanych userów, bez zależności od Google.
+// Dla dokumentów będących zewnętrznym linkiem — przekierowanie na file_url.
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const user = await getSessionUser()
+  if (!user) return unauthorized()
+  const supabase = await createClient()
+  const { id } = await params
+
+  const { data: doc } = await supabase
+    .from('documents')
+    .select('storage_path, file_url')
+    .eq('id', id)
+    .maybeSingle()
+  if (!doc) return NextResponse.json({ error: 'Nie znaleziono' }, { status: 404 })
+
+  if (doc.storage_path) {
+    const { data, error } = await supabase.storage.from('documents').createSignedUrl(doc.storage_path, 300)
+    if (error || !data) return NextResponse.json({ error: error?.message || 'Błąd pliku' }, { status: 500 })
+    return NextResponse.redirect(data.signedUrl)
+  }
+  if (doc.file_url) return NextResponse.redirect(doc.file_url)
+  return NextResponse.json({ error: 'Brak pliku' }, { status: 404 })
+}
+
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getSessionUser()
   if (!user) return unauthorized()
@@ -11,7 +37,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
 
   const { data: doc } = await supabase
     .from('documents')
-    .select('id, uploaded_by')
+    .select('id, uploaded_by, storage_path')
     .eq('id', id)
     .maybeSingle()
   if (!doc) return NextResponse.json({ error: 'Nie znaleziono' }, { status: 404 })
@@ -20,6 +46,9 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json({ error: 'Brak uprawnień' }, { status: 403 })
   }
 
+  if (doc.storage_path) {
+    await supabase.storage.from('documents').remove([doc.storage_path]).catch(() => {})
+  }
   const { error } = await supabase.from('documents').delete().eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true })

@@ -203,6 +203,19 @@ export default function PropertyDetailPage() {
     setAddingDoc(false)
   }
 
+  async function handleUploadDoc(file: File) {
+    if (!propertyId) return
+    setAddingDoc(true)
+    const fd = new FormData()
+    fd.append('file', file)
+    fd.append('property_id', propertyId)
+    if (property?.status_dluznika) fd.append('stage', property.status_dluznika)
+    const res = await fetch('/api/documents/upload', { method: 'POST', body: fd })
+    if (res.ok) fetchDocs()
+    else showToast((await res.json()).error || 'Błąd wgrywania pliku', 'error')
+    setAddingDoc(false)
+  }
+
   async function handleDeleteDoc(id: string) {
     await fetch(`/api/documents/${id}`, { method: 'DELETE' })
     setDocuments(prev => prev.filter(d => d.id !== id))
@@ -714,16 +727,31 @@ export default function PropertyDetailPage() {
             </button>
           </div>
 
-          {/* PDF / Cloud storage guide */}
-          <div className="limona-card p-4 border-l-[3px] border-l-limona-blue text-sm">
-            <p className="text-xs font-bold text-limona-blue uppercase tracking-wider mb-2">Pliki PDF — Google Drive</p>
+          {/* Wgranie pliku bezpośrednio do CRM — dostępne dla całego zespołu bez Google */}
+          <div className="limona-card-accent p-4 space-y-3">
+            <p className="text-xs text-limona-lime uppercase tracking-wider font-bold">Wgraj plik do CRM</p>
             <p className="text-limona-text-muted text-xs leading-relaxed">
-              Wgraj PDF księgi wieczystej lub inne dokumenty na <strong className="text-limona-white">Dysk Google</strong> i wklej udostępniony link poniżej.
-              Udostępnianie: kliknij prawym na plik → Udostępnij → Kopiuj link (dostęp: każdy z linkiem).
+              Plik (PDF, zdjęcie, dokument) trafia bezpośrednio do CRM i jest dostępny dla każdego zalogowanego z zespołu —
+              <strong className="text-limona-white"> bez potrzeby konta Google</strong>. Zalecane dla KW, zaświadczeń, umów.
             </p>
+            <label className={cn(
+              'flex items-center justify-center gap-2 w-full py-6 rounded border border-dashed cursor-pointer transition-colors',
+              addingDoc ? 'border-limona-border text-limona-text-dim' : 'border-limona-lime/40 text-limona-lime hover:border-limona-lime hover:bg-limona-lime/5',
+            )}>
+              <FileText size={16} />
+              <span className="text-sm font-medium">{addingDoc ? 'Wgrywanie…' : 'Wybierz plik (max 25 MB)'}</span>
+              <input
+                type="file"
+                className="hidden"
+                disabled={addingDoc}
+                onChange={e => { const f = e.target.files?.[0]; if (f) handleUploadDoc(f); e.target.value = '' }}
+              />
+            </label>
           </div>
-          <form onSubmit={handleAddDoc} className="limona-card-accent p-4 space-y-3">
-            <p className="text-xs text-limona-lime uppercase tracking-wider font-bold">Dodaj dokument (link Google Drive)</p>
+
+          {/* Alternatywnie: link zewnętrzny (Google Drive itp.) */}
+          <form onSubmit={handleAddDoc} className="limona-card p-4 space-y-3">
+            <p className="text-xs text-limona-text-muted uppercase tracking-wider font-bold">Albo dodaj link zewnętrzny (Google Drive / URL)</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <input
                 className="limona-input"
@@ -786,7 +814,7 @@ export default function PropertyDetailPage() {
                     </div>
                   </div>
                   <a
-                    href={doc.file_url}
+                    href={doc.storage_path ? `/api/documents/${doc.id}` : (doc.file_url ?? '#')}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center gap-1 text-xs text-limona-lime hover:text-limona-lime-hover transition-colors flex-shrink-0"

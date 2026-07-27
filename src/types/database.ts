@@ -252,7 +252,11 @@ export interface Document {
   id: string
   property_id: string
   name: string
-  file_url: string
+  file_url: string | null
+  // Ustawione dla plików wgranych do CRM (prywatny bucket 'documents').
+  // Gdy jest — plik otwieramy przez /api/documents/[id] (podpisany link,
+  // tylko dla zalogowanych). Gdy null — file_url to zewnętrzny link (np. Drive).
+  storage_path: string | null
   file_type: string | null
   stage: string | null
   uploaded_by: string | null
