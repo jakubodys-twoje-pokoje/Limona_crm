@@ -21,6 +21,7 @@ import { Skeleton } from '@/components/ui/Skeleton'
 import { formatMoney, formatPropertyAddress, cn, sortByCreatedAt, type SortDirection } from '@/lib/utils'
 import { SortToggle } from '@/components/ui/SortToggle'
 import { TaskDetailModal } from '@/components/tasks/TaskDetailModal'
+import { TaskFormModal } from '@/components/tasks/TaskFormModal'
 import { InvestorOfferCard } from '@/components/properties/InvestorOfferCard'
 import { PropertyComments } from '@/components/properties/PropertyComments'
 import { DriveFiles } from '@/components/shared/DriveFiles'
@@ -97,7 +98,7 @@ export default function PropertyDetailPage() {
   const [activeTab, setActiveTab] = useState<'komentarze' | 'tasks' | 'docs' | 'checklist' | 'negocjacja' | 'inwestorzy' | 'log' | 'report'>('tasks')
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   const [showEditModal, setShowEditModal] = useState(false)
-  const [newTaskTitle, setNewTaskTitle] = useState('')
+  const [showAddTask, setShowAddTask] = useState(false)
   const [showTemplates, setShowTemplates] = useState(false)
   const [selectedTemplates, setSelectedTemplates] = useState<string[]>([])
 
@@ -355,11 +356,12 @@ export default function PropertyDetailPage() {
     router.push('/nieruchomosci')
   }
 
-  async function handleAddTask(e: React.FormEvent) {
-    e.preventDefault()
-    if (!newTaskTitle.trim() || !user) return
-    await createTask({ title: newTaskTitle.trim(), property_id: currentPropertyId, status: 'todo', priority: 'medium' }, user.id)
-    setNewTaskTitle('')
+  async function handleCreateTask(data: Partial<Task>) {
+    if (!user) return { error: 'Brak użytkownika' }
+    const { error } = await createTask({ ...data, property_id: currentPropertyId }, user.id)
+    if (error) { showToast(error, 'error'); return { error } }
+    showToast('Zadanie dodane', 'success')
+    return { error: null }
   }
 
   const stageTemplates = property ? (STAGE_TASK_TEMPLATES[property.status_dluznika] ?? []) : []
@@ -621,16 +623,10 @@ export default function PropertyDetailPage() {
 
       {activeTab === 'tasks' && (
         <div className="space-y-3">
-          <form onSubmit={handleAddTask} className="flex gap-2">
-            <input
-              className="limona-input flex-1"
-              placeholder="Dodaj zadanie..."
-              value={newTaskTitle}
-              onChange={e => setNewTaskTitle(e.target.value)}
-            />
-            <button type="submit" className="limona-btn-sm flex items-center gap-1">
+          <div className="flex gap-2">
+            <button type="button" onClick={() => setShowAddTask(true)} className="limona-btn-sm flex items-center gap-1">
               <Plus size={14} />
-              Dodaj
+              Dodaj zadanie
             </button>
             {stageTemplates.length > 0 && (
               <button
@@ -642,7 +638,7 @@ export default function PropertyDetailPage() {
                 Szablony etapu
               </button>
             )}
-          </form>
+          </div>
 
           {/* Stage templates modal */}
           {showTemplates && (
@@ -1131,6 +1127,16 @@ export default function PropertyDetailPage() {
           tasks={tasks}
         />
       )}
+
+      <TaskFormModal
+        isOpen={showAddTask}
+        onClose={() => setShowAddTask(false)}
+        onCreate={handleCreateTask}
+        userId={user?.id || ''}
+        canAssign={canAssign}
+        profiles={profiles}
+        lockedPropertyLabel={formatPropertyAddress(property)}
+      />
     </div>
   )
 }

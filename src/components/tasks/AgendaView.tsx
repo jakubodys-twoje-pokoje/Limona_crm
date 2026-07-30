@@ -6,7 +6,6 @@ import {
   Plus, AlertTriangle, Repeat, Building2, BookUser, Clock,
 } from 'lucide-react'
 import { Avatar } from '@/components/ui/Avatar'
-import { Modal } from '@/components/ui/Modal'
 import { cn, formatPropertyAddress } from '@/lib/utils'
 import type { Task, TaskPriority } from '@/types/database'
 
@@ -71,19 +70,16 @@ interface AgendaViewProps {
   loading: boolean
   onOpenTask: (t: Task) => void
   onToggleDone: (t: Task) => Promise<void>
-  onQuickAdd: (title: string, dueDateKey: string, dueTime: string | null) => Promise<void>
+  /** Otwarcie pełnego formularza „Dodaj zadanie" z prefiltrowanym terminem */
+  onRequestAdd: (dueDateKey: string, dueTime: string | null) => void
 }
 
-export function AgendaView({ tasks, loading, onOpenTask, onToggleDone, onQuickAdd }: AgendaViewProps) {
+export function AgendaView({ tasks, loading, onOpenTask, onToggleDone, onRequestAdd }: AgendaViewProps) {
   const todayKey = toDateKey(new Date())
   const [selectedDate, setSelectedDate] = useState(todayKey)
   const [monthExpanded, setMonthExpanded] = useState(false)
   const [showNoDate, setShowNoDate] = useState(false)
   const [showDone, setShowDone] = useState(true)
-  const [quickAdd, setQuickAdd] = useState<string | null>(null) // dateKey
-  const [quickTitle, setQuickTitle] = useState('')
-  const [quickTime, setQuickTime] = useState('')
-  const [quickSaving, setQuickSaving] = useState(false)
   const dayRefs = useRef<Record<string, HTMLDivElement | null>>({})
 
   // Zadania per dzień (YYYY-MM-DD)
@@ -151,20 +147,6 @@ export function AgendaView({ tasks, loading, onOpenTask, onToggleDone, onQuickAd
   }
 
   const headerMonth = parseDateKey(selectedDate)
-
-  async function submitQuickAdd(e: React.FormEvent) {
-    e.preventDefault()
-    if (!quickTitle.trim() || !quickAdd) return
-    setQuickSaving(true)
-    try {
-      await onQuickAdd(quickTitle.trim(), quickAdd, quickTime || null)
-      setQuickAdd(null)
-      setQuickTitle('')
-      setQuickTime('')
-    } finally {
-      setQuickSaving(false)
-    }
-  }
 
   useEffect(() => {
     // Wracając do terminarza zawsze pokazujemy dziś na wierzchu
@@ -347,7 +329,7 @@ export function AgendaView({ tasks, loading, onOpenTask, onToggleDone, onQuickAd
                 {dayLabel(key, todayKey)}
               </p>
               <button
-                onClick={() => { setQuickAdd(key); setQuickTitle(''); setQuickTime('') }}
+                onClick={() => onRequestAdd(key, null)}
                 className="p-1 text-limona-text-dim hover:text-limona-lime transition-colors"
                 title="Dodaj zadanie tego dnia"
               >
@@ -379,46 +361,12 @@ export function AgendaView({ tasks, loading, onOpenTask, onToggleDone, onQuickAd
 
       {/* FAB — szybkie dodanie na wybrany dzień */}
       <button
-        onClick={() => { setQuickAdd(selectedDate >= todayKey ? selectedDate : todayKey); setQuickTitle(''); setQuickTime('') }}
+        onClick={() => onRequestAdd(selectedDate >= todayKey ? selectedDate : todayKey, null)}
         className="fixed bottom-20 right-4 lg:bottom-8 lg:right-8 z-40 w-14 h-14 rounded-full bg-limona-lime text-black shadow-lg shadow-black/40 flex items-center justify-center hover:scale-105 active:scale-95 transition-transform"
         title="Dodaj zadanie"
       >
         <Plus size={24} />
       </button>
-
-      {/* Szybkie dodawanie */}
-      <Modal
-        isOpen={!!quickAdd}
-        onClose={() => setQuickAdd(null)}
-        title={quickAdd ? `Nowe zadanie — ${dayLabel(quickAdd, todayKey)}` : ''}
-        size="sm"
-      >
-        <form onSubmit={submitQuickAdd} className="space-y-4">
-          <input
-            autoFocus
-            required
-            className="limona-input"
-            placeholder="Co jest do zrobienia?"
-            value={quickTitle}
-            onChange={e => setQuickTitle(e.target.value)}
-          />
-          <div>
-            <label className="limona-label block mb-2">Godzina (opcjonalnie)</label>
-            <input
-              type="time"
-              className="limona-input"
-              value={quickTime}
-              onChange={e => setQuickTime(e.target.value)}
-            />
-          </div>
-          <div className="flex gap-3 justify-end">
-            <button type="button" onClick={() => setQuickAdd(null)} className="limona-btn-outline">Anuluj</button>
-            <button type="submit" disabled={quickSaving || !quickTitle.trim()} className="limona-btn disabled:opacity-50">
-              {quickSaving ? 'Dodawanie…' : 'Dodaj'}
-            </button>
-          </div>
-        </form>
-      </Modal>
     </div>
   )
 }

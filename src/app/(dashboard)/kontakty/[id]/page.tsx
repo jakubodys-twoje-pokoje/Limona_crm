@@ -21,6 +21,7 @@ import { KontaktKomentarze } from '@/components/kontakty/KontaktKomentarze'
 import { DriveFiles } from '@/components/shared/DriveFiles'
 import { StatusChangeCommentModal } from '@/components/shared/StatusChangeCommentModal'
 import { TaskDetailModal } from '@/components/tasks/TaskDetailModal'
+import { TaskFormModal } from '@/components/tasks/TaskFormModal'
 import { cn } from '@/lib/utils'
 import { formatWeeklyHours } from '@/lib/godziny'
 import { compressImage } from '@/lib/imageCompress'
@@ -98,7 +99,7 @@ export default function KontaktDetailPage() {
   const [showEditModal, setShowEditModal] = useState(false)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [newTaskTitle, setNewTaskTitle] = useState('')
+  const [showAddTask, setShowAddTask] = useState(false)
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
 
   // Udostępnianie
@@ -133,11 +134,12 @@ export default function KontaktDetailPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [kontaktId])
 
-  async function handleAddTask(e: React.FormEvent) {
-    e.preventDefault()
-    if (!newTaskTitle.trim() || !user) return
-    await createTask({ title: newTaskTitle.trim(), kontakt_id: kontaktId, status: 'todo', priority: 'medium' }, user.id)
-    setNewTaskTitle('')
+  async function handleCreateTask(data: Partial<Task>) {
+    if (!user) return { error: 'Brak użytkownika' }
+    const { error } = await createTask({ ...data, kontakt_id: kontaktId }, user.id)
+    if (error) { showToast(error, 'error'); return { error } }
+    showToast('Zadanie dodane', 'success')
+    return { error: null }
   }
 
   async function handleToggleTask(task: Task) {
@@ -497,17 +499,11 @@ export default function KontaktDetailPage() {
             <p className="limona-eyebrow mb-4 flex items-center gap-2">
               <ListTodo size={14} /> Zadania ({tasks.length})
             </p>
-            <form onSubmit={handleAddTask} className="flex gap-2 mb-3">
-              <input
-                className="limona-input flex-1"
-                placeholder="Dodaj zadanie..."
-                value={newTaskTitle}
-                onChange={e => setNewTaskTitle(e.target.value)}
-              />
-              <button type="submit" className="limona-btn-sm flex items-center gap-1 whitespace-nowrap">
-                <Plus size={14} /> Dodaj
+            <div className="mb-3">
+              <button type="button" onClick={() => setShowAddTask(true)} className="limona-btn-sm flex items-center gap-1 whitespace-nowrap">
+                <Plus size={14} /> Dodaj zadanie
               </button>
-            </form>
+            </div>
             {tasks.length === 0 ? (
               <p className="text-center text-limona-text-muted text-sm py-4">Brak zadań</p>
             ) : (
@@ -723,6 +719,16 @@ export default function KontaktDetailPage() {
           tasks={tasks}
         />
       )}
+
+      <TaskFormModal
+        isOpen={showAddTask}
+        onClose={() => setShowAddTask(false)}
+        onCreate={handleCreateTask}
+        userId={user?.id || ''}
+        canAssign={canAssign}
+        profiles={profiles}
+        lockedKontaktLabel={kontakt.nazwa}
+      />
 
       {/* Lightbox zdjęć */}
       {lightboxIndex !== null && kontakt.zdjecia?.[lightboxIndex] && (

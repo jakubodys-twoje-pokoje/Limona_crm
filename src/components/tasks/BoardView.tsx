@@ -1,12 +1,13 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Plus, Trash2, X } from 'lucide-react'
 import { useTasks } from '@/hooks/useTasks'
 import { Badge } from '@/components/ui/Badge'
 import { Avatar } from '@/components/ui/Avatar'
 import { useConfirm } from '@/components/ui/Confirm'
 import { TaskDetailModal } from '@/components/tasks/TaskDetailModal'
+import { TaskFormModal } from '@/components/tasks/TaskFormModal'
 import { cn, isOverdueDate } from '@/lib/utils'
 import type { Board, BoardList, Task, Profile } from '@/types/database'
 
@@ -33,6 +34,8 @@ export function BoardView({ board, visibleIds, userId, userName, isAdmin, canAss
   const [editingName, setEditingName] = useState(false)
   const [boardName, setBoardName] = useState(board.name)
   const [showColorPicker, setShowColorPicker] = useState(false)
+  // Otwarty formularz „Dodaj zadanie" dla konkretnej listy (undefined = zamknięty)
+  const [addToList, setAddToList] = useState<string | null | undefined>(undefined)
 
   const { tasks, loading: _loading, createTask, updateTask, deleteTask, fetchTasks } = useTasks(undefined, visibleIds, board.id)
 
@@ -83,6 +86,11 @@ export function BoardView({ board, visibleIds, userId, userName, isAdmin, canAss
 
   async function addTaskToList(listId: string, title: string) {
     await createTask({ title, board_id: board.id, list_id: listId, status: 'todo', priority: 'medium' }, userId)
+  }
+
+  async function handleCreateTask(data: Partial<Task>) {
+    const { error } = await createTask({ ...data, board_id: board.id, list_id: addToList ?? null }, userId)
+    return { error: error ?? null }
   }
 
   async function moveTaskToList(taskId: string, listId: string | null) {
@@ -159,6 +167,7 @@ export function BoardView({ board, visibleIds, userId, userName, isAdmin, canAss
             tasks={tasksByList[list.id] || []}
             allLists={lists}
             onAddTask={(title) => addTaskToList(list.id, title)}
+            onOpenAdd={() => setAddToList(list.id)}
             onMoveTask={(taskId, toListId) => moveTaskToList(taskId, toListId)}
             onRename={(name) => renameList(list.id, name)}
             onDelete={() => deleteList(list.id)}
@@ -174,6 +183,7 @@ export function BoardView({ board, visibleIds, userId, userName, isAdmin, canAss
             tasks={uncategorized}
             allLists={lists}
             onAddTask={async () => {}}
+            onOpenAdd={() => setAddToList(null)}
             onMoveTask={(taskId, toListId) => moveTaskToList(taskId, toListId)}
             onRename={async () => {}}
             onDelete={async () => {}}
@@ -201,18 +211,30 @@ export function BoardView({ board, visibleIds, userId, userName, isAdmin, canAss
           tasks={tasks}
         />
       )}
+
+      <TaskFormModal
+        isOpen={addToList !== undefined}
+        onClose={() => setAddToList(undefined)}
+        onCreate={handleCreateTask}
+        userId={userId}
+        canAssign={canAssign}
+        profiles={profiles}
+        visibleIds={visibleIds}
+        defaults={{ status: 'todo' }}
+      />
     </div>
   )
 }
 
 /* ─── BoardColumn ─── */
 function BoardColumn({
-  list, tasks, allLists, onAddTask, onMoveTask, onRename, onDelete, onOpenTask, onDeleteTask, isVirtual,
+  list, tasks, allLists, onOpenAdd, onMoveTask, onRename, onDelete, onOpenTask, onDeleteTask, isVirtual,
 }: {
   list: BoardList
   tasks: Task[]
   allLists: BoardList[]
   onAddTask: (title: string) => Promise<void>
+  onOpenAdd: () => void
   onMoveTask: (taskId: string, listId: string | null) => Promise<void>
   onRename: (name: string) => Promise<void>
   onDelete: () => Promise<void>
@@ -223,25 +245,13 @@ function BoardColumn({
   const confirmDialog = useConfirm()
   const [isRenaming, setIsRenaming] = useState(false)
   const [colName, setColName] = useState(list.name)
-  const [showQuickAdd, setShowQuickAdd] = useState(false)
-  const [quickTitle, setQuickTitle] = useState('')
-  const inputRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => { setColName(list.name) }, [list.name])
-  useEffect(() => { if (showQuickAdd) inputRef.current?.focus() }, [showQuickAdd])
 
   async function submitRename() {
     if (colName.trim() && colName.trim() !== list.name) await onRename(colName.trim())
     else setColName(list.name)
     setIsRenaming(false)
-  }
-
-  async function submitQuickAdd(e: React.FormEvent) {
-    e.preventDefault()
-    if (!quickTitle.trim()) return
-    await onAddTask(quickTitle.trim())
-    setQuickTitle('')
-    setShowQuickAdd(false)
   }
 
   return (
@@ -271,7 +281,7 @@ function BoardColumn({
         </span>
         {!isVirtual && (
           <>
-            <button onClick={() => setShowQuickAdd(true)} className="p-0.5 text-limona-text-dim hover:text-limona-lime transition-colors flex-shrink-0">
+            <button onClick={onOpenAdd} className="p-0.5 text-limona-text-dim hover:text-limona-lime transition-colors flex-shrink-0">
               <Plus size={14} />
             </button>
             <button onClick={async () => { if (await confirmDialog({ message: 'Usunąć tę listę? Zadania zostaną odkategoryzowane.', confirmLabel: 'Usuń' })) onDelete() }}
@@ -299,37 +309,13 @@ function BoardColumn({
         )}
       </div>
 
-      {/* Quick add */}
+      {/* Dodaj kartę — pełny formularz zadania */}
       {!isVirtual && (
         <div className="p-2 border-t border-limona-border flex-shrink-0">
-          {showQuickAdd ? (
-            <form onSubmit={submitQuickAdd}>
-              <textarea
-                ref={inputRef}
-                value={quickTitle}
-                onChange={e => setQuickTitle(e.target.value)}
-                rows={2}
-                placeholder="Tytuł karty..."
-                className="limona-input text-sm w-full resize-none"
-                onKeyDown={e => {
-                  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submitQuickAdd(e as unknown as React.FormEvent) }
-                  if (e.key === 'Escape') { setShowQuickAdd(false); setQuickTitle('') }
-                }}
-              />
-              <div className="flex gap-2 mt-1.5">
-                <button type="submit" className="limona-btn-sm text-xs">Dodaj</button>
-                <button type="button" onClick={() => { setShowQuickAdd(false); setQuickTitle('') }}
-                  className="text-limona-text-dim hover:text-limona-white">
-                  <X size={14} />
-                </button>
-              </div>
-            </form>
-          ) : (
-            <button onClick={() => setShowQuickAdd(true)}
-              className="w-full text-left text-xs text-limona-text-dim hover:text-limona-lime transition-colors flex items-center gap-1.5 px-1 py-1">
-              <Plus size={12} /> Dodaj kartę
-            </button>
-          )}
+          <button onClick={onOpenAdd}
+            className="w-full text-left text-xs text-limona-text-dim hover:text-limona-lime transition-colors flex items-center gap-1.5 px-1 py-1">
+            <Plus size={12} /> Dodaj kartę
+          </button>
         </div>
       )}
     </div>

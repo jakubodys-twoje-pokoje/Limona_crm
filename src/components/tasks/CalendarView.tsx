@@ -7,7 +7,6 @@ import {
 } from 'lucide-react'
 import { Avatar } from '@/components/ui/Avatar'
 import { Badge } from '@/components/ui/Badge'
-import { Modal } from '@/components/ui/Modal'
 import { cn, formatPropertyAddress } from '@/lib/utils'
 import type { Task, TaskPriority, Profile } from '@/types/database'
 
@@ -83,13 +82,13 @@ interface CalendarViewProps {
   loading: boolean
   profiles: Profile[]
   onOpenTask: (t: Task) => void
-  /** Szybkie dodanie zadania z terminem (+opcjonalnie godziną) — klik na kartkę/slot w kalendarzu */
-  onQuickAddTask?: (title: string, dueDateKey: string, dueTime: string | null) => Promise<void>
+  /** Otwarcie pełnego formularza „Dodaj zadanie" z prefiltrowanym terminem/godziną */
+  onRequestAdd?: (dueDateKey: string, dueTime: string | null) => void
   /** Przeciągnięcie zadania na inny dzień/godzinę */
   onMoveTask?: (taskId: string, dueDateKey: string, dueTime: string | null) => Promise<void>
 }
 
-export function CalendarView({ tasks, loading, profiles, onOpenTask, onQuickAddTask, onMoveTask }: CalendarViewProps) {
+export function CalendarView({ tasks, loading, profiles, onOpenTask, onRequestAdd, onMoveTask }: CalendarViewProps) {
   const [mode, setMode] = useState<'threeday' | 'month'>('threeday')
   const [selectedDate, setSelectedDate] = useState(() => toDateKey(new Date()))
   const [calMonth, setCalMonth] = useState(() => {
@@ -97,29 +96,12 @@ export function CalendarView({ tasks, loading, profiles, onOpenTask, onQuickAddT
   })
   const [assigneeFilter, setAssigneeFilter] = useState('')
   const [hideDone, setHideDone] = useState(false)
-  const [quickAdd, setQuickAdd] = useState<{ date: string; time: string | null } | null>(null)
-  const [quickAddTitle, setQuickAddTitle] = useState('')
-  const [quickAddSaving, setQuickAddSaving] = useState(false)
   const [dragOverSlot, setDragOverSlot] = useState<string | null>(null)
   const gridScrollRef = useRef<HTMLDivElement>(null)
 
   function openQuickAdd(dateKey: string, time: string | null, e?: React.MouseEvent) {
     e?.stopPropagation()
-    setQuickAddTitle('')
-    setQuickAdd({ date: dateKey, time })
-  }
-
-  async function submitQuickAdd(e: React.FormEvent) {
-    e.preventDefault()
-    if (!quickAddTitle.trim() || !quickAdd || !onQuickAddTask) return
-    setQuickAddSaving(true)
-    try {
-      await onQuickAddTask(quickAddTitle.trim(), quickAdd.date, quickAdd.time)
-      setQuickAdd(null)
-      setQuickAddTitle('')
-    } finally {
-      setQuickAddSaving(false)
-    }
+    onRequestAdd?.(dateKey, time)
   }
 
   const todayKey = toDateKey(new Date())
@@ -265,7 +247,7 @@ export function CalendarView({ tasks, loading, profiles, onOpenTask, onQuickAddT
   }
 
   function handleGridClick(e: React.MouseEvent, dayKey: string) {
-    if (!onQuickAddTask) return
+    if (!onRequestAdd) return
     const rect = e.currentTarget.getBoundingClientRect()
     const offsetY = e.clientY - rect.top
     const mins = snapMinutes((offsetY / HOUR_HEIGHT) * 60)
@@ -437,7 +419,7 @@ export function CalendarView({ tasks, loading, profiles, onOpenTask, onQuickAddT
                       onDragStart={e => handleDragStart(e, t)}
                     />
                   ))}
-                  {onQuickAddTask && (
+                  {onRequestAdd && (
                     <button
                       type="button"
                       onClick={() => openQuickAdd(dayKey, null)}
@@ -569,7 +551,7 @@ export function CalendarView({ tasks, loading, profiles, onOpenTask, onQuickAddT
                       <p className="text-[10px] text-limona-text-muted font-mono">{dTasks.length} zad.</p>
                     </>
                   )}
-                  {onQuickAddTask && (
+                  {onRequestAdd && (
                     <button
                       type="button"
                       onClick={e => openQuickAdd(key, null, e)}
@@ -610,33 +592,6 @@ export function CalendarView({ tasks, loading, profiles, onOpenTask, onQuickAddT
           <AlertTriangle size={10} /> Przeterminowane
         </span>
       </div>
-
-      {/* Szybkie dodanie zadania na dany dzień / godzinę */}
-      <Modal
-        isOpen={!!quickAdd}
-        onClose={() => setQuickAdd(null)}
-        title={quickAdd
-          ? `Nowe zadanie — ${parseDateKey(quickAdd.date).toLocaleDateString('pl-PL', { day: 'numeric', month: 'long' })}${quickAdd.time ? `, ${quickAdd.time}` : ''}`
-          : 'Nowe zadanie'}
-        size="sm"
-      >
-        <form onSubmit={submitQuickAdd} className="space-y-4">
-          <input
-            autoFocus
-            required
-            className="limona-input w-full"
-            placeholder="Tytuł zadania..."
-            value={quickAddTitle}
-            onChange={e => setQuickAddTitle(e.target.value)}
-          />
-          <div className="flex gap-3 justify-end pt-2">
-            <button type="button" onClick={() => setQuickAdd(null)} className="limona-btn-outline">Anuluj</button>
-            <button type="submit" disabled={quickAddSaving || !quickAddTitle.trim()} className="limona-btn disabled:opacity-50">
-              {quickAddSaving ? 'Dodawanie...' : 'Dodaj zadanie'}
-            </button>
-          </div>
-        </form>
-      </Modal>
     </div>
   )
 }

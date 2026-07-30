@@ -11,6 +11,7 @@ import { useTasks } from '@/hooks/useTasks'
 import { CalendarView } from '@/components/tasks/CalendarView'
 import { AgendaView } from '@/components/tasks/AgendaView'
 import { TaskDetailModal } from '@/components/tasks/TaskDetailModal'
+import { TaskFormModal } from '@/components/tasks/TaskFormModal'
 import { canSeeAllTeams } from '@/lib/roles'
 import { cn } from '@/lib/utils'
 import type { Task, Profile } from '@/types/database'
@@ -26,6 +27,8 @@ export default function ZadaniaKalendarzPage() {
   const { tasks, loading, createTask, updateTask, deleteTask } = useTasks(undefined, visibleIds, undefined, undefined, !visLoading)
   const [profiles, setProfiles] = useState<Profile[]>([])
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
+  // Kontekst otwartego formularza dodawania (prefiltrowany termin/godzina)
+  const [addCtx, setAddCtx] = useState<{ date: string; time: string | null } | null>(null)
 
   // Tryb: zapamiętany wybór > telefon=terminarz, desktop=siatka
   const [mode, setMode] = useState<CalMode | null>(null)
@@ -62,9 +65,10 @@ export default function ZadaniaKalendarzPage() {
     return await deleteTask(id, scope)
   }
 
-  async function handleQuickAddTask(title: string, dueDateKey: string, dueTime: string | null) {
-    if (!user) return
-    await createTask({ title, due_date: dueDateKey, due_time: dueTime, status: 'todo', priority: 'medium' }, user.id)
+  async function handleCreateTask(data: Partial<Task>) {
+    if (!user) return { error: 'Brak użytkownika' }
+    const { error } = await createTask(data, user.id)
+    return { error: error ?? null }
   }
 
   async function handleMoveTask(taskId: string, dueDateKey: string, dueTime: string | null) {
@@ -115,7 +119,7 @@ export default function ZadaniaKalendarzPage() {
           loading={loading}
           onOpenTask={setSelectedTask}
           onToggleDone={handleToggleDone}
-          onQuickAdd={handleQuickAddTask}
+          onRequestAdd={(date, time) => setAddCtx({ date, time })}
         />
       )}
 
@@ -125,10 +129,21 @@ export default function ZadaniaKalendarzPage() {
           loading={loading}
           profiles={profiles}
           onOpenTask={setSelectedTask}
-          onQuickAddTask={handleQuickAddTask}
+          onRequestAdd={(date, time) => setAddCtx({ date, time })}
           onMoveTask={handleMoveTask}
         />
       )}
+
+      <TaskFormModal
+        isOpen={!!addCtx}
+        onClose={() => setAddCtx(null)}
+        onCreate={handleCreateTask}
+        userId={user?.id || ''}
+        canAssign={canAssign}
+        profiles={profiles}
+        visibleIds={visibleIds}
+        defaults={{ status: 'todo', due_date: addCtx?.date ?? '', due_time: addCtx?.time ?? '' }}
+      />
 
       {selectedTask && (
         <TaskDetailModal
