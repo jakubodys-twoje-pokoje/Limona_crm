@@ -244,7 +244,15 @@ export async function trashItem(itemId: string): Promise<void> {
 
 const FILE_FIELDS = 'id,name,mimeType,webViewLink,iconLink,modifiedTime,size'
 
-/** Upload pliku (multipart) do wskazanego folderu */
+// Fragment wysyłki resumable — wielokrotność 256 KB (wymóg Google)
+const UPLOAD_CHUNK_BYTES = 8 * 1024 * 1024
+
+/**
+ * Upload pliku do wskazanego folderu protokołem resumable Google.
+ * Dwa kroki: inicjacja sesji (metadane → adres sesji w nagłówku Location),
+ * potem wysyłka zawartości w kawałkach pod ten adres. Odporniejsze i
+ * zalecane przez Google zamiast ręcznie składanego multipartu.
+ */
 export async function uploadFile(
   name: string,
   mimeType: string,
@@ -252,31 +260,48 @@ export async function uploadFile(
   parentId: string,
 ): Promise<DriveFile> {
   const token = await getAccessToken()
-  const boundary = `limona-${crypto.randomBytes(12).toString('hex')}`
-  const metadata = JSON.stringify({ name, parents: [parentId] })
+  const contentType = mimeType || 'application/octet-stream'
+  const total = data.length
 
-  const body = Buffer.concat([
-    Buffer.from(
-      `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metadata}\r\n` +
-      `--${boundary}\r\nContent-Type: ${mimeType || 'application/octet-stream'}\r\n\r\n`
-    ),
-    data,
-    Buffer.from(`\r\n--${boundary}--`),
-  ])
-
-  const res = await fetch(
-    `https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true&fields=${encodeURIComponent(FILE_FIELDS)}`,
+  // 1) Inicjacja sesji resumable
+  const initRes = await fetch(
+    `https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&supportsAllDrives=true&fields=${encodeURIComponent(FILE_FIELDS)}`,
     {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${token}`,
-        'Content-Type': `multipart/related; boundary=${boundary}`,
+        'Content-Type': 'application/json; charset=UTF-8',
+        'X-Upload-Content-Type': contentType,
+        'X-Upload-Content-Length': String(total),
       },
-      body: new Uint8Array(body),
+      body: JSON.stringify({ name, parents: [parentId] }),
     }
   )
-  if (!res.ok) {
-    throw new Error(`Google Drive upload: ${res.status} ${await res.text()}`)
+  if (!initRes.ok) {
+    throw new Error(`Google Drive upload init: ${initRes.status} ${await initRes.text()}`)
   }
-  return res.json()
+  const sessionUrl = initRes.headers.get('location')
+  if (!sessionUrl) throw new Error('Google Drive upload: brak adresu sesji (Location)')
+
+  // 2) Wysyłka zawartości. Pusty plik finalizujemy jednym PUT-em.
+  if (total === 0) {
+    const r = await fetch(sessionUrl, { method: 'PUT', headers: { 'Content-Range': 'bytes */0' } })
+    if (!r.ok) throw new Error(`Google Drive upload: ${r.status} ${await r.text()}`)
+    return r.json()
+  }
+
+  let offset = 0
+  while (offset < total) {
+    const end = Math.min(offset + UPLOAD_CHUNK_BYTES, total)
+    const chunk = new Uint8Array(data.subarray(offset, end))
+    const r = await fetch(sessionUrl, {
+      method: 'PUT',
+      headers: { 'Content-Range': `bytes ${offset}-${end - 1}/${total}` },
+      body: chunk,
+    })
+    if (r.status === 200 || r.status === 201) return r.json()
+    if (r.status === 308) { offset = end; continue } // Resume Incomplete — kolejny kawałek
+    throw new Error(`Google Drive upload: ${r.status} ${await r.text()}`)
+  }
+  throw new Error('Google Drive upload: wysyłka nie została sfinalizowana')
 }
