@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic'
 
 import { useMemo } from 'react'
 import Link from 'next/link'
-import { Building2, ListTodo, Clock, CheckCircle, AlertCircle, Plus, Inbox, ArrowRight, MessageSquare, Bell } from 'lucide-react'
+import { Building2, ListTodo, Clock, CheckCircle, AlertCircle, Plus, Inbox, ArrowRight, MessageSquare, Bell, ClipboardList } from 'lucide-react'
 import { useProperties } from '@/hooks/useProperties'
 import { useTasks } from '@/hooks/useTasks'
 import { useLeads } from '@/hooks/useLeads'
@@ -18,6 +18,7 @@ import { Skeleton } from '@/components/ui/Skeleton'
 import { calculateBelow, calculateAbove } from '@/lib/calculator'
 import { formatMoney, formatPercent, formatPropertyAddress, cn } from '@/lib/utils'
 import { STATUS_DLUZNIKA_OPTIONS, STATUS_DLUZNIKA_LABELS } from '@/lib/stages'
+import { canManageTeams } from '@/lib/roles'
 import type { Property, StatusDluznika } from '@/types/database'
 
 function calcProfit(p: Property): number | null {
@@ -137,6 +138,20 @@ export default function DashboardPage() {
           {new Date().toLocaleDateString('pl-PL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
         </p>
       </div>
+
+      {/* Skrót do Raportów — szczególnie dla telefonu, gdzie nie ma menu bocznego */}
+      {canManageTeams(profile?.role) && (
+        <Link href="/raporty" className="limona-card-hover p-4 flex items-center gap-4 border-l-[3px] border-l-limona-blue">
+          <div className="w-10 h-10 rounded bg-limona-blue/10 flex items-center justify-center flex-shrink-0">
+            <ClipboardList size={20} className="text-limona-blue" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs uppercase tracking-wider text-limona-text-muted font-bold">Raporty</p>
+            <p className="text-sm text-limona-text">Raporty dzienne i ewaluacja zespołu</p>
+          </div>
+          <ArrowRight size={16} className="text-limona-text-dim flex-shrink-0" />
+        </Link>
+      )}
 
       {/* KPI Cards */}
       {propsLoading ? (
