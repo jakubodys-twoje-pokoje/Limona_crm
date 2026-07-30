@@ -8,7 +8,7 @@ import { Avatar } from '@/components/ui/Avatar'
 import { useConfirm } from '@/components/ui/Confirm'
 import { TaskDetailModal } from '@/components/tasks/TaskDetailModal'
 import { TaskFormModal } from '@/components/tasks/TaskFormModal'
-import { cn, isOverdueDate } from '@/lib/utils'
+import { cn, isOverdueDate, taskMatchesAssignee } from '@/lib/utils'
 import type { Board, BoardList, Task, Profile } from '@/types/database'
 
 export const BOARD_COLORS = ['#84cc16', '#448AFF', '#FF6D00', '#E040FB', '#F50057', '#FFD600', '#00BCD4', '#4CAF50']
@@ -23,11 +23,13 @@ interface BoardViewProps {
   canAssign: boolean
   profiles: Profile[]
   allTasks: Task[]
+  /** Filtr po agencie (id) — pusty = wszyscy */
+  assigneeFilter?: string
   onBoardUpdate: (updates: { name?: string; color?: string }) => Promise<void>
   onBoardDelete: () => Promise<void>
 }
 
-export function BoardView({ board, visibleIds, userId, userName, isAdmin, canAssign, profiles, onBoardUpdate, onBoardDelete }: BoardViewProps) {
+export function BoardView({ board, visibleIds, userId, userName, isAdmin, canAssign, profiles, assigneeFilter = '', onBoardUpdate, onBoardDelete }: BoardViewProps) {
   const confirmDialog = useConfirm()
   const [lists, setLists] = useState<BoardList[]>([])
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
@@ -112,12 +114,13 @@ export function BoardView({ board, visibleIds, userId, userName, isAdmin, canAss
     return await updateTask(id, updates, userId)
   }
 
+  const filteredTasks = tasks.filter(t => taskMatchesAssignee(t, assigneeFilter))
   const tasksByList: Record<string, Task[]> = {}
   for (const l of lists) tasksByList[l.id] = []
-  for (const t of tasks) {
+  for (const t of filteredTasks) {
     if (t.list_id && tasksByList[t.list_id]) tasksByList[t.list_id].push(t)
   }
-  const uncategorized = tasks.filter(t => !t.list_id)
+  const uncategorized = filteredTasks.filter(t => !t.list_id)
 
   return (
     <div className="space-y-4">

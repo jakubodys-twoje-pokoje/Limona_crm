@@ -88,13 +88,12 @@ interface CalendarViewProps {
   onMoveTask?: (taskId: string, dueDateKey: string, dueTime: string | null) => Promise<void>
 }
 
-export function CalendarView({ tasks, loading, profiles, onOpenTask, onRequestAdd, onMoveTask }: CalendarViewProps) {
+export function CalendarView({ tasks, loading, onOpenTask, onRequestAdd, onMoveTask }: CalendarViewProps) {
   const [mode, setMode] = useState<'threeday' | 'month'>('threeday')
   const [selectedDate, setSelectedDate] = useState(() => toDateKey(new Date()))
   const [calMonth, setCalMonth] = useState(() => {
     const d = new Date(); return { year: d.getFullYear(), month: d.getMonth() }
   })
-  const [assigneeFilter, setAssigneeFilter] = useState('')
   const [hideDone, setHideDone] = useState(false)
   const [dragOverSlot, setDragOverSlot] = useState<string | null>(null)
   const gridScrollRef = useRef<HTMLDivElement>(null)
@@ -106,13 +105,9 @@ export function CalendarView({ tasks, loading, profiles, onOpenTask, onRequestAd
 
   const todayKey = toDateKey(new Date())
 
-  const visibleTasks = useMemo(() => {
-    let t = tasks
-    if (assigneeFilter) {
-      t = t.filter(task => task.assigned_to === assigneeFilter || task.co_assignees?.includes(assigneeFilter))
-    }
-    return t
-  }, [tasks, assigneeFilter])
+  // Filtr po agencie stosowany jest na poziomie strony Terminarza — tu
+  // pracujemy już na przefiltrowanej liście
+  const visibleTasks = tasks
 
   // Zadania z terminem, pogrupowane po dacie (YYYY-MM-DD) — do miesiąca i paska tygodnia
   const tasksByDate = useMemo(() => {
@@ -275,14 +270,6 @@ export function CalendarView({ tasks, loading, profiles, onOpenTask, onRequestAd
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          <select
-            className="limona-select text-xs py-1.5"
-            value={assigneeFilter}
-            onChange={e => setAssigneeFilter(e.target.value)}
-          >
-            <option value="">Wszyscy</option>
-            {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
-          </select>
           <label className="flex items-center gap-1.5 text-xs text-limona-text-muted cursor-pointer select-none">
             <input type="checkbox" checked={hideDone} onChange={e => setHideDone(e.target.checked)} className="accent-limona-lime" />
             Ukryj zrobione

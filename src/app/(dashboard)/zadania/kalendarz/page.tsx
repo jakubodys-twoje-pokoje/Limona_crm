@@ -13,7 +13,7 @@ import { AgendaView } from '@/components/tasks/AgendaView'
 import { TaskDetailModal } from '@/components/tasks/TaskDetailModal'
 import { TaskFormModal } from '@/components/tasks/TaskFormModal'
 import { canSeeAllTeams } from '@/lib/roles'
-import { cn } from '@/lib/utils'
+import { cn, taskMatchesAssignee } from '@/lib/utils'
 import type { Task, Profile } from '@/types/database'
 
 type CalMode = 'agenda' | 'grid'
@@ -27,6 +27,10 @@ export default function ZadaniaKalendarzPage() {
   const { tasks, loading, createTask, updateTask, deleteTask } = useTasks(undefined, visibleIds, undefined, undefined, !visLoading)
   const [profiles, setProfiles] = useState<Profile[]>([])
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
+  const [assigneeFilter, setAssigneeFilter] = useState('')
+  // Filtr po agencie ma sens tylko, gdy widać zadania więcej niż jednej osoby
+  const canFilterByAgent = canAssign || (visibleIds?.length ?? 0) > 1
+  const filteredTasks = tasks.filter(t => taskMatchesAssignee(t, assigneeFilter))
   // Kontekst otwartego formularza dodawania (prefiltrowany termin/godzina)
   const [addCtx, setAddCtx] = useState<{ date: string; time: string | null } | null>(null)
 
@@ -88,7 +92,18 @@ export default function ZadaniaKalendarzPage() {
           <span className="limona-eyebrow">Workflow</span>
           <h1 className="limona-heading text-2xl lg:text-3xl mt-1">Terminarz</h1>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          {canFilterByAgent && (
+            <select
+              className="limona-select text-xs py-1.5"
+              value={assigneeFilter}
+              onChange={e => setAssigneeFilter(e.target.value)}
+              title="Filtruj po agencie"
+            >
+              <option value="">Wszyscy agenci</option>
+              {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
+            </select>
+          )}
           <div className="flex items-center gap-1 p-1 bg-limona-bg rounded border border-limona-border">
             {([
               ['agenda', List, 'Terminarz'],
@@ -115,7 +130,7 @@ export default function ZadaniaKalendarzPage() {
 
       {mode === 'agenda' && (
         <AgendaView
-          tasks={tasks}
+          tasks={filteredTasks}
           loading={loading}
           onOpenTask={setSelectedTask}
           onToggleDone={handleToggleDone}
@@ -125,7 +140,7 @@ export default function ZadaniaKalendarzPage() {
 
       {mode === 'grid' && (
         <CalendarView
-          tasks={tasks}
+          tasks={filteredTasks}
           loading={loading}
           profiles={profiles}
           onOpenTask={setSelectedTask}

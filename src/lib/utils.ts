@@ -41,6 +41,18 @@ export function isOverdueDate(dueDate: string | null | undefined): boolean {
   return dueDate.slice(0, 10) < todayKey
 }
 
+/**
+ * Czy zadanie pasuje do filtra po agencie — pusty filtr przepuszcza
+ * wszystko, inaczej agent musi być głównym wykonawcą lub współwykonawcą.
+ */
+export function taskMatchesAssignee(
+  task: { assigned_to: string | null; co_assignees?: string[] | null },
+  assigneeId: string,
+): boolean {
+  if (!assigneeId) return true
+  return task.assigned_to === assigneeId || !!task.co_assignees?.includes(assigneeId)
+}
+
 export type SortDirection = 'asc' | 'desc'
 
 /** Sortuje po `created_at` — 'desc' (najnowsze na górze, jak w Trello) albo 'asc'. */

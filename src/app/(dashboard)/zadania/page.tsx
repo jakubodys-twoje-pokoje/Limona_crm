@@ -18,7 +18,7 @@ import { TaskDetailModal } from '@/components/tasks/TaskDetailModal'
 import { TaskFormModal } from '@/components/tasks/TaskFormModal'
 import { BoardView, BOARD_COLORS } from '@/components/tasks/BoardView'
 import { canSeeAllTeams } from '@/lib/roles'
-import { cn, formatPropertyAddress, isOverdueDate } from '@/lib/utils'
+import { cn, formatPropertyAddress, isOverdueDate, taskMatchesAssignee } from '@/lib/utils'
 import type { Task, TaskStatus, Profile } from '@/types/database'
 
 const columns: { status: TaskStatus; label: string; icon: React.ReactNode; color: string }[] = [
@@ -61,6 +61,9 @@ export default function ZadaniaPage() {
   const [addStatus, setAddStatus] = useState<TaskStatus>('todo')
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   const [profiles, setProfiles] = useState<Profile[]>([])
+  const [assigneeFilter, setAssigneeFilter] = useState('')
+  // Filtr po agencie ma sens tylko, gdy widać zadania więcej niż jednej osoby
+  const canFilterByAgent = canAssign || (visibleIds?.length ?? 0) > 1
 
   // New board modal state
   const [showNewBoardModal, setShowNewBoardModal] = useState(false)
@@ -89,12 +92,14 @@ export default function ZadaniaPage() {
   // remis rozstrzyga nowsze utworzenie.
   const sortedTasks = useMemo(() => {
     const key = (t: Task) => t.due_date ? `${t.due_date} ${t.due_time ?? '99:99'}` : '9999-99-99'
-    return [...tasks].sort((a, b) => {
-      const ak = key(a), bk = key(b)
-      if (ak !== bk) return ak < bk ? -1 : 1
-      return a.created_at < b.created_at ? 1 : -1
-    })
-  }, [tasks])
+    return [...tasks]
+      .filter(t => taskMatchesAssignee(t, assigneeFilter))
+      .sort((a, b) => {
+        const ak = key(a), bk = key(b)
+        if (ak !== bk) return ak < bk ? -1 : 1
+        return a.created_at < b.created_at ? 1 : -1
+      })
+  }, [tasks, assigneeFilter])
 
   const byStatus = (status: TaskStatus) => sortedTasks.filter(t => t.status === status)
 
@@ -197,6 +202,17 @@ export default function ZadaniaPage() {
             <span className="limona-eyebrow">Workflow</span>
             <h1 className="limona-heading text-3xl mt-1">Zadania</h1>
           </div>
+          {canFilterByAgent && (
+            <select
+              className="limona-select text-xs py-1.5"
+              value={assigneeFilter}
+              onChange={e => setAssigneeFilter(e.target.value)}
+              title="Filtruj po agencie"
+            >
+              <option value="">Wszyscy agenci</option>
+              {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
+            </select>
+          )}
         </div>
 
         {tabBar}
@@ -210,6 +226,7 @@ export default function ZadaniaPage() {
           canAssign={canAssign}
           profiles={profiles}
           allTasks={tasks}
+          assigneeFilter={assigneeFilter}
           onBoardUpdate={async (updates) => { await updateBoard(selectedBoard.id, updates) }}
           onBoardDelete={async () => { await deleteBoard(selectedBoard.id); setSelectedBoardId(null) }}
         />
@@ -251,6 +268,17 @@ export default function ZadaniaPage() {
           <h1 className="limona-heading text-3xl mt-1">Zadania</h1>
         </div>
         <div className="flex items-center gap-3">
+          {canFilterByAgent && (
+            <select
+              className="limona-select text-xs py-1.5"
+              value={assigneeFilter}
+              onChange={e => setAssigneeFilter(e.target.value)}
+              title="Filtruj po agencie"
+            >
+              <option value="">Wszyscy agenci</option>
+              {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
+            </select>
+          )}
           <div className="flex gap-1 p-1 bg-limona-surface rounded">
             {([
               { key: 'kanban', label: 'Kanban' },
