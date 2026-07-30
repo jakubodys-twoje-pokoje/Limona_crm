@@ -1,5 +1,5 @@
 // Status dłużnika — niezależny tor statusu strony sprzedającej/zadłużonej
-export type StatusDluznika = 'brak' | 'analiza' | 'umowa' | 'dokumenty' | 'oferta_od_inwestora' | 'sprzedaz'
+export type StatusDluznika = 'brak' | 'analiza' | 'umowa' | 'dokumenty' | 'oferta_od_inwestora' | 'sprzedaz' | 'zrezygnowal'
 
 // Status inwestora — niezależny tor statusu strony kupującej/inwestora
 export type StatusInwestora = 'brak' | 'oferta_zakupu' | 'aneks_akceptacja' | 'oferta_dla_klienta' | 'zakup'
@@ -109,6 +109,8 @@ export interface Property {
   co_assignees: string[]
   lat: number | null
   lng: number | null
+  /** Ustawione przy statusie „zrezygnował" — nieruchomość w archiwum (usuwana po 30 dniach) */
+  archived_at: string | null
   created_at: string
   updated_at: string
   // Joined fields

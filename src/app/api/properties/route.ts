@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getSessionUser, unauthorized } from '@/lib/api-auth'
 import { geocodeAddress } from '@/lib/geocode'
+import { ARCHIVE_RETENTION_DAYS } from '@/lib/stages'
 
 const SELECT_WITH_RELATIONS = `*,
   creator:profiles!properties_created_by_fkey(id,full_name,avatar_url),
@@ -15,11 +16,24 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = req.nextUrl
   const visibleIds = searchParams.get('visibleIds')?.split(',').filter(Boolean)
+  const archived = searchParams.get('archived') === '1'
+
+  // Archiwum trzymamy maksymalnie ARCHIVE_RETENTION_DAYS — starsze usuwamy
+  // leniwie przy każdym listowaniu (bez osobnego crona). DELETE jest
+  // idempotentny i najczęściej niczego nie dotyka.
+  const cutoff = new Date(Date.now() - ARCHIVE_RETENTION_DAYS * 24 * 3600 * 1000).toISOString()
+  await supabase.from('properties').delete().lt('archived_at', cutoff)
 
   let query = supabase
     .from('properties')
     .select(SELECT_WITH_RELATIONS)
-    .order('created_at', { ascending: false })
+
+  // Domyślnie tylko aktywne (bez archiwum); ?archived=1 → tylko archiwum
+  if (archived) {
+    query = query.not('archived_at', 'is', null).order('archived_at', { ascending: false })
+  } else {
+    query = query.is('archived_at', null).order('created_at', { ascending: false })
+  }
 
   if (visibleIds?.length) {
     const ids = visibleIds.join(',')

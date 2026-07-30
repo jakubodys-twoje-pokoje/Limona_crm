@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { useDebouncedCallback } from '@/hooks/useDebouncedCallback'
 import type { Property } from '@/types/database'
 
-export function useProperties(visibleUserIds?: string[] | null, enabled: boolean = true) {
+export function useProperties(visibleUserIds?: string[] | null, enabled: boolean = true, archived: boolean = false) {
   const [properties, setProperties] = useState<Property[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -18,6 +18,7 @@ export function useProperties(visibleUserIds?: string[] | null, enabled: boolean
     if (!initializedRef.current) setLoading(true)
     const params = new URLSearchParams()
     if (visibleUserIds?.length) params.set('visibleIds', visibleUserIds.join(','))
+    if (archived) params.set('archived', '1')
 
     const res = await fetch(`/api/properties?${params}`)
     if (!res.ok) { setError('Fetch error'); setLoading(false); return }
@@ -25,7 +26,7 @@ export function useProperties(visibleUserIds?: string[] | null, enabled: boolean
     setProperties(data)
     setLoading(false)
     initializedRef.current = true
-  }, [visibleUserIds, enabled])
+  }, [visibleUserIds, enabled, archived])
 
   const debouncedFetch = useDebouncedCallback(fetchProperties, 500)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)

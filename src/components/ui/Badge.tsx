@@ -32,6 +32,7 @@ const statusColors: Record<string, string> = {
   dokumenty: 'bg-purple-500/20 text-purple-400',
   oferta_od_inwestora: 'bg-[#BEFF00]/20 text-[#BEFF00]',
   sprzedaz: 'bg-[#00E676]/20 text-[#00E676]',
+  zrezygnowal: 'bg-[#FF3D3D]/20 text-[#FF3D3D]',
   // Status inwestora
   oferta_zakupu: 'bg-[#448AFF]/20 text-[#448AFF]',
   aneks_akceptacja: 'bg-orange-500/20 text-orange-400',
@@ -68,6 +69,7 @@ const statusLabels: Record<string, string> = {
   dokumenty: 'Dokumenty',
   oferta_od_inwestora: 'Oferta od inwestora',
   sprzedaz: 'Sprzedaż',
+  zrezygnowal: 'Zrezygnował',
   oferta_zakupu: 'Oferta zakupu',
   aneks_akceptacja: 'Aneks / akceptacja',
   oferta_dla_klienta: 'Oferta dla klienta',

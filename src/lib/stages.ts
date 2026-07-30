@@ -7,11 +7,15 @@ export const STATUS_DLUZNIKA_LABELS: Record<StatusDluznika, string> = {
   dokumenty: 'Dokumenty',
   oferta_od_inwestora: 'Oferta od inwestora',
   sprzedaz: 'Sprzedaż',
+  zrezygnowal: 'Zrezygnował',
 }
 
 export const STATUS_DLUZNIKA_OPTIONS: StatusDluznika[] = [
-  'brak', 'analiza', 'umowa', 'dokumenty', 'oferta_od_inwestora', 'sprzedaz',
+  'brak', 'analiza', 'umowa', 'dokumenty', 'oferta_od_inwestora', 'sprzedaz', 'zrezygnowal',
 ]
+
+// Ile dni nieruchomość zostaje w archiwum, zanim jest trwale usuwana
+export const ARCHIVE_RETENTION_DAYS = 30
 
 export const STATUS_INWESTORA_LABELS: Record<StatusInwestora, string> = {
   brak: 'Brak',

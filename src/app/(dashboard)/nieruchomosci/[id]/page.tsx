@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic'
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Edit, Clock, User, Phone, Plus, CheckCircle, Circle, Trash2, Layers, FileText, ExternalLink, Square, CheckSquare, Building2, Compass, MessageSquare, Users, X, Save } from 'lucide-react'
+import { ArrowLeft, Edit, Clock, User, Phone, Plus, CheckCircle, Circle, Trash2, Layers, FileText, ExternalLink, Square, CheckSquare, Building2, Compass, MessageSquare, Users, X, Save, Archive, RotateCcw } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { useProperties } from '@/hooks/useProperties'
 import { useTasks } from '@/hooks/useTasks'
@@ -31,7 +31,7 @@ import type { Property, Task, Document, PropertyNegotiationNote, PropertyInvesto
 import {
   STAGE_TASK_TEMPLATES, DEAL_TYPE_LABELS,
   STATUS_DLUZNIKA_OPTIONS, STATUS_DLUZNIKA_LABELS, STATUS_INWESTORA_OPTIONS, STATUS_INWESTORA_LABELS,
-  getStatusDluznikaLabel,
+  getStatusDluznikaLabel, ARCHIVE_RETENTION_DAYS,
 } from '@/lib/stages'
 import type { DealType } from '@/types/database'
 import { AgentReport } from '@/components/properties/AgentReport'
@@ -393,8 +393,27 @@ export default function PropertyDetailPage() {
 
   const zadluzeniaTotal = sumLineItems(property.zadluzenia)
 
+  const archiveDaysLeft = property.archived_at
+    ? Math.max(0, ARCHIVE_RETENTION_DAYS - Math.floor((Date.now() - new Date(property.archived_at).getTime()) / (24 * 3600 * 1000)))
+    : null
+
   return (
     <div className="space-y-6 max-w-5xl">
+      {property.archived_at && (
+        <div className="flex items-center gap-3 flex-wrap rounded-lg border border-limona-red/40 bg-limona-red/10 px-4 py-3">
+          <Archive size={16} className="text-limona-red flex-shrink-0" />
+          <p className="text-sm text-limona-text flex-1 min-w-0">
+            Nieruchomość w archiwum (klient zrezygnował). Zostanie trwale usunięta za{' '}
+            <span className="font-bold text-limona-red">{archiveDaysLeft} {archiveDaysLeft === 1 ? 'dzień' : 'dni'}</span>.
+          </p>
+          <button
+            onClick={() => setStatusChange({ field: 'status_dluznika', value: 'brak', label: STATUS_DLUZNIKA_LABELS['brak'] })}
+            className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-limona-lime hover:text-limona-lime-hover transition-colors whitespace-nowrap"
+          >
+            <RotateCcw size={13} /> Przywróć
+          </button>
+        </div>
+      )}
       <div className="flex items-start justify-between gap-4">
         <div>
           <Link href="/nieruchomosci" className="flex items-center gap-2 text-limona-text-muted hover:text-limona-lime text-sm mb-3 transition-colors">

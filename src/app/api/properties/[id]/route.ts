@@ -52,6 +52,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json({ error: 'Zmiana statusu wymaga komentarza — uzasadnij, dlaczego' }, { status: 400 })
   }
 
+  // Archiwizacja: status „zrezygnował" wkłada nieruchomość do archiwum,
+  // każda inna zmiana statusu dłużnika ją stamtąd przywraca.
+  let archivePatch: { archived_at?: string | null } = {}
+  if (dluznikChanging) {
+    if (body.status_dluznika === 'zrezygnowal') archivePatch = { archived_at: new Date().toISOString() }
+    else if (existing.status_dluznika === 'zrezygnowal') archivePatch = { archived_at: null }
+  }
+
   // Re-geokodowanie, gdy zmienił się adres
   let coordPatch = {}
   if (typeof body.adres === 'string' || typeof body.miasto === 'string') {
@@ -64,7 +72,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const { data: property, error } = await supabase
     .from('properties')
-    .update({ ...body, ...coordPatch })
+    .update({ ...body, ...coordPatch, ...archivePatch })
     .eq('id', id)
     .select(SELECT_WITH_RELATIONS)
     .single()
