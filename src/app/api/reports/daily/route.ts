@@ -68,7 +68,7 @@ export async function GET(req: NextRequest) {
   const [dayTasksRes, newPropsRes, planRes, noteRes] = await Promise.all([
     supabase
       .from('tasks')
-      .select('id, title, status, priority, due_time, task_type, contact_category, outcome, rejection_reason, kontakt_id, property:properties!tasks_property_id_fkey(id,adres,kod_pocztowy,miasto), kontakt:kontakty!tasks_kontakt_id_fkey(id,nazwa,typ)')
+      .select('id, title, status, priority, due_time, realization_date, task_type, contact_category, outcome, rejection_reason, kontakt_id, property:properties!tasks_property_id_fkey(id,adres,kod_pocztowy,miasto), kontakt:kontakty!tasks_kontakt_id_fkey(id,nazwa,typ)')
       .or(mine)
       .or(dayClause)
       .order('due_time', { ascending: true, nullsFirst: false }),

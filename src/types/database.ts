@@ -154,6 +154,8 @@ export interface Task {
   rejection_note: string | null
   due_date: string | null
   due_time: string | null
+  /** Data realizacji — planowany dzień domknięcia/następnego kroku dla zadań „w trakcie" (odrębne od due_date) */
+  realization_date: string | null
   assigned_to: string | null
   co_assignees: string[]
   board_id: string | null

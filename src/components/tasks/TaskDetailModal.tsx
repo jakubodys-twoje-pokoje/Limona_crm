@@ -71,6 +71,7 @@ export function TaskDetailModal({
   const [priority, setPriority] = useState<TaskPriority>(task.priority as TaskPriority)
   const [dueDate, setDueDate] = useState(task.due_date ? task.due_date.split('T')[0] : '')
   const [dueTime, setDueTime] = useState(task.due_time ? task.due_time.slice(0, 5) : '')
+  const [realizationDate, setRealizationDate] = useState(task.realization_date ? task.realization_date.split('T')[0] : '')
   const [assignedTo, setAssignedTo] = useState(task.assigned_to || '')
   const [showStatusMenu, setShowStatusMenu] = useState(false)
   const [showPriorityMenu, setShowPriorityMenu] = useState(false)
@@ -108,6 +109,7 @@ export function TaskDetailModal({
     setPriority(task.priority as TaskPriority)
     setDueDate(task.due_date ? task.due_date.split('T')[0] : '')
     setDueTime(task.due_time ? task.due_time.slice(0, 5) : '')
+    setRealizationDate(task.realization_date ? task.realization_date.split('T')[0] : '')
     setAssignedTo(task.assigned_to || '')
     setTaskType(task.task_type || '')
     setContactCategory(task.contact_category || '')
@@ -273,6 +275,11 @@ export function TaskDetailModal({
   async function handleDueTimeChange(timeStr: string) {
     setDueTime(timeStr)
     await saveField('due_time', timeStr || null)
+  }
+
+  async function handleRealizationDateChange(dateStr: string) {
+    setRealizationDate(dateStr)
+    await saveField('realization_date', dateStr || null)
   }
 
   async function handleAddComment() {
@@ -709,6 +716,22 @@ export function TaskDetailModal({
                   </p>
                 )}
               </div>
+
+              {/* Data realizacji — dla zadań „w trakcie": przełożony termin /
+                  planowany następny krok w tej samej sprawie */}
+              {(status === 'in_progress' || realizationDate) && (
+                <div>
+                  <label className="text-[10px] uppercase tracking-wider text-limona-text-dim font-bold block mb-1">Data realizacji</label>
+                  <div className="flex items-center gap-2">
+                    <Clock size={12} className="text-[#448AFF] flex-shrink-0" />
+                    <input type="date" className="limona-input text-xs py-2 flex-1" value={realizationDate}
+                      onChange={e => handleRealizationDateChange(e.target.value)} />
+                  </div>
+                  <p className="text-[10px] text-limona-text-dim mt-1">
+                    Planowany dzień domknięcia — pokaże się w raporcie zamiast „niezrobione”.
+                  </p>
+                </div>
+              )}
 
               {/* Meta */}
               <div className="pt-3 border-t border-limona-border/50 space-y-1.5">

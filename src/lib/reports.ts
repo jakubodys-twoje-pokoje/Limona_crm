@@ -61,6 +61,7 @@ export interface ReportDayTask {
   status: TaskStatus
   priority: TaskPriority
   due_time: string | null
+  realization_date: string | null
   contact_category: ContactCategory | null
   outcome: TaskOutcome | null
   property: { id: string; location: string } | null
@@ -126,6 +127,12 @@ export function shiftDate(dateStr: string, days: number): string {
 // ---------------------------------------------------------------
 // Czysty tekst raportu — układ 1:1 ze wzorem (przycisk „Kopiuj")
 // ---------------------------------------------------------------
+// "2026-07-30" (lub z częścią czasu) -> "30.07.2026"
+function formatDayMonthYear(dateStr: string): string {
+  const [y, m, d] = dateStr.slice(0, 10).split('-')
+  return `${d}.${m}.${y}`
+}
+
 export function buildReportText(data: DailyReportData): string {
   const [y, m, d] = data.date.split('-')
   const lines: string[] = []
@@ -146,7 +153,11 @@ export function buildReportText(data: DailyReportData): string {
       const loc = t.property ? ` (${t.property.location})` : ''
       const outcome = t.outcome ? ` — ${OUTCOME_LABELS[t.outcome]}` : ''
       const time = t.due_time ? `${t.due_time.slice(0, 5)} ` : ''
-      lines.push(`- [${TASK_STATUS_LABELS[t.status]}] ${time}${t.title}${loc}${outcome}`)
+      // Zadania „w trakcie" z datą realizacji — przełożone, nie „niezrobione"
+      const realization = t.status !== 'done' && t.realization_date
+        ? ` → realizacja ${formatDayMonthYear(t.realization_date)}`
+        : ''
+      lines.push(`- [${TASK_STATUS_LABELS[t.status]}] ${time}${t.title}${loc}${outcome}${realization}`)
       if (t.note.trim()) lines.push(`  notatka: ${t.note.trim()}`)
     }
   }

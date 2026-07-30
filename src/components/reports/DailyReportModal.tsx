@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { CheckCircle, Copy, Send } from 'lucide-react'
+import { CheckCircle, Copy, Send, Clock } from 'lucide-react'
 import { Modal } from '@/components/ui/Modal'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { Badge } from '@/components/ui/Badge'
@@ -186,6 +186,12 @@ export function DailyReportModal({ isOpen, onClose, onSubmitted, viewUserId, vie
                           t.outcome === 'brak_kontaktu' && 'text-limona-text-dim',
                         )}>
                           {OUTCOME_LABELS[t.outcome]}
+                        </span>
+                      )}
+                      {t.status !== 'done' && t.realization_date && (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-[#448AFF]" title="Data realizacji">
+                          <Clock size={10} />
+                          realizacja {t.realization_date.slice(0, 10).split('-').reverse().join('.')}
                         </span>
                       )}
                     </div>
