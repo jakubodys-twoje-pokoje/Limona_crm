@@ -89,7 +89,10 @@ interface CalendarViewProps {
 }
 
 export function CalendarView({ tasks, loading, onOpenTask, onRequestAdd, onMoveTask }: CalendarViewProps) {
-  const [mode, setMode] = useState<'threeday' | 'month'>('threeday')
+  // Domyślnie 1 dzień (po kliknięciu w Terminarz), z opcją 3 dni i miesiąca
+  const [mode, setMode] = useState<'day' | 'threeday' | 'month'>('day')
+  const daysToShow = mode === 'threeday' ? 3 : 1
+  const gridCols = `44px ${Array.from({ length: daysToShow }, () => '1fr').join(' ')}`
   const [selectedDate, setSelectedDate] = useState(() => toDateKey(new Date()))
   const [calMonth, setCalMonth] = useState(() => {
     const d = new Date(); return { year: d.getFullYear(), month: d.getMonth() }
@@ -124,7 +127,8 @@ export function CalendarView({ tasks, loading, onOpenTask, onRequestAdd, onMoveT
     setSelectedDate(key)
     const d = parseDateKey(key)
     setCalMonth({ year: d.getFullYear(), month: d.getMonth() })
-    setMode('threeday')
+    // Z miesiąca wskakujemy w widok dzienny; widok 1/3 dni zostaje jaki był
+    setMode(prev => prev === 'month' ? 'day' : prev)
   }
 
   function goToday() {
@@ -135,10 +139,10 @@ export function CalendarView({ tasks, loading, onOpenTask, onRequestAdd, onMoveT
     setSelectedDate(k => addDays(k, n))
   }
 
-  // ── Widok 3-dniowy ──────────────────────────────────────────────────────
+  // ── Widok dzienny (1 lub 3 dni) ─────────────────────────────────────────
   const visibleDays = useMemo(
-    () => [0, 1, 2].map(i => addDays(selectedDate, i)),
-    [selectedDate],
+    () => Array.from({ length: daysToShow }, (_, i) => addDays(selectedDate, i)),
+    [selectedDate, daysToShow],
   )
 
   const overdueTasks = useMemo(() => {
@@ -154,7 +158,7 @@ export function CalendarView({ tasks, loading, onOpenTask, onRequestAdd, onMoveT
 
   // Auto-scroll do bieżącej godziny (albo 7:00, gdy poza widokiem) przy zmianie okna
   useEffect(() => {
-    if (mode !== 'threeday' || !gridScrollRef.current) return
+    if (mode === 'month' || !gridScrollRef.current) return
     const now = new Date()
     const base = visibleDays.includes(todayKey) ? now.getHours() * 60 + now.getMinutes() : 7 * 60
     gridScrollRef.current.scrollTop = Math.max(0, (base / 60) * HOUR_HEIGHT - 140)
@@ -211,7 +215,11 @@ export function CalendarView({ tasks, loading, onOpenTask, onRequestAdd, onMoveT
 
   const rangeLabel = useMemo(() => {
     const first = parseDateKey(visibleDays[0])
-    const last = parseDateKey(visibleDays[2])
+    const last = parseDateKey(visibleDays[visibleDays.length - 1])
+    // Jeden dzień — pełny opis z dniem tygodnia
+    if (visibleDays.length === 1) {
+      return first.toLocaleDateString('pl-PL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+    }
     const sameMonth = first.getMonth() === last.getMonth()
     const firstStr = first.toLocaleDateString('pl-PL', { day: 'numeric', month: sameMonth ? undefined : 'long' })
     const lastStr = last.toLocaleDateString('pl-PL', { day: 'numeric', month: 'long', year: 'numeric' })
@@ -254,7 +262,11 @@ export function CalendarView({ tasks, loading, onOpenTask, onRequestAdd, onMoveT
       {/* Toolbar */}
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex gap-1 p-1 bg-limona-surface rounded">
-          {(['threeday', 'month'] as const).map(m => (
+          {([
+            ['day', '1 dzień'],
+            ['threeday', '3 dni'],
+            ['month', 'Miesiąc'],
+          ] as const).map(([m, label]) => (
             <button
               key={m}
               onClick={() => setMode(m)}
@@ -263,8 +275,8 @@ export function CalendarView({ tasks, loading, onOpenTask, onRequestAdd, onMoveT
                 mode === m ? 'bg-limona-lime text-black' : 'text-limona-text-muted hover:text-limona-white',
               )}
             >
-              {m === 'threeday' ? <CalendarIcon size={12} /> : <LayoutGrid size={12} />}
-              {m === 'threeday' ? '3 dni' : 'Miesiąc'}
+              {m === 'month' ? <LayoutGrid size={12} /> : <CalendarIcon size={12} />}
+              {label}
             </button>
           ))}
         </div>
@@ -329,7 +341,7 @@ export function CalendarView({ tasks, loading, onOpenTask, onRequestAdd, onMoveT
         <div className="space-y-2">
           {[...Array(4)].map((_, i) => <div key={i} className="limona-card h-16 animate-pulse" />)}
         </div>
-      ) : mode === 'threeday' ? (
+      ) : mode !== 'month' ? (
         <div className="space-y-3">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
@@ -366,7 +378,7 @@ export function CalendarView({ tasks, loading, onOpenTask, onRequestAdd, onMoveT
           )}
 
           {/* Nagłówki dni + pasek "cały dzień" */}
-          <div className="grid grid-cols-[44px_1fr_1fr_1fr] gap-0">
+          <div className="grid gap-0" style={{ gridTemplateColumns: gridCols }}>
             <div />
             {visibleDays.map(dayKey => {
               const d = parseDateKey(dayKey)
@@ -382,7 +394,7 @@ export function CalendarView({ tasks, loading, onOpenTask, onRequestAdd, onMoveT
             })}
           </div>
 
-          <div className="grid grid-cols-[44px_1fr_1fr_1fr] gap-0">
+          <div className="grid gap-0" style={{ gridTemplateColumns: gridCols }}>
             <div className="text-[9px] text-limona-text-dim text-right pr-1 pt-1 uppercase tracking-wider">cały dzień</div>
             {visibleDays.map(dayKey => {
               const allDayTasks = dayTasksFor(dayKey).filter(t => !t.due_time)
@@ -422,7 +434,7 @@ export function CalendarView({ tasks, loading, onOpenTask, onRequestAdd, onMoveT
 
           {/* Siatka godzinowa — przewijalna, 3 kolumny dni */}
           <div ref={gridScrollRef} className="overflow-y-auto rounded border border-limona-border/50" style={{ maxHeight: 520 }}>
-            <div className="grid grid-cols-[44px_1fr_1fr_1fr] gap-0 relative" style={{ height: HOUR_HEIGHT * 24 }}>
+            <div className="grid gap-0 relative" style={{ gridTemplateColumns: gridCols, height: HOUR_HEIGHT * 24 }}>
               {/* Etykiety godzin */}
               <div className="relative">
                 {Array.from({ length: 24 }, (_, h) => (
