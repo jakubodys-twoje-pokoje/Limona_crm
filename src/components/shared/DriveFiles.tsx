@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
-  ExternalLink, RefreshCw, HardDrive, Folder, FolderPlus, Upload, Trash2, Link2, ChevronRight,
+  ExternalLink, RefreshCw, HardDrive, Folder, FolderPlus, Upload, Trash2, Link2, ChevronRight, X,
 } from 'lucide-react'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { useToast } from '@/components/ui/Toast'
@@ -46,6 +46,7 @@ export function DriveFiles({ entity, id }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState<string | null>(null) // 'connect' | 'upload' | 'mkdir' | itemId
+  const [uploadError, setUploadError] = useState<string | null>(null)
   const [path, setPath] = useState<Crumb[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -97,13 +98,17 @@ export function DriveFiles({ entity, id }: Props) {
   async function handleUpload(files: FileList | null) {
     if (!files?.length || !currentFolderId) return
     setBusy('upload')
+    setUploadError(null)
     const form = new FormData()
     form.set('folderId', currentFolderId)
     for (const f of Array.from(files)) form.append('file', f)
-    const res = await fetch(`/api/drive/${entity}/${id}/upload`, { method: 'POST', body: form })
+    const res = await fetch(`/api/drive/${entity}/${id}/upload`, { method: 'POST', body: form }).catch(() => null)
     setBusy(null)
-    if (!res.ok) {
-      showToast((await res.json().catch(() => ({}))).error || 'Błąd wgrywania', 'error')
+    if (!res || !res.ok) {
+      const msg = (res ? (await res.json().catch(() => ({}))).error : null)
+        || 'Nie udało się wgrać pliku — sprawdź połączenie i spróbuj ponownie.'
+      setUploadError(msg)
+      showToast('Błąd wgrywania pliku', 'error')
       return
     }
     showToast(files.length > 1 ? `Wgrano ${files.length} plików` : 'Plik wgrany', 'success')
@@ -240,6 +245,16 @@ export function DriveFiles({ entity, id }: Props) {
           />
         </div>
       </div>
+
+      {/* Trwały komunikat błędu wgrywania (toast znika, a treść bywa długa) */}
+      {uploadError && (
+        <div className="flex items-start gap-2 rounded-lg border border-limona-red/40 bg-limona-red/10 px-3 py-2">
+          <p className="text-xs text-limona-red break-words flex-1">{uploadError}</p>
+          <button onClick={() => setUploadError(null)} className="text-limona-red/70 hover:text-limona-red flex-shrink-0" title="Zamknij">
+            <X size={13} />
+          </button>
+        </div>
+      )}
 
       {/* Nowy podfolder — inline */}
       {newFolderOpen && (

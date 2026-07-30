@@ -29,9 +29,26 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ent
   if ('error' in res) return NextResponse.json({ error: res.error }, { status: res.status })
   if (!res.folderId) return NextResponse.json({ error: 'Najpierw utwórz połączenie z Drive' }, { status: 400 })
 
-  const form = await req.formData()
+  // Parsowanie multipartu może rzucić (uszkodzony body, limit rozmiaru na
+  // proxy/hostingu) — zwracamy wtedy czytelny JSON zamiast surowego 500
+  let form: FormData
+  try {
+    form = await req.formData()
+  } catch {
+    return NextResponse.json({
+      error: 'Nie udało się odczytać przesłanych plików. Jeśli plik jest duży, spróbuj mniejszego — ' +
+        'serwer lub sieć mogły odrzucić zbyt duże żądanie.',
+    }, { status: 400 })
+  }
+
   const files = form.getAll('file').filter((f): f is File => f instanceof File)
   if (!files.length) return NextResponse.json({ error: 'Brak plików' }, { status: 400 })
+
+  // Limit sprawdzamy przed uploadem — czytelny komunikat zamiast błędu z Google
+  const tooBig = files.find(f => f.size > MAX_FILE_BYTES)
+  if (tooBig) {
+    return NextResponse.json({ error: `Plik „${tooBig.name}" przekracza 50 MB` }, { status: 413 })
+  }
 
   const folderId = (form.get('folderId') as string | null) || res.folderId
 
@@ -42,24 +59,39 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ent
 
     const uploaded: DriveFile[] = []
     for (const f of files) {
-      if (f.size > MAX_FILE_BYTES) {
-        return NextResponse.json({ error: `Plik ${f.name} przekracza 50 MB` }, { status: 413 })
-      }
       const buf = Buffer.from(await f.arrayBuffer())
       uploaded.push(await uploadFile(f.name, f.type, buf, folderId))
     }
     return NextResponse.json({ ok: true, files: uploaded })
   } catch (e) {
-    const message = e instanceof Error ? e.message : 'Błąd Google Drive'
-    // Konto serwisowe nie ma własnej quoty na Dysku — zapis do zwykłego
-    // "Mojego Dysku" wymaga Dysku współdzielonego albo delegacji domenowej.
-    if (message.includes('storageQuotaExceeded') || message.includes('teamDriveFileLimitExceeded')) {
-      return NextResponse.json({
-        error: 'Google odrzucił zapis: konto usługi nie ma własnego miejsca na Dysku. ' +
-          'Przenieś folder CRM na Dysk współdzielony (Workspace) albo ustaw GOOGLE_DRIVE_IMPERSONATE_USER ' +
-          '(delegacja domenowa) — patrz .env.example.',
-      }, { status: 502 })
-    }
-    return NextResponse.json({ error: message }, { status: 502 })
+    const raw = e instanceof Error ? e.message : String(e)
+    // Log pełnej treści błędu Google — do diagnozy po stronie serwera
+    console.error('[drive upload] błąd zapisu do Google Drive:', raw)
+    return NextResponse.json({ error: driveUploadErrorMessage(raw) }, { status: 502 })
   }
+}
+
+/**
+ * Zamienia surowy błąd Google Drive na czytelny, akcjonowalny komunikat PL.
+ * Najczęstszy przypadek: konto zapisujące nie ma własnego miejsca na Dysku
+ * (foldery da się tworzyć — nie zużywają quoty — ale plików już nie).
+ */
+function driveUploadErrorMessage(raw: string): string {
+  const r = raw.toLowerCase()
+  if (r.includes('storagequotaexceeded') || r.includes('teamdrivefilelimitexceeded') || r.includes('storage quota')) {
+    return 'Google odrzucił zapis pliku: konto podłączone do CRM nie ma wolnego miejsca na Dysku ' +
+      '(foldery można tworzyć, bo nie zajmują miejsca, ale pliki już nie). ' +
+      'Rozwiązanie: podłącz konto Google z wolnym miejscem (panel Admin → Integracje) ' +
+      'albo przenieś folder CRM na Dysk współdzielony / ustaw delegację domenową ' +
+      '(GOOGLE_DRIVE_IMPERSONATE_USER) — patrz .env.example.'
+  }
+  if (r.includes('invalid_grant') || r.includes('nie jest połączone') || r.includes('konto nie jest')) {
+    return 'Połączenie z Google Drive wygasło — administrator musi ponownie kliknąć ' +
+      '„Połącz z Google Drive" w panelu Admin → Integracje.'
+  }
+  if (r.includes('insufficientpermissions') || r.includes('insufficientfilepermissions') || r.includes(': 403')) {
+    return 'Brak uprawnień do zapisu w tym folderze Google Drive. Sprawdź, czy konto podłączone do CRM ' +
+      'ma prawo edycji folderu (na Dysku współdzielonym musi być co najmniej „Współtwórca").'
+  }
+  return `Błąd zapisu do Google Drive: ${raw}`
 }
