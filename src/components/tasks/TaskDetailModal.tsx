@@ -518,27 +518,6 @@ export function TaskDetailModal({
 
             {/* Sidebar */}
             <div className="lg:w-52 space-y-3 flex-shrink-0">
-              {/* Status */}
-              <div className="relative">
-                <label className="text-[10px] uppercase tracking-wider text-limona-text-dim font-bold block mb-1">Status</label>
-                <button onClick={() => { setShowStatusMenu(!showStatusMenu); setShowPriorityMenu(false); setShowAssignMenu(false) }}
-                  className="w-full flex items-center gap-2 px-3 py-2 bg-limona-surface-2 rounded-lg hover:bg-limona-surface-2/80 transition-colors text-sm">
-                  <span className={currentStatus.color}>{currentStatus.icon}</span>
-                  <span className="flex-1 text-left">{currentStatus.label}</span>
-                  <ChevronDown size={12} className="text-limona-text-dim" />
-                </button>
-                {showStatusMenu && (
-                  <div className="absolute top-full left-0 right-0 mt-1 bg-limona-surface border border-limona-border rounded-lg shadow-xl z-10 overflow-hidden">
-                    {statusOptions.map(opt => (
-                      <button key={opt.value} onClick={() => handleStatusChange(opt.value)}
-                        className={cn('w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors text-left', opt.value === status ? 'bg-limona-lime/20' : 'hover:bg-limona-surface-2')}>
-                        <span className={opt.color}>{opt.icon}</span>{opt.label}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-
               {/* Priority */}
               <div className="relative">
                 <label className="text-[10px] uppercase tracking-wider text-limona-text-dim font-bold block mb-1">Priorytet</label>
@@ -655,6 +634,34 @@ export function TaskDetailModal({
                   )}
                 </div>
               )}
+
+              {/* Status — na końcu, bo zmiana na „Zrobione" wymaga wcześniej
+                  uzupełnionego typu zadania, kategorii i wyniku */}
+              <div className="relative">
+                <label className="text-[10px] uppercase tracking-wider text-limona-text-dim font-bold block mb-1">Status</label>
+                <button onClick={() => { setShowStatusMenu(!showStatusMenu); setShowPriorityMenu(false); setShowAssignMenu(false) }}
+                  className="w-full flex items-center gap-2 px-3 py-2 bg-limona-surface-2 rounded-lg hover:bg-limona-surface-2/80 transition-colors text-sm">
+                  <span className={currentStatus.color}>{currentStatus.icon}</span>
+                  <span className="flex-1 text-left">{currentStatus.label}</span>
+                  <ChevronDown size={12} className="text-limona-text-dim" />
+                </button>
+                {showStatusMenu && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-limona-surface border border-limona-border rounded-lg shadow-xl z-10 overflow-hidden">
+                    {statusOptions.map(opt => (
+                      <button key={opt.value} onClick={() => handleStatusChange(opt.value)}
+                        className={cn('w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors text-left', opt.value === status ? 'bg-limona-lime/20' : 'hover:bg-limona-surface-2')}>
+                        <span className={opt.color}>{opt.icon}</span>{opt.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {isContactTask && !outcomeComplete(outcome, rejectionReason, rejectionNote) && (
+                  <p className="flex items-center gap-1 text-[10px] text-limona-text-dim mt-1">
+                    <AlertTriangle size={10} />
+                    Uzupełnij wynik powyżej, aby móc domknąć zadanie
+                  </p>
+                )}
+              </div>
 
               {/* Assignee */}
               <div className="relative">
