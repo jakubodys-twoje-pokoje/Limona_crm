@@ -4,17 +4,22 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   X, Phone, Mail, MapPin, Tag, Flame, Snowflake, Sun, Calendar, User,
   MessageCircle, Send, Trash2, ChevronDown, ArrowRight, AlertTriangle, ExternalLink,
+  ListTodo, Plus, CheckCircle, Circle,
 } from 'lucide-react'
 import { Avatar } from '@/components/ui/Avatar'
+import { Badge } from '@/components/ui/Badge'
 import { SortToggle } from '@/components/ui/SortToggle'
 import { StatusChangeCommentModal } from '@/components/shared/StatusChangeCommentModal'
+import { TaskFormModal } from '@/components/tasks/TaskFormModal'
+import { TaskDetailModal } from '@/components/tasks/TaskDetailModal'
 import { createNotification } from '@/hooks/useNotifications'
+import { useTasks } from '@/hooks/useTasks'
 import { LEAD_STATUS_LABELS } from '@/lib/status-comments'
 import { LEAD_TRANSITIONS } from '@/lib/lead-rules'
 import { cn, isOverdueDate, sortByCreatedAt, type SortDirection } from '@/lib/utils'
 import { DriveFiles } from '@/components/shared/DriveFiles'
 import { useConfirm } from '@/components/ui/Confirm'
-import type { Lead, LeadComment, LeadStatus, LeadTemperature, Profile } from '@/types/database'
+import type { Lead, LeadComment, LeadStatus, LeadTemperature, Profile, Task } from '@/types/database'
 
 export const TEMPERATURE_CONFIG: Record<LeadTemperature, { label: string; color: string; icon: React.ReactNode }> = {
   hot: { label: 'Gorący', color: 'text-limona-red', icon: <Flame size={13} /> },
@@ -60,6 +65,11 @@ export function LeadDetailModal({
   const [editingNotes, setEditingNotes] = useState(false)
   const [notes, setNotes] = useState(lead.notes || '')
 
+  // Zadania leada — jak na kartach nieruchomości i kontaktów
+  const { tasks, createTask, updateTask, deleteTask } = useTasks(undefined, undefined, undefined, undefined, isOpen, lead.id)
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null)
+  const [showAddTask, setShowAddTask] = useState(false)
+
   const overlayRef = useRef<HTMLDivElement>(null)
 
   const fetchComments = useCallback(async () => {
@@ -78,12 +88,21 @@ export function LeadDetailModal({
   }, [isOpen])
 
   useEffect(() => {
-    function handleKey(e: KeyboardEvent) { if (e.key === 'Escape') onClose() }
+    // Escape zamyka leada tylko gdy żaden zagnieżdżony modal zadania nie jest otwarty
+    function handleKey(e: KeyboardEvent) { if (e.key === 'Escape' && !selectedTask && !showAddTask) onClose() }
     if (isOpen) {
       window.addEventListener('keydown', handleKey)
       return () => window.removeEventListener('keydown', handleKey)
     }
-  }, [isOpen, onClose])
+  }, [isOpen, onClose, selectedTask, showAddTask])
+
+  // Utrzymuj otwarte zadanie w synchronizacji z odświeżaną listą
+  useEffect(() => {
+    if (selectedTask) {
+      const updated = tasks.find(t => t.id === selectedTask.id)
+      if (updated) setSelectedTask(updated)
+    }
+  }, [tasks, selectedTask])
 
   if (!isOpen) return null
 
@@ -145,6 +164,15 @@ export function LeadDetailModal({
   async function saveNotes() {
     setEditingNotes(false)
     if (notes !== (lead.notes || '')) await onUpdate(lead.id, { notes: notes || null })
+  }
+
+  async function handleCreateTask(data: Partial<Task>) {
+    const { error } = await createTask({ ...data, lead_id: lead.id }, userId)
+    return { error: error ?? null }
+  }
+
+  async function handleToggleTask(task: Task) {
+    await updateTask(task.id, { status: task.status === 'done' ? 'todo' : 'done' }, userId)
   }
 
   function formatTime(dateStr: string) {
@@ -275,6 +303,54 @@ export function LeadDetailModal({
 
               {/* Dokumenty w Google Drive */}
               <DriveFiles entity="lead" id={lead.id} />
+
+              {/* Zadania — jak na kartach nieruchomości i kontaktów */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <label className="flex items-center gap-2 text-xs uppercase tracking-wider text-limona-text-muted font-bold">
+                    <ListTodo size={12} /> Zadania ({tasks.length})
+                  </label>
+                  {!isFrozen && (
+                    <button onClick={() => setShowAddTask(true)}
+                      className="flex items-center gap-1 text-xs text-limona-text-dim hover:text-limona-lime transition-colors">
+                      <Plus size={13} /> Dodaj
+                    </button>
+                  )}
+                </div>
+                {tasks.length === 0 ? (
+                  <p className="text-xs text-limona-text-dim text-center py-3">Brak zadań</p>
+                ) : (
+                  <div className="space-y-2">
+                    {tasks.map(task => (
+                      <div key={task.id}
+                        onClick={() => setSelectedTask(task)}
+                        className="flex items-center gap-3 p-2.5 rounded bg-limona-surface-2/40 cursor-pointer hover:bg-limona-surface-2 transition-colors"
+                      >
+                        <button
+                          onClick={e => { e.stopPropagation(); handleToggleTask(task) }}
+                          className={cn('flex-shrink-0 transition-colors', task.status === 'done' ? 'text-limona-green' : 'text-limona-text-dim hover:text-limona-lime')}
+                        >
+                          {task.status === 'done' ? <CheckCircle size={16} /> : <Circle size={16} />}
+                        </button>
+                        <div className="flex-1 min-w-0">
+                          <p className={cn('text-sm', task.status === 'done' ? 'line-through text-limona-text-muted' : 'text-limona-text')}>
+                            {task.title}
+                          </p>
+                          {task.due_date && (
+                            <p className="text-xs text-limona-text-dim mt-0.5">
+                              Termin: {new Date(task.due_date).toLocaleDateString('pl-PL')}
+                            </p>
+                          )}
+                        </div>
+                        <Badge value={task.priority} />
+                        <button onClick={e => { e.stopPropagation(); deleteTask(task.id) }} className="p-1 text-limona-text-dim hover:text-limona-red transition-colors flex-shrink-0">
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
 
               {/* Komentarze */}
               <div>
@@ -486,6 +562,32 @@ export function LeadDetailModal({
         newStatusLabel={pendingStatus ? LEAD_STATUS_LABELS[pendingStatus] : ''}
         entityLabel="leada"
       />
+
+      <TaskFormModal
+        isOpen={showAddTask}
+        onClose={() => setShowAddTask(false)}
+        onCreate={handleCreateTask}
+        userId={userId}
+        canAssign={canAssign}
+        profiles={profiles}
+        lockedLeadLabel={lead.name}
+      />
+
+      {selectedTask && (
+        <TaskDetailModal
+          task={selectedTask}
+          isOpen={!!selectedTask}
+          onClose={() => setSelectedTask(null)}
+          onUpdate={async (id, updates) => updateTask(id, updates, userId)}
+          onDelete={async (id, scope) => deleteTask(id, scope)}
+          userId={userId}
+          userName={userName}
+          isAdmin={isAdmin}
+          canAssign={canAssign}
+          profiles={profiles}
+          tasks={tasks}
+        />
+      )}
     </div>
   )
 }

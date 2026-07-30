@@ -143,6 +143,7 @@ export interface Task {
   id: string
   property_id: string | null
   kontakt_id: string | null
+  lead_id: string | null
   title: string
   description: string | null
   status: TaskStatus
@@ -173,6 +174,7 @@ export interface Task {
   // Joined fields
   property?: Property
   kontakt?: Kontakt
+  lead?: { id: string; name: string }
   assignee?: Profile
   creator?: Profile
   board?: Board

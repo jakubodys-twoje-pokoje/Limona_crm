@@ -395,6 +395,13 @@ export function TaskDetailModal({
                 {task.kontakt.nazwa}
               </a>
             )}
+            {task.lead && (
+              <a href="/leady"
+                className="flex items-center gap-1 text-xs text-limona-lime hover:text-limona-lime/80 mt-1">
+                <LinkIcon size={10} />
+                Lead: {task.lead.name}
+              </a>
+            )}
           </div>
           <div className="flex items-center gap-1 flex-shrink-0 relative">
             <button onClick={handleDeleteTask}

@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { useDebouncedCallback } from '@/hooks/useDebouncedCallback'
 import type { Task } from '@/types/database'
 
-export function useTasks(propertyId?: string, visibleUserIds?: string[] | null, boardId?: string | null, kontaktId?: string, enabled: boolean = true) {
+export function useTasks(propertyId?: string, visibleUserIds?: string[] | null, boardId?: string | null, kontaktId?: string, enabled: boolean = true, leadId?: string) {
   const [tasks, setTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -18,6 +18,7 @@ export function useTasks(propertyId?: string, visibleUserIds?: string[] | null, 
     const params = new URLSearchParams()
     if (propertyId) params.set('propertyId', propertyId)
     if (kontaktId) params.set('kontaktId', kontaktId)
+    if (leadId) params.set('leadId', leadId)
     if (visibleUserIds?.length) params.set('visibleIds', visibleUserIds.join(','))
     if (boardId !== undefined) params.set('boardId', boardId ?? 'none')
 
@@ -25,7 +26,7 @@ export function useTasks(propertyId?: string, visibleUserIds?: string[] | null, 
     if (res.ok) setTasks(await res.json())
     setLoading(false)
     initializedRef.current = true
-  }, [propertyId, visibleUserIds, boardId, kontaktId, enabled])
+  }, [propertyId, visibleUserIds, boardId, kontaktId, leadId, enabled])
 
   const debouncedFetch = useDebouncedCallback(fetchTasks, 500)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)

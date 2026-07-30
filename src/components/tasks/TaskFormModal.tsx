@@ -67,6 +67,8 @@ interface TaskFormModalProps {
   lockedPropertyLabel?: string
   /** Ukryj wybór kontaktu (karta spółdzielni/kontaktu) i pokaż powiązanie jako stałe */
   lockedKontaktLabel?: string
+  /** Zadanie tworzone z karty leada — pokazuje leada jako stałe powiązanie, bez pickerów */
+  lockedLeadLabel?: string
   /** Do leniwego ładowania list powiązań; gdy oba locki ustawione — pomijane */
   visibleIds?: string[] | null
   title?: string
@@ -80,7 +82,7 @@ interface TaskFormModalProps {
  */
 export function TaskFormModal({
   isOpen, onClose, onCreate, userId, canAssign, profiles,
-  defaults, lockedPropertyLabel, lockedKontaktLabel, visibleIds,
+  defaults, lockedPropertyLabel, lockedKontaktLabel, lockedLeadLabel, visibleIds,
   title = 'Dodaj zadanie', onSuccess,
 }: TaskFormModalProps) {
   const buildInitial = (): TaskFormData => ({
@@ -107,7 +109,7 @@ export function TaskFormModal({
     if (!isOpen || pickersFetched.current) return
     pickersFetched.current = true
     const visParam = visibleIds?.length ? `?visibleIds=${visibleIds.join(',')}` : ''
-    if (!lockedPropertyLabel) {
+    if (!lockedPropertyLabel && !lockedLeadLabel) {
       fetch(`/api/properties${visParam}`)
         .then(r => r.ok ? r.json() : [])
         .then((data: { id: string; adres: string; kod_pocztowy: string | null; miasto: string | null }[]) => {
@@ -115,7 +117,7 @@ export function TaskFormModal({
         })
         .catch(() => {})
     }
-    if (!lockedKontaktLabel) {
+    if (!lockedKontaktLabel && !lockedLeadLabel) {
       fetch(`/api/kontakty${visParam}`)
         .then(r => r.ok ? r.json() : [])
         .then((data: { id: string; nazwa: string; typ: string; miasto: string | null }[]) => {
@@ -127,7 +129,7 @@ export function TaskFormModal({
         })
         .catch(() => {})
     }
-  }, [isOpen, visibleIds, lockedPropertyLabel, lockedKontaktLabel])
+  }, [isOpen, visibleIds, lockedPropertyLabel, lockedKontaktLabel, lockedLeadLabel])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -199,6 +201,14 @@ export function TaskFormModal({
         </div>
 
         {/* Powiązania — ukryte/zablokowane gdy tworzymy z karty encji */}
+        {lockedLeadLabel ? (
+          <div>
+            <label className="limona-label block mb-2">Lead</label>
+            <div className="limona-input flex items-center gap-1.5 text-limona-lime">
+              <LinkIcon size={12} /> <span className="truncate">{lockedLeadLabel}</span>
+            </div>
+          </div>
+        ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {lockedPropertyLabel ? (
             <div>
@@ -234,6 +244,7 @@ export function TaskFormModal({
             />
           )}
         </div>
+        )}
 
         <div className="grid grid-cols-2 gap-4">
           <div>

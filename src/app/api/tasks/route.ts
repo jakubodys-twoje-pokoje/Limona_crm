@@ -10,6 +10,7 @@ import type { RecurrenceFreq } from '@/types/database'
 const SELECT_WITH_RELATIONS = `*,
   property:properties!tasks_property_id_fkey(id,adres,kod_pocztowy,miasto,kontakt_id,kontakt:kontakty!properties_kontakt_id_fkey(id,nazwa)),
   kontakt:kontakty!tasks_kontakt_id_fkey(id,nazwa),
+  lead:leads!tasks_lead_id_fkey(id,name),
   assignee:profiles!tasks_assigned_to_fkey(id,full_name,avatar_url),
   creator:profiles!tasks_created_by_fkey(id,full_name,avatar_url),
   board:boards!tasks_board_id_fkey(id,name,color)`
@@ -22,6 +23,7 @@ export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl
   const propertyId = searchParams.get('propertyId')
   const kontaktId = searchParams.get('kontaktId')
+  const leadId = searchParams.get('leadId')
   const visibleIds = searchParams.get('visibleIds')?.split(',').filter(Boolean)
   const boardId = searchParams.get('boardId')
   const dueFrom = searchParams.get('dueFrom')
@@ -34,6 +36,7 @@ export async function GET(req: NextRequest) {
 
   if (propertyId) query = query.eq('property_id', propertyId)
   if (kontaktId) query = query.eq('kontakt_id', kontaktId)
+  if (leadId) query = query.eq('lead_id', leadId)
   // boardId=none -> zadania bez tablicy ("Ogólne"); konkretne id -> ta tablica;
   // brak parametru -> wszystkie tablice naraz (używa tego kalendarz)
   if (boardId === 'none') query = query.is('board_id', null)
