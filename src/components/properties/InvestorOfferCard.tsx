@@ -1,26 +1,30 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { ChevronDown, ChevronUp, MessageSquare, Send, Trash2, X } from 'lucide-react'
+import { ChevronDown, ChevronUp, MessageSquare, Send, Trash2, X, Pencil, Check } from 'lucide-react'
 import { Skeleton } from '@/components/ui/Skeleton'
-import { cn, formatMoney } from '@/lib/utils'
+import { formatMoney } from '@/lib/utils'
 import type { InvestorPropertyStatus, PropertyInvestor, PropertyNegotiationNote } from '@/types/database'
 import { INVESTOR_PROPERTY_STATUS_LABELS, INVESTOR_PROPERTY_STATUS_OPTIONS } from '@/lib/stages'
 
 interface InvestorOfferCardProps {
   propertyId: string
   investor: PropertyInvestor
+  userId?: string
+  isAdmin?: boolean
   onStatusChange: (id: string, status: InvestorPropertyStatus) => void
   onRemove: (id: string) => void
   onOfferChange: (id: string, amount: number | null) => void
 }
 
-export function InvestorOfferCard({ propertyId, investor, onStatusChange, onRemove, onOfferChange }: InvestorOfferCardProps) {
+export function InvestorOfferCard({ propertyId, investor, userId, isAdmin, onStatusChange, onRemove, onOfferChange }: InvestorOfferCardProps) {
   const [offerInput, setOfferInput] = useState(investor.offer_amount != null ? String(investor.offer_amount) : '')
   const [expanded, setExpanded] = useState(false)
   const [notes, setNotes] = useState<PropertyNegotiationNote[]>([])
   const [loading, setLoading] = useState(false)
   const [newNote, setNewNote] = useState('')
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editingContent, setEditingContent] = useState('')
 
   useEffect(() => {
     setOfferInput(investor.offer_amount != null ? String(investor.offer_amount) : '')
@@ -60,6 +64,22 @@ export function InvestorOfferCard({ propertyId, investor, onStatusChange, onRemo
   async function handleDeleteNote(noteId: string) {
     await fetch(`/api/properties/${propertyId}/negotiation/${noteId}`, { method: 'DELETE' })
     setNotes(prev => prev.filter(n => n.id !== noteId))
+  }
+
+  async function saveEditNote(noteId: string) {
+    const content = editingContent.trim()
+    if (!content) return
+    const res = await fetch(`/api/properties/${propertyId}/negotiation/${noteId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content }),
+    })
+    if (res.ok) {
+      const updated = await res.json()
+      setNotes(prev => prev.map(n => n.id === noteId ? { ...n, ...updated } : n))
+      setEditingId(null)
+      setEditingContent('')
+    }
   }
 
   return (
@@ -123,20 +143,56 @@ export function InvestorOfferCard({ propertyId, investor, onStatusChange, onRemo
             <p className="text-xs text-limona-text-dim">Brak komentarzy do tej oferty</p>
           ) : (
             <div className="space-y-1.5 max-h-48 overflow-y-auto">
-              {notes.map(note => (
+              {notes.map(note => {
+                const canEdit = note.user_id === userId || isAdmin
+                const edited = note.updated_at && note.updated_at !== note.created_at
+                return (
                 <div key={note.id} className="flex items-start gap-2 group bg-limona-surface-2/50 rounded p-2">
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs text-limona-text whitespace-pre-wrap">{note.content}</p>
-                    <p className="text-[10px] text-limona-text-dim mt-0.5">
-                      {note.user?.full_name || 'Użytkownik'} · {new Date(note.created_at).toLocaleString('pl-PL')}
-                    </p>
+                    {editingId === note.id ? (
+                      <div className="space-y-1.5">
+                        <textarea
+                          className="limona-input w-full text-xs min-h-[48px] resize-y"
+                          value={editingContent}
+                          onChange={e => setEditingContent(e.target.value)}
+                          autoFocus
+                        />
+                        <div className="flex gap-1.5">
+                          <button onClick={() => saveEditNote(note.id)} disabled={!editingContent.trim()}
+                            className="p-1 text-limona-text-muted hover:text-limona-lime disabled:opacity-30 transition-colors" title="Zapisz">
+                            <Check size={13} />
+                          </button>
+                          <button onClick={() => { setEditingId(null); setEditingContent('') }}
+                            className="p-1 text-limona-text-muted hover:text-limona-red transition-colors" title="Anuluj">
+                            <X size={13} />
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <p className="text-xs text-limona-text whitespace-pre-wrap">{note.content}</p>
+                        <p className="text-[10px] text-limona-text-dim mt-0.5">
+                          {note.user?.full_name || 'Użytkownik'} · {new Date(note.created_at).toLocaleString('pl-PL')}
+                          {edited && <span className="italic"> · edytowano</span>}
+                        </p>
+                      </>
+                    )}
                   </div>
-                  <button onClick={() => handleDeleteNote(note.id)}
-                    className={cn('p-0.5 text-limona-text-dim hover:text-limona-red opacity-0 group-hover:opacity-100 transition-all flex-shrink-0')}>
-                    <Trash2 size={11} />
-                  </button>
+                  {canEdit && editingId !== note.id && (
+                    <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-all flex-shrink-0">
+                      <button onClick={() => { setEditingId(note.id); setEditingContent(note.content) }}
+                        className="p-0.5 text-limona-text-dim hover:text-limona-lime transition-colors" title="Edytuj">
+                        <Pencil size={11} />
+                      </button>
+                      <button onClick={() => handleDeleteNote(note.id)}
+                        className="p-0.5 text-limona-text-dim hover:text-limona-red transition-colors" title="Usuń">
+                        <Trash2 size={11} />
+                      </button>
+                    </div>
+                  )}
                 </div>
-              ))}
+                )
+              })}
             </div>
           )}
           <form onSubmit={handleAddNote} className="flex gap-2">

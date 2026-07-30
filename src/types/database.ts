@@ -127,6 +127,7 @@ export interface PropertyNegotiationNote {
   user_id: string | null
   content: string
   created_at: string
+  updated_at?: string
   user?: { id: string; full_name: string; avatar_url: string | null }
 }
 

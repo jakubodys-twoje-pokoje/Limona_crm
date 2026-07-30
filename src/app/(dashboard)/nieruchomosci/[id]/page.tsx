@@ -123,6 +123,8 @@ export default function PropertyDetailPage() {
   const [negLoading, setNegLoading] = useState(false)
   const [newNegNote, setNewNegNote] = useState('')
   const [negSortDir, setNegSortDir] = useState<SortDirection>('desc')
+  const [editingNegId, setEditingNegId] = useState<string | null>(null)
+  const [editingNegContent, setEditingNegContent] = useState('')
 
   // Inwestorzy
   const [investors, setInvestors] = useState<PropertyInvestor[]>([])
@@ -242,6 +244,29 @@ export default function PropertyDetailPage() {
   async function handleDeleteNegNote(noteId: string) {
     await fetch(`/api/properties/${propertyId}/negotiation/${noteId}`, { method: 'DELETE' })
     setNegNotes(prev => prev.filter(n => n.id !== noteId))
+  }
+
+  function startEditNegNote(note: PropertyNegotiationNote) {
+    setEditingNegId(note.id)
+    setEditingNegContent(note.content)
+  }
+
+  async function saveEditNegNote(noteId: string) {
+    const content = editingNegContent.trim()
+    if (!content) return
+    const res = await fetch(`/api/properties/${propertyId}/negotiation/${noteId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content }),
+    })
+    if (res.ok) {
+      const updated = await res.json()
+      setNegNotes(prev => prev.map(n => n.id === noteId ? { ...n, ...updated } : n))
+      setEditingNegId(null)
+      setEditingNegContent('')
+    } else {
+      showToast('Nie udało się zapisać notatki', 'error')
+    }
   }
 
   async function linkInvestor(kontaktId: string) {
@@ -1005,19 +1030,52 @@ export default function PropertyDetailPage() {
             </div>
           ) : (
             <div className="space-y-2">
-              {sortByCreatedAt(negNotes, negSortDir).map(note => (
-                <div key={note.id} className="limona-card p-3 flex items-start gap-3">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm text-limona-text whitespace-pre-wrap">{note.content}</p>
-                    <p className="text-[10px] text-limona-text-dim mt-1">
-                      {note.user?.full_name || 'Użytkownik'} · {new Date(note.created_at).toLocaleString('pl-PL')}
-                    </p>
+              {sortByCreatedAt(negNotes, negSortDir).map(note => {
+                const canEdit = note.user_id === user?.id || profile?.role === 'admin'
+                const edited = note.updated_at && note.updated_at !== note.created_at
+                return (
+                  <div key={note.id} className="limona-card p-3 flex items-start gap-3">
+                    <div className="flex-1 min-w-0">
+                      {editingNegId === note.id ? (
+                        <div className="space-y-2">
+                          <textarea
+                            className="limona-input w-full min-h-[70px] resize-y text-sm"
+                            value={editingNegContent}
+                            onChange={e => setEditingNegContent(e.target.value)}
+                            autoFocus
+                          />
+                          <div className="flex gap-2">
+                            <button onClick={() => saveEditNegNote(note.id)} disabled={!editingNegContent.trim()}
+                              className="limona-btn-sm text-xs flex items-center gap-1 disabled:opacity-40">
+                              <Save size={12} /> Zapisz
+                            </button>
+                            <button onClick={() => { setEditingNegId(null); setEditingNegContent('') }}
+                              className="limona-btn-outline text-xs px-3 py-1.5">Anuluj</button>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <p className="text-sm text-limona-text whitespace-pre-wrap">{note.content}</p>
+                          <p className="text-[10px] text-limona-text-dim mt-1">
+                            {note.user?.full_name || 'Użytkownik'} · {new Date(note.created_at).toLocaleString('pl-PL')}
+                            {edited && <span className="italic"> · edytowano</span>}
+                          </p>
+                        </>
+                      )}
+                    </div>
+                    {canEdit && editingNegId !== note.id && (
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        <button onClick={() => startEditNegNote(note)} className="p-1 text-limona-text-dim hover:text-limona-lime transition-colors" title="Edytuj">
+                          <Edit size={14} />
+                        </button>
+                        <button onClick={() => handleDeleteNegNote(note.id)} className="p-1 text-limona-text-dim hover:text-limona-red transition-colors" title="Usuń">
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    )}
                   </div>
-                  <button onClick={() => handleDeleteNegNote(note.id)} className="p-1 text-limona-text-dim hover:text-limona-red transition-colors flex-shrink-0">
-                    <Trash2 size={14} />
-                  </button>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </div>
@@ -1073,6 +1131,8 @@ export default function PropertyDetailPage() {
                   key={inv.id}
                   propertyId={propertyId!}
                   investor={inv}
+                  userId={user?.id}
+                  isAdmin={profile?.role === 'admin'}
                   onStatusChange={handleInvestorStatus}
                   onRemove={handleRemoveInvestor}
                   onOfferChange={handleInvestorOffer}
