@@ -38,13 +38,28 @@ export async function POST(req: NextRequest) {
     .single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  // Powiadom kierownictwo i osoby powiązane z zadaniem o nowym komentarzu
   const { data: task } = await supabase
     .from('tasks')
-    .select('title, assigned_to, created_by, co_assignees')
+    .select('title, assigned_to, created_by, co_assignees, property_id, kontakt_id, lead_id')
     .eq('id', taskId)
     .maybeSingle()
+
   if (task) {
+    // Komentarz z zadania powiązanego z kartą dokłada się automatycznie do
+    // komentarzy tej karty (nieruchomość / spółdzielnia-kontakt / lead) —
+    // agent nie musi go kopiować ręcznie. Marker wskazuje źródło.
+    const mirrored = `[Zadanie: ${task.title}] ${content}`
+    if (task.property_id) {
+      await supabase.from('property_comments').insert({ property_id: task.property_id, user_id: user.id, content: mirrored })
+    }
+    if (task.kontakt_id) {
+      await supabase.from('kontakt_komentarze').insert({ kontakt_id: task.kontakt_id, user_id: user.id, content: mirrored })
+    }
+    if (task.lead_id) {
+      await supabase.from('lead_comments').insert({ lead_id: task.lead_id, user_id: user.id, content: mirrored })
+    }
+
+    // Powiadom kierownictwo i osoby powiązane z zadaniem o nowym komentarzu
     await notifyCardActivity(supabase, {
       actorId: user.id,
       linkedUserIds: [task.assigned_to, task.created_by, ...(task.co_assignees ?? [])],

@@ -98,9 +98,29 @@ export async function GET(req: NextRequest) {
   if (firstError) return NextResponse.json({ error: firstError.message }, { status: 500 })
 
   const taskNotes: Record<string, string> = noteRes.data?.task_notes ?? {}
+
+  // Komentarze dodane do zadań dnia w obrębie doby — trafiają do raportu, żeby
+  // nie trzeba było ich przepisywać ręcznie (komentarz z karty nieruchomości/
+  // spółdzielni jest lustrzany do komentarza zadania — patrz POST /api/comments)
+  const dayTaskIds = ((dayTasksRes.data ?? []) as unknown as { id: string }[]).map(t => t.id)
+  const commentsByTask: Record<string, { author: string; content: string; created_at: string }[]> = {}
+  if (dayTaskIds.length) {
+    const { data: commentRows } = await supabase
+      .from('task_comments')
+      .select('task_id, content, created_at, user:profiles!task_comments_user_id_fkey(full_name)')
+      .in('task_id', dayTaskIds)
+      .gte('created_at', start)
+      .lt('created_at', end)
+      .order('created_at', { ascending: true })
+    for (const c of (commentRows ?? []) as unknown as { task_id: string; content: string; created_at: string; user: { full_name: string } | { full_name: string }[] | null }[]) {
+      const u = Array.isArray(c.user) ? c.user[0] : c.user
+      ;(commentsByTask[c.task_id] ??= []).push({ author: u?.full_name ?? 'Użytkownik', content: c.content, created_at: c.created_at })
+    }
+  }
+
   const dayTasks: ReportDayTask[] = ((dayTasksRes.data ?? []) as unknown as { id: string; property: RawPropertyRef | null; [k: string]: unknown }[])
     .map(withLocation)
-    .map(t => ({ ...t, note: taskNotes[t.id as string] ?? '' })) as unknown as ReportDayTask[]
+    .map(t => ({ ...t, note: taskNotes[t.id as string] ?? '', comments: commentsByTask[t.id as string] ?? [] })) as unknown as ReportDayTask[]
 
   // Kategoria kontaktu do statystyki: wprost z zadania, a jeśli nie ustawiono —
   // wyprowadzona z typu powiązanego kontaktu (spółdzielnia/wspólnota). Dzięki

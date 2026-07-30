@@ -67,6 +67,8 @@ export interface ReportDayTask {
   property: { id: string; location: string } | null
   kontakt: { id: string; nazwa: string; typ: string } | null
   note: string
+  /** Komentarze dodane do tego zadania w dniu raportu (z autorem) */
+  comments: { author: string; content: string; created_at: string }[]
 }
 
 export interface CategoryCounters {
@@ -159,6 +161,9 @@ export function buildReportText(data: DailyReportData): string {
         : ''
       lines.push(`- [${TASK_STATUS_LABELS[t.status]}] ${time}${t.title}${loc}${outcome}${realization}`)
       if (t.note.trim()) lines.push(`  notatka: ${t.note.trim()}`)
+      for (const c of t.comments ?? []) {
+        lines.push(`  komentarz (${c.author}): ${c.content.trim()}`)
+      }
     }
   }
   lines.push('')

@@ -195,6 +195,15 @@ export function DailyReportModal({ isOpen, onClose, onSubmitted, viewUserId, vie
                         </span>
                       )}
                     </div>
+                    {t.comments && t.comments.length > 0 && (
+                      <div className="space-y-1">
+                        {t.comments.map((c, i) => (
+                          <p key={i} className="text-xs text-limona-text pl-1 border-l-2 border-limona-lime/40">
+                            <span className="text-limona-text-dim">{c.author}:</span> {c.content}
+                          </p>
+                        ))}
+                      </div>
+                    )}
                     {readOnly ? (
                       (taskNotes[t.id] || '').trim() && (
                         <p className="text-xs text-limona-text-muted pl-1 border-l-2 border-limona-border">{taskNotes[t.id]}</p>
