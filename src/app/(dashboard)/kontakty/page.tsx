@@ -13,6 +13,7 @@ import { KontaktForm } from '@/components/kontakty/KontaktForm'
 import { ShareCityModal } from '@/components/kontakty/ShareCityModal'
 import { Modal } from '@/components/ui/Modal'
 import { useToast } from '@/components/ui/Toast'
+import { usePersistentState } from '@/hooks/usePersistentState'
 import { cn } from '@/lib/utils'
 import { KONTAKT_TYP_LABELS, KONTAKT_TYPY } from '@/types/database'
 import type { Kontakt, KontaktTyp, Profile } from '@/types/database'
@@ -34,7 +35,7 @@ export default function KontaktyPage() {
   const [profiles, setProfiles] = useState<Profile[]>([])
   const [showAddModal, setShowAddModal] = useState(false)
   const [showShareCityModal, setShowShareCityModal] = useState(false)
-  const [view, setView] = useState<ViewMode>('lista')
+  const [view, setView] = usePersistentState<ViewMode>('kontakty:view', 'lista')
   const canBulkShare = canManageTeams(profile?.role)
 
   useEffect(() => {

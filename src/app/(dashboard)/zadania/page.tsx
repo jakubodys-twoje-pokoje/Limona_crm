@@ -19,6 +19,7 @@ import { TaskFormModal } from '@/components/tasks/TaskFormModal'
 import { BoardView, BOARD_COLORS } from '@/components/tasks/BoardView'
 import { canSeeAllTeams } from '@/lib/roles'
 import { cn, formatPropertyAddress, isOverdueDate, taskMatchesAssignee } from '@/lib/utils'
+import { usePersistentState } from '@/hooks/usePersistentState'
 import type { Task, TaskStatus, Profile } from '@/types/database'
 
 const columns: { status: TaskStatus; label: string; icon: React.ReactNode; color: string }[] = [
@@ -49,19 +50,19 @@ export default function ZadaniaPage() {
   const { boards, loading: boardsLoading, createBoard, updateBoard, deleteBoard } = useBoards()
 
   // selectedBoardId === null means Ogólne (tasks without board_id)
-  const [selectedBoardId, setSelectedBoardId] = useState<string | null>(null)
+  const [selectedBoardId, setSelectedBoardId] = usePersistentState<string | null>('zadania:board', null)
 
   // For Ogólne mode, pass 'none' so tasks API filters board_id IS NULL
   const boardIdFilter = selectedBoardId === null ? 'none' : selectedBoardId
   const { tasks, loading, createTask, updateTask, deleteTask } = useTasks(undefined, visibleIds, boardIdFilter, undefined, !visLoading)
   const { showToast } = useToast()
 
-  const [view, setView] = useState<'kanban' | 'list'>('kanban')
+  const [view, setView] = usePersistentState<'kanban' | 'list'>('zadania:view', 'kanban')
   const [showAddModal, setShowAddModal] = useState(false)
   const [addStatus, setAddStatus] = useState<TaskStatus>('todo')
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   const [profiles, setProfiles] = useState<Profile[]>([])
-  const [assigneeFilter, setAssigneeFilter] = useState('')
+  const [assigneeFilter, setAssigneeFilter] = usePersistentState('zadania:assignee', '')
   // Filtr po agencie ma sens tylko, gdy widać zadania więcej niż jednej osoby
   const canFilterByAgent = canAssign || (visibleIds?.length ?? 0) > 1
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useMemo } from 'react'
 import Link from 'next/link'
 import { ArrowUpDown, ArrowUp, ArrowDown, Search, Plus, ExternalLink, Edit, Trash2 } from 'lucide-react'
 import type { Property, DealType } from '@/types/database'
@@ -10,6 +10,7 @@ import { Avatar } from '@/components/ui/Avatar'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { calculateBelow, calculateAbove } from '@/lib/calculator'
 import { formatMoney, formatPercent, formatPropertyAddress, cn } from '@/lib/utils'
+import { usePersistentState } from '@/hooks/usePersistentState'
 
 type SortKey = 'location' | 'value_per_sqm' | 'rw' | 'total_debt' | 'profit' | 'roi' | 'status' | 'created_at'
 type SortDir = 'asc' | 'desc'
@@ -82,14 +83,15 @@ function getOfferMinus30(p: Property): number | null {
 }
 
 export function PropertiesTable({ properties, loading, onAdd, onEdit, onDelete }: PropertiesTableProps) {
-  const [search, setSearch] = useState('')
-  const [statusDluznikaFilter, setStatusDluznikaFilter] = useState<string>('')
-  const [statusInwestoraFilter, setStatusInwestoraFilter] = useState<string>('')
-  const [typeFilter, setTypeFilter] = useState<string>('')
-  const [decisionFilter, setDecisionFilter] = useState<string>('')
-  const [dealTypeFilter, setDealTypeFilter] = useState<string>('')
-  const [sortKey, setSortKey] = useState<SortKey>('created_at')
-  const [sortDir, setSortDir] = useState<SortDir>('desc')
+  // Filtry zapamiętywane, by nie resetowały się po wejściu w kartę i powrocie
+  const [search, setSearch] = usePersistentState('nieruchomosci:search', '')
+  const [statusDluznikaFilter, setStatusDluznikaFilter] = usePersistentState<string>('nieruchomosci:statusDluznika', '')
+  const [statusInwestoraFilter, setStatusInwestoraFilter] = usePersistentState<string>('nieruchomosci:statusInwestora', '')
+  const [typeFilter, setTypeFilter] = usePersistentState<string>('nieruchomosci:type', '')
+  const [decisionFilter, setDecisionFilter] = usePersistentState<string>('nieruchomosci:decision', '')
+  const [dealTypeFilter, setDealTypeFilter] = usePersistentState<string>('nieruchomosci:dealType', '')
+  const [sortKey, setSortKey] = usePersistentState<SortKey>('nieruchomosci:sortKey', 'created_at')
+  const [sortDir, setSortDir] = usePersistentState<SortDir>('nieruchomosci:sortDir', 'desc')
 
   const filtered = useMemo(() => {
     return properties

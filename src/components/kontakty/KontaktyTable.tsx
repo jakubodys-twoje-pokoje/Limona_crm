@@ -4,6 +4,7 @@ import { useState, useMemo } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Plus, Search, Filter, ChevronUp, ChevronDown, X, Layers } from 'lucide-react'
+import { usePersistentState } from '@/hooks/usePersistentState'
 import { Avatar } from '@/components/ui/Avatar'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { KontaktyBatchEditModal } from '@/components/kontakty/KontaktyBatchEditModal'
@@ -95,37 +96,37 @@ export function KontaktyTable({ kontakty, loading, profiles, onAdd, onRefresh }:
     })
   }
 
-  // Dropdown / text filters
-  const [search,         setSearch]         = useState('')
-  const [typFilter,      setTypFilter]      = useState('')
-  const [wojFilter,      setWojFilter]      = useState('')
-  const [miastoFilter,   setMiastoFilter]   = useState('')
-  const [assignedFilter, setAssignedFilter] = useState('')
-  const [rozmiarFilter,  setRozmiarFilter]  = useState('')
-  const [showFilters,    setShowFilters]    = useState(false)
+  // Dropdown / text filters — zapamiętywane, by nie resetowały się po wejściu w kartę
+  const [search,         setSearch]         = usePersistentState('kontakty:search', '')
+  const [typFilter,      setTypFilter]      = usePersistentState('kontakty:typ', '')
+  const [wojFilter,      setWojFilter]      = usePersistentState('kontakty:woj', '')
+  const [miastoFilter,   setMiastoFilter]   = usePersistentState('kontakty:miasto', '')
+  const [assignedFilter, setAssignedFilter] = usePersistentState('kontakty:assigned', '')
+  const [rozmiarFilter,  setRozmiarFilter]  = usePersistentState('kontakty:rozmiar', '')
+  const [showFilters,    setShowFilters]    = usePersistentState('kontakty:showFilters', false)
 
   // Statusy realizacji
-  const [fWizyta, setFWizyta] = useState(false)
-  const [fMail,   setFMail]   = useState(false)
+  const [fWizyta, setFWizyta] = usePersistentState('kontakty:fWizyta', false)
+  const [fMail,   setFMail]   = usePersistentState('kontakty:fMail', false)
 
   // Statusy wykonawcze
-  const [fCoop,     setFCoop]     = useState(false)
-  const [fNie,      setFNie]      = useState(false)
-  const [fUlotki,   setFUlotki]   = useState(false)
-  const [fPlakat,   setFPlakat]   = useState(false)
-  const [fOperator, setFOperator] = useState(false)
+  const [fCoop,     setFCoop]     = usePersistentState('kontakty:fCoop', false)
+  const [fNie,      setFNie]      = usePersistentState('kontakty:fNie', false)
+  const [fUlotki,   setFUlotki]   = usePersistentState('kontakty:fUlotki', false)
+  const [fPlakat,   setFPlakat]   = usePersistentState('kontakty:fPlakat', false)
+  const [fOperator, setFOperator] = usePersistentState('kontakty:fOperator', false)
 
   // Dane kontaktu
-  const [fGodziny,    setFGodziny]    = useState(false)
-  const [fOtwarte,    setFOtwarte]    = useState(false)
-  const [fTelefon,    setFTelefon]    = useState(false)
-  const [fEmail,      setFEmail]      = useState(false)
-  const [fBezOpiek,   setFBezOpiek]   = useState(false)
-  const [fProwizja,   setFProwizja]   = useState(false)
-  const [fUmowa,      setFUmowa]      = useState(false)
+  const [fGodziny,    setFGodziny]    = usePersistentState('kontakty:fGodziny', false)
+  const [fOtwarte,    setFOtwarte]    = usePersistentState('kontakty:fOtwarte', false)
+  const [fTelefon,    setFTelefon]    = usePersistentState('kontakty:fTelefon', false)
+  const [fEmail,      setFEmail]      = usePersistentState('kontakty:fEmail', false)
+  const [fBezOpiek,   setFBezOpiek]   = usePersistentState('kontakty:fBezOpiek', false)
+  const [fProwizja,   setFProwizja]   = usePersistentState('kontakty:fProwizja', false)
+  const [fUmowa,      setFUmowa]      = usePersistentState('kontakty:fUmowa', false)
 
-  const [sortKey, setSortKey] = useState<SortKey>('nazwa')
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
+  const [sortKey, setSortKey] = usePersistentState<SortKey>('kontakty:sortKey', 'nazwa')
+  const [sortDir, setSortDir] = usePersistentState<'asc' | 'desc'>('kontakty:sortDir', 'asc')
 
   function toggleSort(key: SortKey) {
     if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc')

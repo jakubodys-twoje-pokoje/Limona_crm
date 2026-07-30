@@ -6,6 +6,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { Archive, RotateCcw, Trash2 } from 'lucide-react'
 import { useProperties } from '@/hooks/useProperties'
+import { usePersistentState } from '@/hooks/usePersistentState'
 import { useAuth } from '@/hooks/useAuth'
 import { useVisibleUserIds } from '@/hooks/useTeamVisibility'
 import { PropertiesTable } from '@/components/properties/PropertiesTable'
@@ -30,7 +31,7 @@ export default function NieruchomosciPage() {
   const { properties, loading, createProperty, updateProperty, deleteProperty } = useProperties(visibleIds, !visLoading)
   const { showToast } = useToast()
 
-  const [view, setView] = useState<'active' | 'archive'>('active')
+  const [view, setView] = usePersistentState<'active' | 'archive'>('nieruchomosci:view', 'active')
   const {
     properties: archivedProperties,
     loading: archiveLoading,

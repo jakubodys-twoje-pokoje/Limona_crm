@@ -19,6 +19,7 @@ import { LEAD_STATUS_LABELS } from '@/lib/status-comments'
 import { LEAD_TRANSITIONS } from '@/lib/lead-rules'
 import { canSeeAllTeams } from '@/lib/roles'
 import { cn, isOverdueDate } from '@/lib/utils'
+import { usePersistentState } from '@/hooks/usePersistentState'
 import type { Lead, LeadStatus, LeadTemperature, Profile } from '@/types/database'
 import { ZRODLO_OPTIONS as SOURCE_OPTIONS } from '@/lib/zrodla'
 
@@ -52,9 +53,9 @@ export default function LeadyPage() {
   const [profiles, setProfiles] = useState<Profile[]>([])
 
   // Filtry
-  const [search, setSearch] = useState('')
-  const [tempFilter, setTempFilter] = useState('')
-  const [assigneeFilter, setAssigneeFilter] = useState('')
+  const [search, setSearch] = usePersistentState('leady:search', '')
+  const [tempFilter, setTempFilter] = usePersistentState('leady:temp', '')
+  const [assigneeFilter, setAssigneeFilter] = usePersistentState('leady:assignee', '')
 
   // Modale
   const [showAddModal, setShowAddModal] = useState(false)
@@ -69,8 +70,8 @@ export default function LeadyPage() {
   const [dragOverCol, setDragOverCol] = useState<string | null>(null)
 
   // Archiwum (converted/rejected) — zwijane sekcje
-  const [showConverted, setShowConverted] = useState(false)
-  const [showRejected, setShowRejected] = useState(false)
+  const [showConverted, setShowConverted] = usePersistentState('leady:showConverted', false)
+  const [showRejected, setShowRejected] = usePersistentState('leady:showRejected', false)
 
   // Webhook info (dla adminów) — jak podpiąć n8n
   const [showWebhookInfo, setShowWebhookInfo] = useState(false)
@@ -461,7 +462,7 @@ export default function LeadyPage() {
           </div>
           <p className="text-xs text-limona-text-muted">
             Duplikaty (ten sam telefon/email) nie tworzą drugiego leada — system dokleja komentarz
-            „ponowne zgłoszenie" do istniejącego i powiadamia prowadzącego agenta.
+            „ponowne zgłoszenie” do istniejącego i powiadamia prowadzącego agenta.
           </p>
         </div>
       </Modal>

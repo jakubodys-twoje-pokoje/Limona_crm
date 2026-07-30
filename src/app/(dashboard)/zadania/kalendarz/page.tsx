@@ -14,6 +14,7 @@ import { TaskDetailModal } from '@/components/tasks/TaskDetailModal'
 import { TaskFormModal } from '@/components/tasks/TaskFormModal'
 import { canSeeAllTeams } from '@/lib/roles'
 import { cn, taskMatchesAssignee } from '@/lib/utils'
+import { usePersistentState } from '@/hooks/usePersistentState'
 import type { Task, Profile } from '@/types/database'
 
 type CalMode = 'agenda' | 'grid'
@@ -27,7 +28,7 @@ export default function ZadaniaKalendarzPage() {
   const { tasks, loading, createTask, updateTask, deleteTask } = useTasks(undefined, visibleIds, undefined, undefined, !visLoading)
   const [profiles, setProfiles] = useState<Profile[]>([])
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
-  const [assigneeFilter, setAssigneeFilter] = useState('')
+  const [assigneeFilter, setAssigneeFilter] = usePersistentState('zadania:assignee', '')
   // Filtr po agencie ma sens tylko, gdy widać zadania więcej niż jednej osoby
   const canFilterByAgent = canAssign || (visibleIds?.length ?? 0) > 1
   const filteredTasks = tasks.filter(t => taskMatchesAssignee(t, assigneeFilter))
