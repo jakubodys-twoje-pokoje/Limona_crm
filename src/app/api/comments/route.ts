@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getSessionUser, unauthorized } from '@/lib/api-auth'
+import { notifyCardActivity } from '@/lib/notify'
 
 const SELECT_WITH_USER = '*, user:profiles!task_comments_user_id_fkey(id,full_name,avatar_url)'
 
@@ -36,6 +37,24 @@ export async function POST(req: NextRequest) {
     .select(SELECT_WITH_USER)
     .single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // Powiadom kierownictwo i osoby powiązane z zadaniem o nowym komentarzu
+  const { data: task } = await supabase
+    .from('tasks')
+    .select('title, assigned_to, created_by, co_assignees')
+    .eq('id', taskId)
+    .maybeSingle()
+  if (task) {
+    await notifyCardActivity(supabase, {
+      actorId: user.id,
+      linkedUserIds: [task.assigned_to, task.created_by, ...(task.co_assignees ?? [])],
+      type: 'card_comment',
+      title: `Komentarz w zadaniu`,
+      body: `${user.name} — ${task.title}: ${String(content).slice(0, 120)}`,
+      link: '/zadania',
+      referenceId: taskId,
+    })
+  }
 
   return NextResponse.json(comment, { status: 201 })
 }

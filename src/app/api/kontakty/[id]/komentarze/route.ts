@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getSessionUser, unauthorized } from '@/lib/api-auth'
+import { notifyCardActivity } from '@/lib/notify'
 
 const SELECT_WITH_USER = '*, user:profiles!kontakt_komentarze_user_id_fkey(id,full_name,avatar_url)'
 
@@ -38,6 +39,23 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     .select(SELECT_WITH_USER)
     .single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  const { data: kontakt } = await supabase
+    .from('kontakty')
+    .select('nazwa, assigned_to, created_by')
+    .eq('id', id)
+    .maybeSingle()
+  if (kontakt) {
+    await notifyCardActivity(supabase, {
+      actorId: user.id,
+      linkedUserIds: [kontakt.assigned_to, kontakt.created_by],
+      type: 'card_comment',
+      title: 'Komentarz w kontakcie',
+      body: `${user.name} — ${kontakt.nazwa}: ${content.trim().slice(0, 120)}`,
+      link: `/kontakty/${id}`,
+      referenceId: id,
+    })
+  }
 
   return NextResponse.json(komentarz, { status: 201 })
 }

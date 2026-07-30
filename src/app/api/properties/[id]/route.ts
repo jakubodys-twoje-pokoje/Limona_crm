@@ -6,6 +6,8 @@ import { canSeeAllTeams } from '@/lib/roles'
 import { geocodeAddress } from '@/lib/geocode'
 import { getStatusDluznikaLabel, getStatusInwestoraLabel } from '@/lib/stages'
 import { formatStatusChangeComment } from '@/lib/status-comments'
+import { notifyCardActivity } from '@/lib/notify'
+import { formatPropertyAddress } from '@/lib/utils'
 
 const SELECT_WITH_RELATIONS = `*,
   creator:profiles!properties_created_by_fkey(id,full_name,avatar_url),
@@ -91,6 +93,17 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       property_id: id,
       user_id: user.id,
       content: formatStatusChangeComment(label, statusComment),
+    })
+
+    // Powiadom kierownictwo i osoby powiązane z nieruchomością o zmianie statusu
+    await notifyCardActivity(supabase, {
+      actorId: user.id,
+      linkedUserIds: [property.assigned_to, property.created_by, ...(property.co_assignees ?? [])],
+      type: 'card_change',
+      title: `Nieruchomość: ${label}`,
+      body: `${user.name} — ${formatPropertyAddress(property)}: ${statusComment}`,
+      link: `/nieruchomosci/${id}`,
+      referenceId: id,
     })
   }
 

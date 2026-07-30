@@ -18,6 +18,9 @@ const typeLabels: Record<string, string> = {
   comment_added: 'Nowy komentarz',
   dm_message: 'Wiadomość prywatna',
   group_message: 'Wiadomość grupowa',
+  new_lead: 'Nowy lead',
+  card_change: 'Zmiana na karcie',
+  card_comment: 'Komentarz na karcie',
 }
 
 const typeColors: Record<string, string> = {
@@ -27,6 +30,9 @@ const typeColors: Record<string, string> = {
   comment_added: 'text-limona-text-muted',
   dm_message: 'text-limona-lime',
   group_message: 'text-limona-lime',
+  new_lead: 'text-limona-lime',
+  card_change: 'text-limona-blue',
+  card_comment: 'text-limona-text-muted',
 }
 
 export function NotificationBell({ userId }: NotificationBellProps) {

@@ -5,6 +5,7 @@ import { getSessionUser, unauthorized } from '@/lib/api-auth'
 import { validateTaskRules } from '@/lib/task-rules'
 import { TASK_STATUS_LABELS, formatStatusChangeComment } from '@/lib/status-comments'
 import { canSeeAllTeams } from '@/lib/roles'
+import { notifyCardActivity } from '@/lib/notify'
 import type { TaskStatus } from '@/types/database'
 
 const SELECT_WITH_RELATIONS = `*,
@@ -70,6 +71,17 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       task_id: id,
       user_id: user.id,
       content: formatStatusChangeComment(TASK_STATUS_LABELS[body.status as TaskStatus], statusComment),
+    })
+
+    // Powiadom kierownictwo i osoby powiązane z zadaniem o zmianie statusu
+    await notifyCardActivity(supabase, {
+      actorId: user.id,
+      linkedUserIds: [task.assigned_to, task.created_by, ...(task.co_assignees ?? [])],
+      type: 'card_change',
+      title: `Zadanie: ${TASK_STATUS_LABELS[body.status as TaskStatus]}`,
+      body: `${user.name} — ${task.title}${statusComment ? `: ${statusComment}` : ''}`,
+      link: '/zadania',
+      referenceId: id,
     })
   }
 

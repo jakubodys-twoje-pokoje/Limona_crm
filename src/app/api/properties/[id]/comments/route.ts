@@ -2,6 +2,8 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getSessionUser, unauthorized } from '@/lib/api-auth'
+import { notifyCardActivity } from '@/lib/notify'
+import { formatPropertyAddress } from '@/lib/utils'
 
 const SELECT_WITH_USER = '*, user:profiles!property_comments_user_id_fkey(id,full_name,avatar_url)'
 
@@ -36,6 +38,23 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     .select(SELECT_WITH_USER)
     .single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  const { data: property } = await supabase
+    .from('properties')
+    .select('adres, kod_pocztowy, miasto, assigned_to, created_by, co_assignees')
+    .eq('id', id)
+    .maybeSingle()
+  if (property) {
+    await notifyCardActivity(supabase, {
+      actorId: user.id,
+      linkedUserIds: [property.assigned_to, property.created_by, ...(property.co_assignees ?? [])],
+      type: 'card_comment',
+      title: 'Komentarz w nieruchomości',
+      body: `${user.name} — ${formatPropertyAddress(property)}: ${content.trim().slice(0, 120)}`,
+      link: `/nieruchomosci/${id}`,
+      referenceId: id,
+    })
+  }
 
   return NextResponse.json(comment, { status: 201 })
 }

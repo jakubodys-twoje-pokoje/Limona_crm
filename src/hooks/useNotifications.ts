@@ -6,7 +6,7 @@ export interface Notification {
   id: string
   user_id: string
   from_user_id: string | null
-  type: 'mention_wall' | 'mention_task' | 'task_assigned' | 'comment_added' | 'dm_message' | 'group_message' | 'new_lead'
+  type: 'mention_wall' | 'mention_task' | 'task_assigned' | 'comment_added' | 'dm_message' | 'group_message' | 'new_lead' | 'card_change' | 'card_comment'
   title: string
   body: string | null
   link: string | null

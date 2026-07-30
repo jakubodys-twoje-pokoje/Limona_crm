@@ -6,6 +6,7 @@ import { LEAD_STATUS_LABELS, formatStatusChangeComment } from '@/lib/status-comm
 import { validateLeadTransition } from '@/lib/lead-rules'
 import { canSeeAllTeams } from '@/lib/roles'
 import { geocodeAddress } from '@/lib/geocode'
+import { notifyCardActivity } from '@/lib/notify'
 import type { LeadStatus } from '@/types/database'
 
 const SELECT_WITH_RELATIONS = `*,
@@ -90,6 +91,17 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       lead_id: id,
       user_id: user.id,
       content: formatStatusChangeComment(LEAD_STATUS_LABELS[body.status as LeadStatus], statusComment),
+    })
+
+    // Powiadom kierownictwo i osoby powiązane z leadem o zmianie statusu
+    await notifyCardActivity(supabase, {
+      actorId: user.id,
+      linkedUserIds: [lead.assigned_to, lead.created_by],
+      type: 'card_change',
+      title: `Lead: ${LEAD_STATUS_LABELS[body.status as LeadStatus]}`,
+      body: `${user.name} — ${lead.name}: ${statusComment}`,
+      link: '/leady',
+      referenceId: id,
     })
   }
 

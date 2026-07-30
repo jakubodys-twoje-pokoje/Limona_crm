@@ -122,17 +122,8 @@ export function LeadDetailModal({
     if (res.ok) {
       setNewComment('')
       fetchComments()
-      if (lead.assigned_to && lead.assigned_to !== userId) {
-        await createNotification({
-          userId: lead.assigned_to,
-          fromUserId: userId,
-          type: 'comment_added',
-          title: `${userName} skomentował/a leada`,
-          body: newComment.trim().slice(0, 100),
-          link: '/leady',
-          referenceId: lead.id,
-        })
-      }
+      // Powiadomienie prowadzącego i kierownictwa dokłada serwer
+      // (POST /api/leads/[id]/comments → notifyCardActivity)
     }
     setSending(false)
   }

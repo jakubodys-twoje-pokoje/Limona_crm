@@ -287,6 +287,8 @@ export function TaskDetailModal({
     setSendingComment(true)
     await addComment(newComment.trim(), userId)
 
+    // Wzmianki @osoba — powiadomienie kierowane; komentarz do wykonawcy i
+    // kierownictwa dokłada serwer (POST /api/comments → notifyCardActivity)
     const mentionedIds = extractMentionedUserIds(newComment, profiles)
     for (const mentionedUserId of mentionedIds) {
       if (mentionedUserId !== userId) {
@@ -300,18 +302,6 @@ export function TaskDetailModal({
           referenceId: task.id,
         })
       }
-    }
-
-    if (task.assigned_to && task.assigned_to !== userId && !mentionedIds.includes(task.assigned_to)) {
-      await createNotification({
-        userId: task.assigned_to,
-        fromUserId: userId,
-        type: 'comment_added',
-        title: `${userName} skomentował/a zadanie`,
-        body: newComment.trim().slice(0, 100),
-        link: '/zadania',
-        referenceId: task.id,
-      })
     }
 
     setNewComment('')
