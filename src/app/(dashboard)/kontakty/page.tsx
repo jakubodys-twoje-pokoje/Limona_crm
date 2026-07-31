@@ -14,6 +14,7 @@ import { ShareCityModal } from '@/components/kontakty/ShareCityModal'
 import { Modal } from '@/components/ui/Modal'
 import { useToast } from '@/components/ui/Toast'
 import { usePersistentState } from '@/hooks/usePersistentState'
+import { useMyGrants, grantsIncludeInvestors } from '@/hooks/useMyGrants'
 import { cn } from '@/lib/utils'
 import { KONTAKT_TYP_LABELS, KONTAKT_TYPY } from '@/types/database'
 import type { Kontakt, KontaktTyp, Profile } from '@/types/database'
@@ -24,10 +25,12 @@ type ViewMode = 'lista' | 'mapa'
 
 export default function KontaktyPage() {
   const { user, profile } = useAuth()
+  const { grants } = useMyGrants(user?.id)
   const searchParams = useSearchParams()
   const typParam = searchParams.get('typ')
   const activeTyp: KontaktTyp | null = typParam && (KONTAKT_TYPY as string[]).includes(typParam) ? typParam as KontaktTyp : null
-  const denied = activeTyp === 'inwestor' && !canSeeInvestors(profile?.role)
+  const canInvestors = canSeeInvestors(profile?.role) || grantsIncludeInvestors(grants)
+  const denied = activeTyp === 'inwestor' && !canInvestors
   const { visibleIds, loading: visLoading } = useVisibleUserIds(user?.id, profile?.role)
   const filters = useMemo(() => ({ visibleIds, typ: denied ? undefined : (activeTyp || undefined) }), [visibleIds, activeTyp, denied])
   const { kontakty, loading, createKontakt, fetchKontakty } = useKontakty(filters, !visLoading)

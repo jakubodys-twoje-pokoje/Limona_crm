@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getSessionUser, unauthorized, forbidden } from '@/lib/api-auth'
 import { geocodeAddress } from '@/lib/geocode'
 import { canSeeAllTeams, canSeeInvestors, canManageTeams } from '@/lib/roles'
+import { getUserGrants, hasKontaktTypeGrant } from '@/lib/access'
 
 const SELECT_WITH_RELATIONS = `*,
   creator:profiles!kontakty_created_by_fkey(id,full_name,avatar_url),
@@ -28,12 +29,32 @@ export async function GET(req: NextRequest) {
   const search = sp.get('search')
   const visibleIds = sp.get('visibleIds')?.split(',').filter(Boolean)
 
-  // Inwestorzy — dane wrażliwe handlowo, widoczne tylko dla centrali i adminów
-  if (typ === 'inwestor' && !canSeeInvestors(user.role)) return forbidden()
+  // Granty dostępu (panel dostępów): mogą odblokować typy kontaktów —
+  // całą kategorię (np. wszyscy inwestorzy) albo rekordy konkretnej osoby.
+  const grants = await getUserGrants(supabase, user.id)
+  const canInvestor = canSeeInvestors(user.role) || hasKontaktTypeGrant(grants, 'inwestor')
+
+  // Inwestorzy — dane wrażliwe handlowo; widoczne dla centrali/adminów oraz
+  // userów z nadanym grantem na inwestorów
+  if (typ === 'inwestor' && !canInvestor) return forbidden()
+
+  // Dodatkowe warunki widoczności z grantów (dla wariantu „own"):
+  //  - cała kategoria typu T  → typ.eq.T (dowolny właściciel),
+  //  - per-osoba typu T       → and(typ.eq.T, właściciel wśród nadanych).
+  const grantConds: string[] = []
+  for (const [t, g] of Object.entries(grants.kontaktTypes)) {
+    if (!g) continue
+    if (g.all) grantConds.push(`typ.eq.${t}`)
+    else if (g.userIds.length) {
+      const gy = g.userIds.join(',')
+      grantConds.push(`and(typ.eq.${t},assigned_to.in.(${gy}))`)
+      grantConds.push(`and(typ.eq.${t},created_by.in.(${gy}))`)
+    }
+  }
 
   // Widoczność: admin/manager/kierownik_centrali widzą wszystko; reszta —
-  // tylko własne kontakty (assigned_to/created_by wśród visibleIds) plus
-  // to, co zostało im jawnie udostępnione (kontakt_shares).
+  // tylko własne kontakty (assigned_to/created_by wśród visibleIds), plus
+  // to, co zostało im jawnie udostępnione (kontakt_shares), plus granty.
   //
   // Udostępnienia idą przez złączenie kontakt_shares!inner, a NIE przez
   // listę id.in.(...) — po „Udostępnij miasto" agent ma setki udostępnień
@@ -48,10 +69,10 @@ export async function GET(req: NextRequest) {
     let query = supabase.from('kontakty').select(select)
       .order('created_at', { ascending: false })
       .range(from, to)
-    if (!canSeeInvestors(user!.role)) query = query.neq('typ', 'inwestor')
+    if (!canInvestor) query = query.neq('typ', 'inwestor')
     if (variant === 'own') {
       const ids = visibleIds!.join(',')
-      query = query.or(`assigned_to.in.(${ids}),created_by.in.(${ids})`)
+      query = query.or([`assigned_to.in.(${ids})`, `created_by.in.(${ids})`, ...grantConds].join(','))
     } else if (variant === 'shared') {
       query = query.eq('kontakt_shares.shared_with_user_id', user!.id)
     }

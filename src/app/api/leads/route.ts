@@ -6,6 +6,7 @@ import { getSessionUser, unauthorized } from '@/lib/api-auth'
 import { canSeeAllTeams } from '@/lib/roles'
 import { findDuplicateLead, duplicateAssigneeName } from '@/lib/lead-dedupe'
 import { geocodeAddress } from '@/lib/geocode'
+import { getUserGrants } from '@/lib/access'
 
 const SELECT_WITH_RELATIONS = `*,
   assignee:profiles!leads_assigned_to_fkey(id,full_name,avatar_url),
@@ -26,9 +27,14 @@ export async function GET(req: NextRequest) {
   if (assignedTo) query = query.eq('assigned_to', assignedTo)
   if (temperature) query = query.eq('temperature', temperature)
 
-  // Zwykły user widzi tylko swoje / przypisane leady
+  // Zwykły user widzi swoje / przypisane leady + to, co odblokują granty
+  // dostępu (cała kategoria „leady" znosi filtr, per-osoba dokłada właścicieli)
   if (!canSeeAllTeams(user.role)) {
-    query = query.or(`created_by.eq.${user.id},assigned_to.eq.${user.id}`)
+    const grants = await getUserGrants(supabase, user.id)
+    if (!grants.leady.all) {
+      const ids = [...new Set([user.id, ...grants.leady.userIds])].join(',')
+      query = query.or(`created_by.in.(${ids}),assigned_to.in.(${ids})`)
+    }
   }
 
   const { data, error } = await query

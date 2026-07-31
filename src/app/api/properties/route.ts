@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getSessionUser, unauthorized } from '@/lib/api-auth'
 import { geocodeAddress } from '@/lib/geocode'
 import { ARCHIVE_RETENTION_DAYS } from '@/lib/stages'
+import { getUserGrants } from '@/lib/access'
 
 const SELECT_WITH_RELATIONS = `*,
   creator:profiles!properties_created_by_fkey(id,full_name,avatar_url),
@@ -35,8 +36,11 @@ export async function GET(req: NextRequest) {
     query = query.is('archived_at', null).order('created_at', { ascending: false })
   }
 
-  if (visibleIds?.length) {
-    const ids = visibleIds.join(',')
+  // Granty dostępu: „cała kategoria" znosi filtr, granty per-osoba dokładają
+  // widoczność rekordów wskazanych właścicieli
+  const grants = await getUserGrants(supabase, user.id)
+  if (visibleIds?.length && !grants.nieruchomosci.all) {
+    const ids = [...new Set([...visibleIds, ...grants.nieruchomosci.userIds])].join(',')
     // widać też nieruchomości, gdzie user jest dodatkowym opiekunem (co_assignees[])
     query = query.or(`assigned_to.in.(${ids}),created_by.in.(${ids}),co_assignees.ov.{${ids}}`)
   }

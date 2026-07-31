@@ -3,8 +3,9 @@
 import { memo, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
-import { LayoutDashboard, Building2, ListTodo, MessageSquare, Users, UserCog, User, LogOut, BookUser, MapPin, Inbox, CalendarDays, ChevronDown, Landmark, Gavel, Briefcase, Users2, TrendingUp, ClipboardList } from 'lucide-react'
+import { LayoutDashboard, Building2, ListTodo, MessageSquare, Users, UserCog, User, LogOut, BookUser, MapPin, Inbox, CalendarDays, ChevronDown, Landmark, Gavel, Briefcase, Users2, TrendingUp, ClipboardList, ShieldCheck } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
+import { useMyGrants, grantsIncludeInvestors } from '@/hooks/useMyGrants'
 import { useWallContext } from '@/hooks/useWallProvider'
 import { NotificationBell } from '@/components/ui/NotificationBell'
 import { Avatar } from '@/components/ui/Avatar'
@@ -41,6 +42,7 @@ const adminItems: NavItem[] = [
 
 const managementItems: NavItem[] = [
   { href: '/raporty', icon: ClipboardList, label: 'Raporty' },
+  { href: '/dostepy', icon: ShieldCheck, label: 'Panel dostępów' },
 ]
 
 export const Sidebar = memo(function Sidebar() {
@@ -48,12 +50,14 @@ export const Sidebar = memo(function Sidebar() {
   const searchParams = useSearchParams()
   const currentFull = pathname + (searchParams.toString() ? `?${searchParams.toString()}` : '')
   const { user, profile, signOut } = useAuth()
+  const { grants } = useMyGrants(user?.id)
   const { unreadCount } = useWallContext()
   const isAdmin = profile?.role === 'admin'
+  const canInvestors = canSeeInvestors(profile?.role) || grantsIncludeInvestors(grants)
   const [manuallyToggled, setManuallyToggled] = useState<Record<string, boolean>>({})
 
   const allItems = [...navItems, ...(canManageTeams(profile?.role) ? managementItems : []), ...(isAdmin ? adminItems : [])].map(item => {
-    if (item.href !== '/kontakty' || !item.children || canSeeInvestors(profile?.role)) return item
+    if (item.href !== '/kontakty' || !item.children || canInvestors) return item
     return { ...item, children: item.children.filter(c => c.href !== '/kontakty?typ=inwestor') }
   })
 
