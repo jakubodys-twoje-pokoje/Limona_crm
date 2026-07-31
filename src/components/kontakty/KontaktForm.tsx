@@ -4,8 +4,8 @@ import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
 import { canSeeInvestors, canManageTeams } from '@/lib/roles'
-import type { Kontakt, KontaktTyp, KontaktRozmiar, Profile, WeeklyHours } from '@/types/database'
-import { KONTAKT_TYP_LABELS, KONTAKT_TYPY, KONTAKT_ROZMIAR_LABELS, KONTAKT_ROZMIARY, TYPY_SPOLDZIELNIA, TYPY_Z_PROWIZJA, WEEK_DAYS, WEEK_DAY_LABELS } from '@/types/database'
+import type { Kontakt, KontaktTyp, KontaktRozmiar, KontaktPriorytet, Profile, WeeklyHours } from '@/types/database'
+import { KONTAKT_TYP_LABELS, KONTAKT_TYPY, KONTAKT_ROZMIAR_LABELS, KONTAKT_ROZMIARY, KONTAKT_PRIORYTETY, KONTAKT_PRIORYTET_LABELS, TYPY_SPOLDZIELNIA, TYPY_Z_PROWIZJA, WEEK_DAYS, WEEK_DAY_LABELS } from '@/types/database'
 
 const WOJEWODZTWA = [
   'dolnośląskie','kujawsko-pomorskie','lubelskie','lubuskie','łódzkie',
@@ -211,6 +211,17 @@ export function KontaktForm({ initial, profiles, onSubmit, onCancel, submitLabel
             >
               <option value="">— nie wybrano —</option>
               {KONTAKT_ROZMIARY.map(r => <option key={r} value={r}>{KONTAKT_ROZMIAR_LABELS[r]}</option>)}
+            </select>
+          </Field>
+
+          <Field label="Priorytet potencjału">
+            <select
+              className="limona-input w-full"
+              value={form.priorytet || ''}
+              onChange={e => set('priorytet', (e.target.value || null) as KontaktPriorytet | null)}
+            >
+              <option value="">— nie wybrano —</option>
+              {KONTAKT_PRIORYTETY.map(p => <option key={p} value={p}>{KONTAKT_PRIORYTET_LABELS[p]}</option>)}
             </select>
           </Field>
 
