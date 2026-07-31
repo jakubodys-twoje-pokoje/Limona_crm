@@ -31,6 +31,8 @@ export default function DostepyPage() {
   const [granteeId, setGranteeId] = useState('')
   const [grants, setGrants] = useState<AccessGrant[]>([])
   const [loadingGrants, setLoadingGrants] = useState(false)
+  const [allGrants, setAllGrants] = useState<AccessGrant[]>([])
+  const [loadingAll, setLoadingAll] = useState(true)
 
   // Formularz nadania
   const [scope, setScope] = useState<string>(ACCESS_SCOPES[0])
@@ -57,7 +59,26 @@ export default function DostepyPage() {
     setLoadingGrants(false)
   }
 
+  async function loadAll() {
+    setLoadingAll(true)
+    const res = await fetch('/api/access-grants')
+    if (res.ok) setAllGrants(await res.json())
+    setLoadingAll(false)
+  }
+
   useEffect(() => { loadGrants(granteeId) }, [granteeId])
+  useEffect(() => { if (canManage) loadAll() }, [canManage])
+
+  // Podgląd zbiorczy — granty pogrupowane po użytkowniku (kto ma dostęp do czego)
+  const groupedAll = useMemo(() => {
+    const map = new Map<string, { grantee: AccessGrant['grantee']; grants: AccessGrant[] }>()
+    for (const g of allGrants) {
+      const key = g.grantee?.id ?? 'nieznany'
+      if (!map.has(key)) map.set(key, { grantee: g.grantee, grants: [] })
+      map.get(key)!.grants.push(g)
+    }
+    return [...map.values()].sort((a, b) => (a.grantee?.full_name ?? '').localeCompare(b.grantee?.full_name ?? '', 'pl'))
+  }, [allGrants])
 
   const targetOptions = useMemo(
     () => profiles.filter(p => p.id !== granteeId),
@@ -77,12 +98,14 @@ export default function DostepyPage() {
     showToast('Dostęp nadany', 'success')
     setTargetUserId('')
     loadGrants(granteeId)
+    loadAll()
   }
 
   async function revoke(id: string) {
     const res = await fetch(`/api/access-grants/${id}`, { method: 'DELETE' })
     if (!res.ok) { showToast('Nie udało się cofnąć dostępu', 'error'); return }
     setGrants(prev => prev.filter(g => g.id !== id))
+    setAllGrants(prev => prev.filter(g => g.id !== id))
   }
 
   if (authLoading || !profile) return null
@@ -171,6 +194,50 @@ export default function DostepyPage() {
           </div>
         </>
       )}
+
+      {/* Podgląd zbiorczy — kto ma dostęp do czego */}
+      <div className="limona-card p-5">
+        <div className="flex items-center justify-between mb-3">
+          <p className="limona-eyebrow">Podgląd zbiorczy — wszystkie dostępy</p>
+          {!loadingAll && <span className="text-xs text-limona-text-dim">{allGrants.length} nadanych</span>}
+        </div>
+        {loadingAll ? (
+          <p className="text-sm text-limona-text-muted py-4">Ładowanie…</p>
+        ) : groupedAll.length === 0 ? (
+          <p className="text-sm text-limona-text-dim py-4 text-center">Nikt nie ma jeszcze dodatkowych dostępów.</p>
+        ) : (
+          <div className="space-y-3">
+            {groupedAll.map(group => (
+              <div key={group.grantee?.id ?? 'x'} className="rounded-lg border border-limona-border/50 p-3">
+                <button
+                  onClick={() => group.grantee && setGranteeId(group.grantee.id)}
+                  className="flex items-center gap-2 mb-2 text-left group"
+                  title="Edytuj dostępy tego użytkownika"
+                >
+                  {group.grantee && <Avatar name={group.grantee.full_name} url={group.grantee.avatar_url} size="sm" />}
+                  <span className="text-sm font-medium text-limona-white group-hover:text-limona-lime transition-colors">
+                    {group.grantee?.full_name ?? 'Nieznany użytkownik'}
+                  </span>
+                  <span className="text-xs text-limona-text-dim">({group.grants.length})</span>
+                </button>
+                <div className="flex flex-wrap gap-1.5">
+                  {group.grants.map(g => (
+                    <span key={g.id} className="inline-flex items-center gap-1.5 text-[11px] rounded-full border border-limona-border bg-limona-surface-2/50 pl-2.5 pr-1.5 py-1">
+                      <span className="text-limona-text">{ACCESS_SCOPE_LABELS[g.scope] ?? g.scope}</span>
+                      <span className="text-limona-text-dim">
+                        {g.target_user_id ? `· ${g.target?.full_name ?? '—'}` : '· wszyscy'}
+                      </span>
+                      <button onClick={() => revoke(g.id)} className="text-limona-text-dim hover:text-limona-red transition-colors" title="Cofnij">
+                        <Trash2 size={11} />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
