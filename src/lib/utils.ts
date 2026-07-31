@@ -53,6 +53,44 @@ export function taskMatchesAssignee(
   return task.assigned_to === assigneeId || !!task.co_assignees?.includes(assigneeId)
 }
 
+/** Ile pełnych dni minęło od podanej daty (null, gdy brak daty) */
+export function daysSince(iso: string | null | undefined): number | null {
+  if (!iso) return null
+  const ms = Date.now() - new Date(iso).getTime()
+  return Math.floor(ms / 86400000)
+}
+
+/**
+ * Poziom „świeżości" aktywności do podświetlania braku kontaktu:
+ *  - 'stale' (czerwony) — ponad 2 tygodnie bez aktywności,
+ *  - 'warn'  (żółty)    — ponad tydzień bez aktywności,
+ *  - null               — świeże / brak daty.
+ */
+export function activityStaleness(iso: string | null | undefined): 'warn' | 'stale' | null {
+  const d = daysSince(iso)
+  if (d == null) return null
+  if (d >= 14) return 'stale'
+  if (d >= 7) return 'warn'
+  return null
+}
+
+// Okna filtra „po aktywności" — etykieta + liczba dni
+export const ACTIVITY_WINDOWS: { value: string; label: string; days: number }[] = [
+  { value: '1d', label: '1 dzień', days: 1 },
+  { value: '1w', label: '1 tydzień', days: 7 },
+  { value: '2w', label: '2 tygodnie', days: 14 },
+  { value: '1m', label: '1 miesiąc', days: 30 },
+]
+
+/** Czy data aktywności mieści się w wybranym oknie (aktywne w ostatnich N dniach) */
+export function withinActivityWindow(iso: string | null | undefined, windowValue: string): boolean {
+  if (!windowValue) return true
+  const win = ACTIVITY_WINDOWS.find(w => w.value === windowValue)
+  if (!win) return true
+  const d = daysSince(iso)
+  return d != null && d <= win.days
+}
+
 export type SortDirection = 'asc' | 'desc'
 
 /** Sortuje po `created_at` — 'desc' (najnowsze na górze, jak w Trello) albo 'asc'. */

@@ -319,6 +319,24 @@ export const KONTAKT_ROZMIAR_LABELS: Record<KontaktRozmiar, string> = {
 
 export const KONTAKT_ROZMIARY: KontaktRozmiar[] = ['mala', 'srednia', 'duza']
 
+// Poziom potencjału kontaktu (targetowanie)
+export type KontaktPriorytet = 'A' | 'B' | 'C'
+
+export const KONTAKT_PRIORYTET_LABELS: Record<KontaktPriorytet, string> = {
+  A: 'A — Wysoki priorytet',
+  B: 'B — Średni priorytet (podgrzewać)',
+  C: 'C — Niski priorytet',
+}
+
+// Krótkie etykiety do plakietek w tabeli
+export const KONTAKT_PRIORYTET_SHORT: Record<KontaktPriorytet, string> = {
+  A: 'A · Wysoki',
+  B: 'B · Średni',
+  C: 'C · Niski',
+}
+
+export const KONTAKT_PRIORYTETY: KontaktPriorytet[] = ['A', 'B', 'C']
+
 // Types that are spółdzielnia / wspólnota (mają zgody na ulotki/plakaty, operatora budowy)
 export const TYPY_SPOLDZIELNIA = new Set<KontaktTyp>(['spoldzielnia', 'wspolnota'])
 
@@ -368,6 +386,10 @@ export interface Kontakt {
   www: string | null
   rozmiar: KontaktRozmiar | null
   zdjecia: string[]
+  /** Poziom potencjału: A = wysoki, B = średni (podgrzewać), C = niski */
+  priorytet: KontaktPriorytet | null
+  /** Data ostatniej wizyty u kontrahenta */
+  ostatnia_wizyta: string | null
   assigned_to: string | null
   oddzial: string | null
   created_by: string | null
