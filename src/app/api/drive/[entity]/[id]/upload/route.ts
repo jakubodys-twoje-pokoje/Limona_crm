@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getSessionUser, unauthorized } from '@/lib/api-auth'
-import { driveConfigured, uploadFile, type DriveFile } from '@/lib/drive'
+import { driveConfigured, uploadFile, driveErrorMessage, driveNeedsReconnect, type DriveFile } from '@/lib/drive'
 import { getEntityFolderId, isInsideFolder, type DriveEntity } from '@/lib/driveEntities'
 
 const ENTITIES: DriveEntity[] = ['lead', 'property', 'kontakt']
@@ -67,31 +67,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ent
     const raw = e instanceof Error ? e.message : String(e)
     // Log pełnej treści błędu Google — do diagnozy po stronie serwera
     console.error('[drive upload] błąd zapisu do Google Drive:', raw)
-    return NextResponse.json({ error: driveUploadErrorMessage(raw) }, { status: 502 })
+    return NextResponse.json(
+      { error: driveErrorMessage(raw), reconnect: driveNeedsReconnect(raw) },
+      { status: 502 },
+    )
   }
-}
-
-/**
- * Zamienia surowy błąd Google Drive na czytelny, akcjonowalny komunikat PL.
- * Najczęstszy przypadek: konto zapisujące nie ma własnego miejsca na Dysku
- * (foldery da się tworzyć — nie zużywają quoty — ale plików już nie).
- */
-function driveUploadErrorMessage(raw: string): string {
-  const r = raw.toLowerCase()
-  if (r.includes('storagequotaexceeded') || r.includes('teamdrivefilelimitexceeded') || r.includes('storage quota')) {
-    return 'Google odrzucił zapis pliku: konto podłączone do CRM nie ma wolnego miejsca na Dysku ' +
-      '(foldery można tworzyć, bo nie zajmują miejsca, ale pliki już nie). ' +
-      'Rozwiązanie: podłącz konto Google z wolnym miejscem (panel Admin → Integracje) ' +
-      'albo przenieś folder CRM na Dysk współdzielony / ustaw delegację domenową ' +
-      '(GOOGLE_DRIVE_IMPERSONATE_USER) — patrz .env.example.'
-  }
-  if (r.includes('invalid_grant') || r.includes('nie jest połączone') || r.includes('konto nie jest')) {
-    return 'Połączenie z Google Drive wygasło — administrator musi ponownie kliknąć ' +
-      '„Połącz z Google Drive" w panelu Admin → Integracje.'
-  }
-  if (r.includes('insufficientpermissions') || r.includes('insufficientfilepermissions') || r.includes(': 403')) {
-    return 'Brak uprawnień do zapisu w tym folderze Google Drive. Sprawdź, czy konto podłączone do CRM ' +
-      'ma prawo edycji folderu (na Dysku współdzielonym musi być co najmniej „Współtwórca").'
-  }
-  return `Błąd zapisu do Google Drive: ${raw}`
 }

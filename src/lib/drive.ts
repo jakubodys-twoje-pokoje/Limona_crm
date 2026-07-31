@@ -85,6 +85,38 @@ export function driveFolderUrl(folderId: string): string {
   return `https://drive.google.com/drive/folders/${folderId}`
 }
 
+/**
+ * Czy błąd Google oznacza, że połączenie OAuth wygasło / zostało cofnięte
+ * (refresh token nieważny). W trybie „Testing" w Google Cloud refresh token
+ * żyje tylko 7 dni — wtedy WSZYSTKIE operacje Drive przestają działać naraz.
+ */
+export function driveNeedsReconnect(raw: string): boolean {
+  const r = raw.toLowerCase()
+  return r.includes('invalid_grant') || r.includes('nie jest połączone') ||
+    r.includes('konto nie jest') || r.includes('token has been expired or revoked')
+}
+
+/** Surowy błąd Google Drive → czytelny, akcjonowalny komunikat po polsku */
+export function driveErrorMessage(raw: string): string {
+  const r = raw.toLowerCase()
+  if (driveNeedsReconnect(raw)) {
+    return 'Połączenie z Google Drive wygasło lub zostało cofnięte — administrator musi ponownie kliknąć ' +
+      '„Połącz z Google Drive" w panelu Admin → Integracje. ' +
+      '(Aby połączenie nie wygasało co 7 dni, opublikuj ekran zgody OAuth w Google Cloud jako „Production".)'
+  }
+  if (r.includes('storagequotaexceeded') || r.includes('teamdrivefilelimitexceeded') || r.includes('storage quota')) {
+    return 'Google odrzucił zapis: konto podłączone do CRM nie ma wolnego miejsca na Dysku ' +
+      '(foldery można tworzyć, bo nie zajmują miejsca, ale plików już nie).'
+  }
+  if (r.includes('insufficientpermissions') || r.includes('insufficientfilepermissions') || r.includes(': 403')) {
+    return 'Brak uprawnień do tej operacji na Google Drive. Sprawdź uprawnienia konta podłączonego do CRM.'
+  }
+  if (r.includes(': 404') || r.includes('notfound')) {
+    return 'Nie znaleziono folderu/pliku na Google Drive — mógł zostać usunięty lub przeniesiony poza folder CRM.'
+  }
+  return `Błąd Google Drive: ${raw}`
+}
+
 function b64url(input: Buffer | string): string {
   return (typeof input === 'string' ? Buffer.from(input) : input)
     .toString('base64')
