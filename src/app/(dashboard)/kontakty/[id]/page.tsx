@@ -22,14 +22,14 @@ import { DriveFiles } from '@/components/shared/DriveFiles'
 import { StatusChangeCommentModal } from '@/components/shared/StatusChangeCommentModal'
 import { TaskDetailModal } from '@/components/tasks/TaskDetailModal'
 import { TaskFormModal } from '@/components/tasks/TaskFormModal'
-import { cn } from '@/lib/utils'
+import { cn, daysSince, activityStaleness } from '@/lib/utils'
 import { formatWeeklyHours } from '@/lib/godziny'
 import { compressImage } from '@/lib/imageCompress'
 import { canSeeAllTeams } from '@/lib/roles'
 import type { Kontakt, KontaktTyp, KontaktShare, Profile, Task } from '@/types/database'
 
 const KontaktMiniMap = dynamic(() => import('@/components/kontakty/KontaktMiniMap'), { ssr: false })
-import { KONTAKT_TYP_LABELS, KONTAKT_ROZMIAR_LABELS, TYPY_SPOLDZIELNIA, TYPY_Z_PROWIZJA } from '@/types/database'
+import { KONTAKT_TYP_LABELS, KONTAKT_ROZMIAR_LABELS, TYPY_SPOLDZIELNIA, TYPY_Z_PROWIZJA, KONTAKT_PRIORYTETY, KONTAKT_PRIORYTET_SHORT } from '@/types/database'
 
 function InfoRow({ icon: Icon, label, value }: { icon: React.ElementType; label: string; value: string | null | undefined }) {
   if (!value) return null
@@ -433,6 +433,52 @@ export default function KontaktDetailPage() {
                 kontaktId={currentKontaktId}
                 onGeocode={(newLat: number, newLng: number) => setKontakt(prev => prev ? { ...prev, lat: newLat, lng: newLng } : prev)}
               />
+            </div>
+          </div>
+
+          {/* Priorytet potencjału + ostatnia wizyta */}
+          <div className="limona-card p-5 space-y-5">
+            <p className="limona-eyebrow">Priorytet i aktywność</p>
+
+            <div>
+              <label className="text-[10px] uppercase tracking-wider text-limona-text-dim font-bold block mb-2">Poziom potencjału</label>
+              <div className="flex gap-1.5">
+                {KONTAKT_PRIORYTETY.map(p => {
+                  const active = kontakt.priorytet === p
+                  const activeCls = p === 'A' ? 'border-limona-red text-limona-red bg-limona-red/10'
+                    : p === 'B' ? 'border-limona-yellow text-limona-yellow bg-limona-yellow/10'
+                    : 'border-limona-blue text-limona-blue bg-limona-blue/10'
+                  return (
+                    <button key={p} onClick={() => patchField({ priorytet: active ? null : p })}
+                      className={cn('flex-1 py-2 rounded border text-xs font-bold uppercase tracking-wider transition-colors',
+                        active ? activeCls : 'border-limona-border text-limona-text-dim hover:text-limona-text')}>
+                      {KONTAKT_PRIORYTET_SHORT[p]}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            <div>
+              <label className="text-[10px] uppercase tracking-wider text-limona-text-dim font-bold block mb-2">Ostatnia wizyta</label>
+              <div className="flex items-center gap-2 flex-wrap">
+                <input type="date" className="limona-input text-sm flex-1 min-w-[140px]"
+                  value={kontakt.ostatnia_wizyta ? kontakt.ostatnia_wizyta.slice(0, 10) : ''}
+                  onChange={e => patchField({ ostatnia_wizyta: e.target.value || null })} />
+                <button onClick={() => patchField({ ostatnia_wizyta: new Date().toLocaleDateString('sv-SE') })}
+                  className="limona-btn-sm text-xs whitespace-nowrap">Wizyta dziś</button>
+              </div>
+              {kontakt.ostatnia_wizyta && (() => {
+                const dni = daysSince(kontakt.ostatnia_wizyta)
+                const stale = activityStaleness(kontakt.ostatnia_wizyta)
+                return (
+                  <p className={cn('text-xs mt-1.5',
+                    stale === 'stale' ? 'text-limona-red' : stale === 'warn' ? 'text-limona-yellow' : 'text-limona-text-dim')}>
+                    {new Date(kontakt.ostatnia_wizyta).toLocaleDateString('pl-PL')}
+                    {dni != null && ` · ${dni === 0 ? 'dziś' : dni === 1 ? '1 dzień temu' : `${dni} dni temu`}`}
+                  </p>
+                )
+              })()}
             </div>
           </div>
 

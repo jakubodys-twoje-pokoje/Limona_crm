@@ -10,7 +10,7 @@ import type { TaskStatus } from '@/types/database'
 
 const SELECT_WITH_RELATIONS = `*,
   property:properties!tasks_property_id_fkey(id,adres,kod_pocztowy,miasto,kontakt_id,kontakt:kontakty!properties_kontakt_id_fkey(id,nazwa)),
-  kontakt:kontakty!tasks_kontakt_id_fkey(id,nazwa),
+  kontakt:kontakty!tasks_kontakt_id_fkey(id,nazwa,ostatnia_wizyta),
   lead:leads!tasks_lead_id_fkey(id,name),
   assignee:profiles!tasks_assigned_to_fkey(id,full_name,avatar_url),
   creator:profiles!tasks_created_by_fkey(id,full_name,avatar_url),
@@ -65,6 +65,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     .select(SELECT_WITH_RELATIONS)
     .single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // Domknięcie zadania typu „wizyta" powiązanego z kontaktem oznacza wizytę
+  // na karcie kontaktu (data z terminu zadania albo dziś)
+  if (body.status === 'done' && task.task_type === 'wizyta' && task.kontakt_id) {
+    const visitDate = (task.due_date ? String(task.due_date).slice(0, 10) : null) || new Date().toISOString().slice(0, 10)
+    await supabase.from('kontakty').update({ ostatnia_wizyta: visitDate }).eq('id', task.kontakt_id)
+  }
 
   if (statusChanging && statusComment) {
     await supabase.from('task_comments').insert({

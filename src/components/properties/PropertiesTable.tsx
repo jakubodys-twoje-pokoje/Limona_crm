@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/Badge'
 import { Avatar } from '@/components/ui/Avatar'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { calculateBelow, calculateAbove } from '@/lib/calculator'
-import { formatMoney, formatPercent, formatPropertyAddress, cn } from '@/lib/utils'
+import { formatMoney, formatPercent, formatPropertyAddress, cn, withinActivityWindow, activityStaleness, ACTIVITY_WINDOWS } from '@/lib/utils'
 import { usePersistentState } from '@/hooks/usePersistentState'
 
 type SortKey = 'location' | 'value_per_sqm' | 'rw' | 'total_debt' | 'profit' | 'roi' | 'status' | 'created_at'
@@ -90,6 +90,7 @@ export function PropertiesTable({ properties, loading, onAdd, onEdit, onDelete }
   const [typeFilter, setTypeFilter] = usePersistentState<string>('nieruchomosci:type', '')
   const [decisionFilter, setDecisionFilter] = usePersistentState<string>('nieruchomosci:decision', '')
   const [dealTypeFilter, setDealTypeFilter] = usePersistentState<string>('nieruchomosci:dealType', '')
+  const [activityFilter, setActivityFilter] = usePersistentState<string>('nieruchomosci:activity', '')
   const [sortKey, setSortKey] = usePersistentState<SortKey>('nieruchomosci:sortKey', 'created_at')
   const [sortDir, setSortDir] = usePersistentState<SortDir>('nieruchomosci:sortDir', 'desc')
 
@@ -101,6 +102,7 @@ export function PropertiesTable({ properties, loading, onAdd, onEdit, onDelete }
         if (statusInwestoraFilter && p.status_inwestora !== statusInwestoraFilter) return false
         if (typeFilter && p.property_type !== typeFilter) return false
         if (dealTypeFilter && p.deal_type !== dealTypeFilter) return false
+        if (activityFilter && !withinActivityWindow(p.updated_at, activityFilter)) return false
         if (decisionFilter) {
           const dec = getDecision(p)
           if (dec !== decisionFilter) return false
@@ -124,7 +126,7 @@ export function PropertiesTable({ properties, loading, onAdd, onEdit, onDelete }
         if (aVal > bVal) return sortDir === 'asc' ? 1 : -1
         return 0
       })
-  }, [properties, search, statusDluznikaFilter, statusInwestoraFilter, typeFilter, dealTypeFilter, decisionFilter, sortKey, sortDir])
+  }, [properties, search, statusDluznikaFilter, statusInwestoraFilter, typeFilter, dealTypeFilter, decisionFilter, activityFilter, sortKey, sortDir])
 
   function toggleSort(key: SortKey) {
     if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
@@ -220,6 +222,16 @@ export function PropertiesTable({ properties, loading, onAdd, onEdit, onDelete }
             <option value="NIE">NIE</option>
           </select>
 
+          <select
+            className="bg-limona-surface-2 border border-limona-border text-limona-text text-xs px-3 py-2 rounded focus:outline-none focus:border-limona-lime"
+            value={activityFilter}
+            onChange={e => setActivityFilter(e.target.value)}
+            title="Pokaż nieruchomości z aktywnością w ostatnim okresie"
+          >
+            <option value="">Aktywność: dowolna</option>
+            {ACTIVITY_WINDOWS.map(w => <option key={w.value} value={w.value}>Aktywne: ostatni(e) {w.label}</option>)}
+          </select>
+
           <button onClick={onAdd} className="limona-btn-sm whitespace-nowrap flex items-center gap-2">
             <Plus size={14} />
             Dodaj
@@ -284,11 +296,15 @@ export function PropertiesTable({ properties, loading, onAdd, onEdit, onDelete }
                 const decision = getDecision(p)
                 const offerMinus30 = getOfferMinus30(p)
                 const rw = p.value_per_sqm ? p.value_per_sqm * 0.9 : null
+                const stale = activityStaleness(p.updated_at)
 
                 return (
                   <tr
                     key={p.id}
-                    className="border-b border-limona-border/50 hover:bg-limona-surface-2/50 transition-colors group"
+                    className={cn(
+                      'border-b border-limona-border/50 hover:bg-limona-surface-2/50 transition-colors group border-l-2',
+                      stale === 'stale' ? 'border-l-limona-red' : stale === 'warn' ? 'border-l-limona-yellow' : 'border-l-transparent',
+                    )}
                   >
                     <td className="py-3 px-3">
                       <Link href={`/nieruchomosci/${p.id}`} className="hover:text-limona-lime transition-colors font-medium">
@@ -391,10 +407,12 @@ export function PropertiesTable({ properties, loading, onAdd, onEdit, onDelete }
             const profit = calcProfit(p)
             const roi = calcROI(p)
             const decision = getDecision(p)
+            const stale = activityStaleness(p.updated_at)
 
             return (
               <Link key={p.id} href={`/nieruchomosci/${p.id}`}>
-                <div className="limona-card-hover border-l-[3px] border-l-limona-border hover:border-l-limona-lime p-4 space-y-3">
+                <div className={cn('limona-card-hover border-l-[3px] p-4 space-y-3',
+                  stale === 'stale' ? 'border-l-limona-red' : stale === 'warn' ? 'border-l-limona-yellow' : 'border-l-limona-border hover:border-l-limona-lime')}>
                   <div className="flex items-start justify-between gap-2">
                     <div>
                       <p className="font-medium text-limona-white">{formatPropertyAddress(p)}</p>

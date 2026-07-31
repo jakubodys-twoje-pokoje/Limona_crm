@@ -383,6 +383,11 @@ export function TaskDetailModal({
                 className="flex items-center gap-1 text-xs text-limona-lime hover:text-limona-lime/80 mt-1">
                 <LinkIcon size={10} />
                 {task.kontakt.nazwa}
+                {task.kontakt.ostatnia_wizyta && (
+                  <span className="text-limona-text-dim">
+                    · ost. wizyta {new Date(task.kontakt.ostatnia_wizyta).toLocaleDateString('pl-PL')}
+                  </span>
+                )}
               </a>
             )}
             {task.lead && (

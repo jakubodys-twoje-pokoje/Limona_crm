@@ -9,12 +9,19 @@ import { Avatar } from '@/components/ui/Avatar'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { KontaktyBatchEditModal } from '@/components/kontakty/KontaktyBatchEditModal'
 import { useToast } from '@/components/ui/Toast'
-import { cn } from '@/lib/utils'
+import { cn, daysSince, activityStaleness, withinActivityWindow, ACTIVITY_WINDOWS } from '@/lib/utils'
 import { isOpenNow, hasAnyHours } from '@/lib/godziny'
 import { useAuth } from '@/hooks/useAuth'
 import { canSeeInvestors } from '@/lib/roles'
 import type { Kontakt, KontaktTyp, Profile } from '@/types/database'
-import { KONTAKT_TYP_LABELS, KONTAKT_TYPY, KONTAKT_ROZMIAR_LABELS, KONTAKT_ROZMIARY } from '@/types/database'
+import { KONTAKT_TYP_LABELS, KONTAKT_TYPY, KONTAKT_ROZMIAR_LABELS, KONTAKT_ROZMIARY, KONTAKT_PRIORYTETY, KONTAKT_PRIORYTET_SHORT } from '@/types/database'
+
+// Ostatnia aktywność kontaktu = najnowsze z: ostatnia wizyta / edycja rekordu
+function kontaktLastActivity(k: Kontakt): string | null {
+  const times = [k.ostatnia_wizyta, k.updated_at].filter(Boolean) as string[]
+  if (!times.length) return null
+  return times.reduce((a, b) => (new Date(a).getTime() >= new Date(b).getTime() ? a : b))
+}
 
 const WOJEWODZTWA = [
   'dolnośląskie','kujawsko-pomorskie','lubelskie','lubuskie','łódzkie',
@@ -32,6 +39,17 @@ interface Props {
   onAdd: () => void
   /** Odświeżenie listy po edycji zbiorczej */
   onRefresh?: () => void
+}
+
+function PriorytetBadge({ priorytet }: { priorytet: 'A' | 'B' | 'C' }) {
+  const cls = priorytet === 'A' ? 'bg-limona-red/15 text-limona-red border-limona-red/30'
+    : priorytet === 'B' ? 'bg-limona-yellow/15 text-limona-yellow border-limona-yellow/30'
+    : 'bg-limona-blue/15 text-limona-blue border-limona-blue/30'
+  return (
+    <span title={KONTAKT_PRIORYTET_SHORT[priorytet]} className={cn('limona-badge text-[9px] font-bold flex-shrink-0', cls)}>
+      {priorytet}
+    </span>
+  )
 }
 
 function StatusDot({ active, label }: { active: boolean; label: string }) {
@@ -125,6 +143,8 @@ export function KontaktyTable({ kontakty, loading, profiles, onAdd, onRefresh }:
   const [fProwizja,   setFProwizja]   = usePersistentState('kontakty:fProwizja', false)
   const [fUmowa,      setFUmowa]      = usePersistentState('kontakty:fUmowa', false)
 
+  const [priorytetFilter, setPriorytetFilter] = usePersistentState('kontakty:priorytet', '')
+  const [activityFilter, setActivityFilter] = usePersistentState('kontakty:activity', '')
   const [sortKey, setSortKey] = usePersistentState<SortKey>('kontakty:sortKey', 'nazwa')
   const [sortDir, setSortDir] = usePersistentState<'asc' | 'desc'>('kontakty:sortDir', 'asc')
 
@@ -134,13 +154,14 @@ export function KontaktyTable({ kontakty, loading, profiles, onAdd, onRefresh }:
   }
 
   const activeFilterCount = [
-    typFilter, wojFilter, miastoFilter, assignedFilter, rozmiarFilter,
+    typFilter, wojFilter, miastoFilter, assignedFilter, rozmiarFilter, priorytetFilter, activityFilter,
     fWizyta, fMail, fCoop, fNie, fUlotki, fPlakat, fOperator,
     fGodziny, fOtwarte, fTelefon, fEmail, fBezOpiek, fProwizja, fUmowa,
   ].filter(Boolean).length
 
   function resetFilters() {
     setTypFilter(''); setWojFilter(''); setMiastoFilter(''); setAssignedFilter(''); setRozmiarFilter('')
+    setPriorytetFilter(''); setActivityFilter('')
     setFWizyta(false); setFMail(false); setFCoop(false); setFNie(false)
     setFUlotki(false); setFPlakat(false); setFOperator(false)
     setFGodziny(false); setFOtwarte(false); setFTelefon(false)
@@ -156,6 +177,8 @@ export function KontaktyTable({ kontakty, loading, profiles, onAdd, onRefresh }:
         if (miastoFilter   && !k.miasto?.toLowerCase().includes(miastoFilter.toLowerCase())) return false
         if (assignedFilter && k.assigned_to  !== assignedFilter) return false
         if (rozmiarFilter  && k.rozmiar      !== rozmiarFilter)  return false
+        if (priorytetFilter && k.priorytet   !== priorytetFilter) return false
+        if (activityFilter && !withinActivityWindow(kontaktLastActivity(k), activityFilter)) return false
 
         if (search) {
           const q = search.toLowerCase()
@@ -195,7 +218,7 @@ export function KontaktyTable({ kontakty, loading, profiles, onAdd, onRefresh }:
         return sortDir === 'asc' ? aV.localeCompare(bV, 'pl') : bV.localeCompare(aV, 'pl')
       })
   }, [
-    kontakty, typFilter, wojFilter, miastoFilter, assignedFilter, rozmiarFilter, search,
+    kontakty, typFilter, wojFilter, miastoFilter, assignedFilter, rozmiarFilter, priorytetFilter, activityFilter, search,
     fWizyta, fMail, fCoop, fNie, fUlotki, fPlakat, fOperator,
     fGodziny, fOtwarte, fTelefon, fEmail, fBezOpiek, fProwizja, fUmowa,
     sortKey, sortDir,
@@ -269,6 +292,15 @@ export function KontaktyTable({ kontakty, loading, profiles, onAdd, onRefresh }:
             <select className="limona-input text-sm" value={rozmiarFilter} onChange={e => setRozmiarFilter(e.target.value)}>
               <option value="">Wszystkie rozmiary</option>
               {KONTAKT_ROZMIARY.map(r => <option key={r} value={r}>{KONTAKT_ROZMIAR_LABELS[r]}</option>)}
+            </select>
+            <select className="limona-input text-sm" value={priorytetFilter} onChange={e => setPriorytetFilter(e.target.value)}>
+              <option value="">Każdy priorytet</option>
+              {KONTAKT_PRIORYTETY.map(p => <option key={p} value={p}>{KONTAKT_PRIORYTET_SHORT[p]}</option>)}
+            </select>
+            <select className="limona-input text-sm" value={activityFilter} onChange={e => setActivityFilter(e.target.value)}
+              title="Pokaż kontakty z aktywnością w ostatnim okresie">
+              <option value="">Aktywność: dowolna</option>
+              {ACTIVITY_WINDOWS.map(w => <option key={w.value} value={w.value}>Aktywne: ostatni(e) {w.label}</option>)}
             </select>
           </div>
 
@@ -379,12 +411,14 @@ export function KontaktyTable({ kontakty, loading, profiles, onAdd, onRefresh }:
             ) : (
               filtered.map(k => {
                 const openNow = isOpenNow(k.godziny_otwarcia)
+                const stale = activityStaleness(kontaktLastActivity(k))
                 return (
                   <tr
                     key={k.id}
                     onClick={() => router.push(`/kontakty/${k.id}`)}
                     className={cn(
-                      'border-b border-limona-border/40 hover:bg-limona-surface-2 cursor-pointer transition-colors',
+                      'border-b border-limona-border/40 hover:bg-limona-surface-2 cursor-pointer transition-colors border-l-2',
+                      stale === 'stale' ? 'border-l-limona-red' : stale === 'warn' ? 'border-l-limona-yellow' : 'border-l-transparent',
                       selected.has(k.id) && 'bg-limona-lime/5',
                     )}
                   >
@@ -410,7 +444,18 @@ export function KontaktyTable({ kontakty, loading, profiles, onAdd, onRefresh }:
                         </Link>
                         {openNow === true  && <span title="Otwarte teraz" className="w-2 h-2 rounded-full bg-limona-green flex-shrink-0" />}
                         {openNow === false && hasAnyHours(k.godziny_otwarcia) && <span title="Zamknięte" className="w-2 h-2 rounded-full bg-limona-red/60 flex-shrink-0" />}
+                        {k.priorytet && <PriorytetBadge priorytet={k.priorytet} />}
                       </div>
+                      {k.ostatnia_wizyta && (() => {
+                        const dni = daysSince(k.ostatnia_wizyta)
+                        return (
+                          <p className={cn('text-[10px] mt-0.5',
+                            stale === 'stale' ? 'text-limona-red' : stale === 'warn' ? 'text-limona-yellow' : 'text-limona-text-dim')}>
+                            ost. wizyta {new Date(k.ostatnia_wizyta).toLocaleDateString('pl-PL')}
+                            {dni != null && dni > 0 && ` · ${dni} dni temu`}
+                          </p>
+                        )
+                      })()}
                     </td>
                     <td className="py-3 px-3 text-limona-text-muted whitespace-nowrap">
                       {KONTAKT_TYP_LABELS[k.typ as KontaktTyp] || k.typ}

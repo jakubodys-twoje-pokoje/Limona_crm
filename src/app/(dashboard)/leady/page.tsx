@@ -18,7 +18,7 @@ import { ConvertLeadModal } from '@/components/leads/ConvertLeadModal'
 import { LEAD_STATUS_LABELS } from '@/lib/status-comments'
 import { LEAD_TRANSITIONS } from '@/lib/lead-rules'
 import { canSeeAllTeams } from '@/lib/roles'
-import { cn, isOverdueDate } from '@/lib/utils'
+import { cn, isOverdueDate, withinActivityWindow, activityStaleness, ACTIVITY_WINDOWS } from '@/lib/utils'
 import { usePersistentState } from '@/hooks/usePersistentState'
 import type { Lead, LeadStatus, LeadTemperature, Profile } from '@/types/database'
 import { ZRODLO_OPTIONS as SOURCE_OPTIONS } from '@/lib/zrodla'
@@ -56,6 +56,7 @@ export default function LeadyPage() {
   const [search, setSearch] = usePersistentState('leady:search', '')
   const [tempFilter, setTempFilter] = usePersistentState('leady:temp', '')
   const [assigneeFilter, setAssigneeFilter] = usePersistentState('leady:assignee', '')
+  const [activityFilter, setActivityFilter] = usePersistentState('leady:activity', '')
 
   // Modale
   const [showAddModal, setShowAddModal] = useState(false)
@@ -104,6 +105,7 @@ export default function LeadyPage() {
   const filtered = useMemo(() => leads.filter(l => {
     if (tempFilter && l.temperature !== tempFilter) return false
     if (assigneeFilter && l.assigned_to !== assigneeFilter) return false
+    if (activityFilter && !withinActivityWindow(l.updated_at, activityFilter)) return false
     if (search) {
       const q = search.toLowerCase()
       if (!(l.name.toLowerCase().includes(q)
@@ -112,7 +114,7 @@ export default function LeadyPage() {
         || l.email?.toLowerCase().includes(q))) return false
     }
     return true
-  }), [leads, tempFilter, assigneeFilter, search])
+  }), [leads, tempFilter, assigneeFilter, activityFilter, search])
 
   const byStatus = useCallback(
     (status: LeadStatus) => filtered.filter(l => l.status === status),
@@ -230,6 +232,11 @@ export default function LeadyPage() {
             {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
           </select>
         )}
+        <select className="limona-select w-auto text-xs py-2" value={activityFilter} onChange={e => setActivityFilter(e.target.value)}
+          title="Pokaż leady z aktywnością w ostatnim okresie">
+          <option value="">Aktywność: dowolna</option>
+          {ACTIVITY_WINDOWS.map(w => <option key={w.value} value={w.value}>Aktywne: ostatni(e) {w.label}</option>)}
+        </select>
       </div>
 
       {/* Pipeline */}
@@ -475,12 +482,16 @@ function LeadCard({ lead, onOpen }: { lead: Lead; onOpen: () => void }) {
   const followUpOverdue = lead.next_contact_at && isOverdueDate(lead.next_contact_at)
   const temp = TEMPERATURE_CONFIG[lead.temperature]
   const resubmissions = typeof lead.meta?.webhook_resubmissions === 'number' ? lead.meta.webhook_resubmissions as number : 0
+  const stale = activityStaleness(lead.updated_at)
   return (
     <div
       draggable
       onDragStart={e => { e.dataTransfer.setData('text/plain', lead.id); e.dataTransfer.effectAllowed = 'move' }}
       onClick={onOpen}
-      className="limona-card p-3 space-y-1.5 cursor-grab active:cursor-grabbing hover:border-limona-lime/40 transition-colors"
+      className={cn(
+        'limona-card p-3 space-y-1.5 cursor-grab active:cursor-grabbing hover:border-limona-lime/40 transition-colors border-l-2',
+        stale === 'stale' ? 'border-l-limona-red' : stale === 'warn' ? 'border-l-limona-yellow' : 'border-l-transparent',
+      )}
     >
       <div className="flex items-start justify-between gap-2">
         <p className="text-sm font-medium text-limona-white leading-snug">{lead.name}</p>
