@@ -42,7 +42,11 @@ export default function DashboardLayout({
     <ToastProvider>
       <ConfirmProvider>
       <WallProvider>
-        <div className="min-h-screen bg-limona-bg">
+        {/* Mobile: kolumna 100dvh ze scrollem w środku, dolny pasek jako
+            zwykły element na dole (nie „fixed", żeby nie skakał przy
+            chowaniu paska adresu). Desktop (lg): klasyczny układ ze
+            scrollem strony i stałym sidebarem. */}
+        <div className="flex flex-col h-[100dvh] lg:block lg:min-h-screen lg:h-auto overflow-hidden lg:overflow-visible bg-limona-bg">
           <Sidebar />
           <TopBar />
           {/* CTA raportu dziennego — desktop, prawy górny róg (tylko rola user) */}
@@ -51,7 +55,7 @@ export default function DashboardLayout({
               <DailyReportCta />
             </div>
           )}
-          <main className="lg:ml-64 pt-14 lg:pt-16 pb-20 lg:pb-0 min-h-screen">
+          <main className="lg:ml-64 pt-14 lg:pt-16 flex-1 min-h-0 overflow-y-auto lg:flex-none lg:min-h-screen lg:overflow-visible">
             <div className="p-4 lg:p-8 lg:pt-2">
               {children}
             </div>

@@ -20,7 +20,7 @@ export const TopBar = memo(function TopBar() {
         </Link>
         <div className="flex items-center gap-2">
           {profile?.role === 'user' && <DailyReportCta compact />}
-          <NotificationBell userId={user?.id} />
+          <NotificationBell userId={user?.id} placement="topbar" />
           <Link href="/profil">
             <Avatar name={profile?.full_name || 'User'} url={profile?.avatar_url} size="sm" />
           </Link>

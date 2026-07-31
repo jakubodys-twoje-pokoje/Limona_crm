@@ -27,8 +27,11 @@ export const MobileNav = memo(function MobileNav() {
   const { unreadCount } = useWallContext()
 
   return (
-    <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-limona-surface border-t border-limona-border">
-      <div className="flex items-center justify-around h-16 px-1 pb-safe">
+    <nav
+      className="lg:hidden flex-shrink-0 z-50 bg-limona-surface border-t border-limona-border"
+      style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+    >
+      <div className="flex items-center justify-around h-16 px-1">
         {tabs.map(tab => {
           const isActive = pathname.startsWith('activePrefix' in tab && tab.activePrefix ? tab.activePrefix : tab.href)
           const counter = 'showCounter' in tab && tab.showCounter ? unreadCount : 0

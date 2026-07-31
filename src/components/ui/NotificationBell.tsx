@@ -9,6 +9,10 @@ import { cn } from '@/lib/utils'
 
 interface NotificationBellProps {
   userId: string | undefined
+  /** Skąd otwierany jest panel — decyduje o kierunku rozwijania.
+   *  'sidebar' (desktop, lewy dół) → w górę i w prawo;
+   *  'topbar' (telefon, prawy góra) → w dół i w lewo. */
+  placement?: 'sidebar' | 'topbar'
 }
 
 const typeLabels: Record<string, string> = {
@@ -35,7 +39,7 @@ const typeColors: Record<string, string> = {
   card_comment: 'text-limona-text-muted',
 }
 
-export function NotificationBell({ userId }: NotificationBellProps) {
+export function NotificationBell({ userId, placement = 'sidebar' }: NotificationBellProps) {
   const { notifications, unreadCount, markAsRead, markAllRead, deleteNotification, deleteAllRead, deleteAll } = useNotifications(userId)
   const [open, setOpen] = useState(false)
   const [showDeleteMenu, setShowDeleteMenu] = useState(false)
@@ -92,7 +96,10 @@ export function NotificationBell({ userId }: NotificationBellProps) {
       </button>
 
       {open && (
-        <div className="absolute left-0 bottom-full mb-2 w-80 sm:w-96 max-h-[70vh] overflow-hidden bg-limona-surface border border-limona-border rounded shadow-lg z-50 flex flex-col">
+        <div className={cn(
+          'absolute w-80 sm:w-96 max-w-[calc(100vw-1rem)] max-h-[70vh] overflow-hidden bg-limona-surface border border-limona-border rounded shadow-lg z-50 flex flex-col',
+          placement === 'topbar' ? 'right-0 top-full mt-2' : 'left-0 bottom-full mb-2'
+        )}>
           {/* Header */}
           <div className="flex items-center justify-between p-3 border-b border-limona-border flex-shrink-0">
             <h3 className="text-xs uppercase tracking-wider font-bold text-limona-text-muted">
@@ -123,7 +130,10 @@ export function NotificationBell({ userId }: NotificationBellProps) {
                     <Eraser size={14} />
                   </button>
                   {showDeleteMenu && (
-                    <div className="absolute right-0 bottom-full mb-1 bg-limona-surface-2 border border-limona-border rounded shadow-lg z-10 min-w-[160px]">
+                    <div className={cn(
+                      'absolute right-0 bg-limona-surface-2 border border-limona-border rounded shadow-lg z-10 min-w-[160px]',
+                      placement === 'topbar' ? 'top-full mt-1' : 'bottom-full mb-1'
+                    )}>
                       {readCount > 0 && (
                         <button
                           onClick={() => { deleteAllRead(); setShowDeleteMenu(false) }}
