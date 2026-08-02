@@ -41,6 +41,14 @@ export default function RootLayout({
             __html: `try{var t=localStorage.getItem('limona-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}`,
           }}
         />
+        {/* Wysokość widocznego obszaru → --app-height. Dzięki temu dolny pasek
+            na iOS nie „ucieka" w górę przy chowaniu paska adresu / klawiaturze
+            (VisualViewport jest dokładny tam, gdzie dvh bywa błędne). */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){function s(){var v=window.visualViewport;var h=v?v.height:window.innerHeight;document.documentElement.style.setProperty('--app-height',h+'px')}s();if(window.visualViewport){window.visualViewport.addEventListener('resize',s);window.visualViewport.addEventListener('scroll',s)}window.addEventListener('resize',s);window.addEventListener('orientationchange',s)})()`,
+          }}
+        />
       </head>
       <body className="min-h-screen bg-limona-bg">
         <Providers>

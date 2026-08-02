@@ -46,7 +46,7 @@ export default function DashboardLayout({
             zwykły element na dole (nie „fixed", żeby nie skakał przy
             chowaniu paska adresu). Desktop (lg): klasyczny układ ze
             scrollem strony i stałym sidebarem. */}
-        <div className="flex flex-col h-[100dvh] lg:block lg:min-h-screen lg:h-auto overflow-hidden lg:overflow-visible bg-limona-bg">
+        <div className="mobile-shell-h flex flex-col lg:block lg:min-h-screen overflow-hidden lg:overflow-visible bg-limona-bg">
           <Sidebar />
           <TopBar />
           {/* CTA raportu dziennego — desktop, prawy górny róg (tylko rola user) */}

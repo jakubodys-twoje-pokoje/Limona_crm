@@ -198,3 +198,20 @@ input[type="number"] {
     @apply font-mono tabular-nums;
   }
 }
+
+/* iOS Safari zoomuje pole formularza z font-size < 16px przy focusie
+   (Android tego nie robi). Na telefonach/tabletach wymuszamy min. 16px na
+   polach, żeby nie było auto-zoomu — bez blokowania pinch-zoomu (dostępność). */
+@media (max-width: 1023px) {
+  input:not([type="range"]),
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
+
+/* Wysokość powłoki na telefonie = dokładnie widoczny obszar (VisualViewport).
+   --app-height ustawia skrypt w layoucie; fallback dvh/vh dla starszych iOS,
+   gdzie dvh bywa błędne i dolny pasek „ucieka" w górę. Desktop: auto. */
+.mobile-shell-h { height: 100vh; height: var(--app-height, 100dvh); }
+@media (min-width: 1024px) { .mobile-shell-h { height: auto; } }
