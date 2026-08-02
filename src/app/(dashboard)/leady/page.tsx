@@ -3,6 +3,7 @@
 export const dynamic = 'force-dynamic'
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { useSearchParams } from 'next/navigation'
 import {
   Plus, Phone, MapPin, Tag, Search, AlertTriangle, ChevronDown, ChevronRight,
   Copy, Check, Webhook,
@@ -92,6 +93,18 @@ export default function LeadyPage() {
     profilesFetched.current = true
     fetch('/api/profiles').then(r => r.json()).then(d => setProfiles(d || []))
   }, [])
+
+  // Otwarcie konkretnego leada z powiadomienia (?open=<id>)
+  const searchParams = useSearchParams()
+  const openId = searchParams.get('open')
+  const openHandled = useRef(false)
+  useEffect(() => {
+    if (!openId || openHandled.current || loading) return
+    openHandled.current = true
+    const found = leads.find(l => l.id === openId)
+    if (found) setSelectedLead(found)
+    else fetch(`/api/leads/${openId}`).then(r => r.ok ? r.json() : null).then(l => { if (l) setSelectedLead(l) })
+  }, [openId, loading, leads])
 
   // Modal szczegółów zawsze pokazuje świeże dane po refetchu
   useEffect(() => {

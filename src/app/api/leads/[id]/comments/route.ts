@@ -50,7 +50,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       type: 'card_comment',
       title: 'Komentarz w leadzie',
       body: `${user.name} — ${lead.name}: ${content.trim().slice(0, 120)}`,
-      link: '/leady',
+      link: `/leady?open=${id}`,
       referenceId: id,
     })
   }

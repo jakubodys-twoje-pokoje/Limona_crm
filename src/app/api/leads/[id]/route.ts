@@ -100,7 +100,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       type: 'card_change',
       title: `Lead: ${LEAD_STATUS_LABELS[body.status as LeadStatus]}`,
       body: `${user.name} — ${lead.name}: ${statusComment}`,
-      link: '/leady',
+      link: `/leady?open=${id}`,
       referenceId: id,
     })
   }

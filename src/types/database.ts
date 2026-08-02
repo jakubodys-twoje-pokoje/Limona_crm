@@ -37,6 +37,7 @@ export type TaskType = 'wizyta' | 'telefon' | 'inne'
 export type ContactCategory =
   | 'spoldzielnia'
   | 'wspolnota'
+  | 'zarzadca'
   | 'posrednik_finansowy'
   | 'posrednik_kredytowy'
   | 'inny'

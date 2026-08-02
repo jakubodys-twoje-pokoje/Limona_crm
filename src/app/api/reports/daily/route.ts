@@ -130,6 +130,7 @@ export async function GET(req: NextRequest) {
     if (t.contact_category) return t.contact_category
     if (t.kontakt?.typ === 'spoldzielnia') return 'spoldzielnia'
     if (t.kontakt?.typ === 'wspolnota') return 'wspolnota'
+    if (t.kontakt?.typ === 'zarzadca') return 'zarzadca'
     return null
   }
 

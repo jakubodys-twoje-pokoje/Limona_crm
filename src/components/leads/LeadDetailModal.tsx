@@ -146,7 +146,7 @@ export function LeadDetailModal({
         type: 'new_lead',
         title: `${userName} przypisał/a Ci leada`,
         body: lead.name,
-        link: '/leady',
+        link: `/leady?open=${lead.id}`,
         referenceId: lead.id,
       })
     }

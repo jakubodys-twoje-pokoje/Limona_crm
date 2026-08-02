@@ -17,6 +17,7 @@ export const TASK_TYPE_LABELS: Record<TaskType, string> = {
 export const CONTACT_CATEGORY_LABELS: Record<ContactCategory, string> = {
   spoldzielnia: 'Spółdzielnia',
   wspolnota: 'Wspólnota',
+  zarzadca: 'Zarządca',
   posrednik_finansowy: 'Pośrednik finansowy',
   posrednik_kredytowy: 'Pośrednik kredytowy',
   inny: 'Inny',
@@ -39,12 +40,13 @@ export const REJECTION_REASON_LABELS: Record<RejectionReason, string> = {
 
 // Sekcje liczników w raporcie — kolejność jak we wzorze Patryka
 export const REPORT_CATEGORIES: ContactCategory[] = [
-  'spoldzielnia', 'wspolnota', 'posrednik_finansowy', 'posrednik_kredytowy',
+  'spoldzielnia', 'wspolnota', 'zarzadca', 'posrednik_finansowy', 'posrednik_kredytowy',
 ]
 
 export const REPORT_CATEGORY_HEADERS: Record<ContactCategory, string> = {
   spoldzielnia: 'SPÓŁDZIELNIE',
   wspolnota: 'WSPÓLNOTY',
+  zarzadca: 'ZARZĄDCY',
   posrednik_finansowy: 'POŚREDNICY FINANSOWI',
   posrednik_kredytowy: 'POŚREDNICY KREDYTOWI',
   inny: 'INNE KONTAKTY',
