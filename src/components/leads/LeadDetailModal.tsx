@@ -258,7 +258,10 @@ export function LeadDetailModal({
         </div>
 
         <div className="flex-1 overflow-y-auto">
-          <div className="flex flex-col lg:flex-row gap-5 p-5 pt-0">
+          {/* Na mobile panel (status, prowadzący, następny kontakt) nad
+              notatkami i komentarzami — inaczej pola były spychane na sam dół.
+              Desktop bez zmian (treść z lewej, panel z prawej). */}
+          <div className="flex flex-col-reverse lg:flex-row gap-5 p-5 pt-0">
             {/* Main */}
             <div className="flex-1 min-w-0 space-y-5">
               {/* Notatki */}

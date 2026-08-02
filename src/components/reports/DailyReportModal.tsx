@@ -121,7 +121,9 @@ export function DailyReportModal({ isOpen, onClose, onSubmitted, viewUserId, vie
           {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-16" />)}
         </div>
       ) : (
-        <div className="space-y-5">
+        // Zapas na dole (tylko mobile) — inaczej dolny pasek nawigacji zasłaniał
+        // przycisk „Prześlij raport" w wyśrodkowanym oknie modalnym.
+        <div className="space-y-5 max-lg:pb-[calc(5rem+env(safe-area-inset-bottom))]">
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <p className="text-sm text-limona-text-muted capitalize">{dateLabel}</p>
             {submitted ? (

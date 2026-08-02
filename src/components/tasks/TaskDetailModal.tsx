@@ -451,7 +451,10 @@ export function TaskDetailModal({
         )}
 
         <div className="flex-1 overflow-y-auto">
-          <div className="flex flex-col lg:flex-row gap-5 p-5">
+          {/* Na mobile pola (termin, data realizacji, wynik) pokazujemy nad
+              komentarzami — inaczej długa lista komentarzy spychała je poza
+              zasięg. Na desktopie układ bez zmian (treść z lewej, panel z prawej). */}
+          <div className="flex flex-col-reverse lg:flex-row gap-5 p-5">
             {/* Main content */}
             <div className="flex-1 min-w-0 space-y-5">
               {/* Description */}
