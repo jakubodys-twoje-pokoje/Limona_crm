@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Link as LinkIcon, X } from 'lucide-react'
+import { Link as LinkIcon, X, Clock } from 'lucide-react'
 import { Modal } from '@/components/ui/Modal'
 import { EntityPicker, type EntityPickerItem } from '@/components/shared/EntityPicker'
 import { TASK_TYPE_LABELS, CONTACT_CATEGORY_LABELS } from '@/lib/reports'
@@ -104,6 +104,9 @@ export function TaskFormModal({
   // Leniwe ładowanie list powiązań (prawie 2000 kontaktów) — tylko gdy potrzebne
   const [pickProperties, setPickProperties] = useState<EntityPickerItem[]>([])
   const [pickKontakty, setPickKontakty] = useState<EntityPickerItem[]>([])
+  // Ostatnia wizyta per kontakt — pokazywana po wybraniu kontaktu
+  const [kontaktVisits, setKontaktVisits] = useState<Record<string, string | null>>({})
+  const [propertyKontaktVisits, setPropertyKontaktVisits] = useState<Record<string, string | null>>({})
   const pickersFetched = useRef(false)
   useEffect(() => {
     if (!isOpen || pickersFetched.current) return
@@ -112,20 +115,25 @@ export function TaskFormModal({
     if (!lockedPropertyLabel && !lockedLeadLabel) {
       fetch(`/api/properties${visParam}`)
         .then(r => r.ok ? r.json() : [])
-        .then((data: { id: string; adres: string; kod_pocztowy: string | null; miasto: string | null }[]) => {
+        .then((data: { id: string; adres: string; kod_pocztowy: string | null; miasto: string | null; kontakt?: { ostatnia_wizyta?: string | null } }[]) => {
           setPickProperties(data.map(p => ({ id: p.id, label: formatPropertyAddress(p), sublabel: p.miasto })))
+          // ostatnia wizyta powiązanego z nieruchomością kontaktu (jeśli jest)
+          const pv: Record<string, string | null> = {}
+          for (const p of data) if (p.kontakt?.ostatnia_wizyta) pv[p.id] = p.kontakt.ostatnia_wizyta
+          setPropertyKontaktVisits(pv)
         })
         .catch(() => {})
     }
     if (!lockedKontaktLabel && !lockedLeadLabel) {
       fetch(`/api/kontakty${visParam}`)
         .then(r => r.ok ? r.json() : [])
-        .then((data: { id: string; nazwa: string; typ: string; miasto: string | null }[]) => {
+        .then((data: { id: string; nazwa: string; typ: string; miasto: string | null; ostatnia_wizyta?: string | null }[]) => {
           setPickKontakty(data.map(k => ({
             id: k.id,
             label: k.nazwa,
             sublabel: [KONTAKT_TYP_LABELS[k.typ as KontaktTyp] || k.typ, k.miasto].filter(Boolean).join(' · '),
           })))
+          setKontaktVisits(Object.fromEntries(data.map(k => [k.id, k.ostatnia_wizyta ?? null])))
         })
         .catch(() => {})
     }
@@ -209,6 +217,7 @@ export function TaskFormModal({
             </div>
           </div>
         ) : (
+        <>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {lockedPropertyLabel ? (
             <div>
@@ -243,7 +252,18 @@ export function TaskFormModal({
               onChange={id => setForm(f => ({ ...f, kontakt_id: id }))}
             />
           )}
-        </div>
+          </div>
+          {(() => {
+            const visit = (form.kontakt_id && kontaktVisits[form.kontakt_id])
+              || (form.property_id && propertyKontaktVisits[form.property_id]) || null
+            if (!visit) return null
+            return (
+              <p className="text-xs text-limona-blue flex items-center gap-1.5 -mt-1">
+                <Clock size={12} /> Ostatnia wizyta u kontaktu: {new Date(visit).toLocaleDateString('pl-PL')}
+              </p>
+            )
+          })()}
+          </>
         )}
 
         <div className="grid grid-cols-2 gap-4">

@@ -8,7 +8,8 @@ import { getUserGrants } from '@/lib/access'
 
 const SELECT_WITH_RELATIONS = `*,
   creator:profiles!properties_created_by_fkey(id,full_name,avatar_url),
-  assignee:profiles!properties_assigned_to_fkey(id,full_name,avatar_url)`
+  assignee:profiles!properties_assigned_to_fkey(id,full_name,avatar_url),
+  kontakt:kontakty!properties_kontakt_id_fkey(id,nazwa,ostatnia_wizyta)`
 
 export async function GET(req: NextRequest) {
   const user = await getSessionUser()
