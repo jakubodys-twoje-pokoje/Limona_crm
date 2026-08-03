@@ -2,7 +2,7 @@
 
 export const dynamic = 'force-dynamic'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useMemo } from 'react'
 import Link from 'next/link'
 import { LayoutGrid, CalendarRange, List } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
@@ -32,6 +32,18 @@ export default function ZadaniaKalendarzPage() {
   // Filtr po agencie ma sens tylko, gdy widać zadania więcej niż jednej osoby
   const canFilterByAgent = canAssign || (visibleIds?.length ?? 0) > 1
   const filteredTasks = tasks.filter(t => taskMatchesAssignee(t, assigneeFilter))
+
+  // Kolejność nawigacji ‹ › w modalu — chronologicznie (najbliższy termin
+  // u góry), zgodnie z układem terminarza; bez terminu na końcu.
+  const navTasks = useMemo(() => {
+    const key = (t: Task) => t.due_date ? `${t.due_date} ${t.due_time ?? '99:99'}` : '9999-99-99'
+    return [...filteredTasks].sort((a, b) => {
+      const ak = key(a), bk = key(b)
+      if (ak !== bk) return ak < bk ? -1 : 1
+      return a.created_at < b.created_at ? 1 : -1
+    })
+  }, [filteredTasks])
+  const taskNavIndex = selectedTask ? navTasks.findIndex(t => t.id === selectedTask.id) : -1
   // Kontekst otwartego formularza dodawania (prefiltrowany termin/godzina)
   const [addCtx, setAddCtx] = useState<{ date: string; time: string | null } | null>(null)
 
@@ -174,6 +186,9 @@ export default function ZadaniaKalendarzPage() {
           canAssign={canAssign}
           profiles={profiles}
           tasks={tasks}
+          onNavigate={dir => { const next = navTasks[taskNavIndex + dir]; if (next) setSelectedTask(next) }}
+          hasPrev={taskNavIndex > 0}
+          hasNext={taskNavIndex >= 0 && taskNavIndex < navTasks.length - 1}
         />
       )}
     </div>

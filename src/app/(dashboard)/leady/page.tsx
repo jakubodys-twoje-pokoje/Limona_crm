@@ -204,6 +204,18 @@ export default function LeadyPage() {
   const convertedLeads = filtered.filter(l => l.status === 'converted')
   const rejectedLeads = filtered.filter(l => l.status === 'rejected')
 
+  // Kolejność nawigacji ‹ › w modalu — zgodna z układem: kolumny pipeline'u
+  // od lewej do prawej, potem archiwum (skonwertowane, odrzucone).
+  const navLeads = useMemo(
+    () => [
+      ...PIPELINE.flatMap(s => filtered.filter(l => l.status === s)),
+      ...filtered.filter(l => l.status === 'converted'),
+      ...filtered.filter(l => l.status === 'rejected'),
+    ],
+    [filtered],
+  )
+  const leadNavIndex = selectedLead ? navLeads.findIndex(l => l.id === selectedLead.id) : -1
+
   return (
     <div className="space-y-5">
       {/* Header */}
@@ -417,6 +429,9 @@ export default function LeadyPage() {
           isAdmin={profile?.role === 'admin'}
           canAssign={canManage}
           profiles={profiles}
+          onNavigate={dir => { const next = navLeads[leadNavIndex + dir]; if (next) setSelectedLead(next) }}
+          hasPrev={leadNavIndex > 0}
+          hasNext={leadNavIndex >= 0 && leadNavIndex < navLeads.length - 1}
         />
       )}
 

@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import {
   X, Calendar, User, Tag, AlignLeft, MessageCircle, Send, Trash2,
   CheckCircle, Clock, XCircle, AlertTriangle, ChevronDown, Link as LinkIcon,
+  ChevronLeft, ChevronRight,
 } from 'lucide-react'
 import { Avatar } from '@/components/ui/Avatar'
 import { Badge } from '@/components/ui/Badge'
@@ -37,6 +38,10 @@ interface TaskDetailModalProps {
   canAssign: boolean
   profiles: Profile[]
   tasks: Task[]
+  /** Nawigacja ‹ › po aktualnie przefiltrowanej liście (opcjonalna — bez niej strzałki się nie pokazują) */
+  onNavigate?: (dir: -1 | 1) => void
+  hasPrev?: boolean
+  hasNext?: boolean
 }
 
 const statusOptions: { value: TaskStatus; label: string; icon: React.ReactNode; color: string }[] = [
@@ -63,6 +68,7 @@ function CircleIcon() {
 
 export function TaskDetailModal({
   task, isOpen, onClose, onUpdate, onDelete, userId, userName, isAdmin, canAssign, profiles, tasks,
+  onNavigate, hasPrev, hasNext,
 }: TaskDetailModalProps) {
   const confirmDialog = useConfirm()
   const [title, setTitle] = useState(task.title)
@@ -138,6 +144,17 @@ export function TaskDetailModal({
   function requestClose() {
     if (hasUnsavedChanges) { setShowUnsavedConfirm(true); return }
     onClose()
+  }
+
+  // Przejście do sąsiedniej karty — najpierw zapisujemy edytowany tytuł/opis
+  // (klik w strzałkę i tak odbiera focus polu, ale robimy to jawnie, żeby nic
+  // nie przepadło), potem prosimy rodzica o zmianę zadania.
+  async function requestNavigate(dir: -1 | 1) {
+    if (editingTitle && title.trim() && title !== task.title) await saveField('title', title.trim())
+    if (editingDesc && description !== (task.description || '')) await saveField('description', description || null)
+    setEditingTitle(false)
+    setEditingDesc(false)
+    onNavigate?.(dir)
   }
 
   useEffect(() => {
@@ -426,6 +443,18 @@ export function TaskDetailModal({
             )}
           </div>
           <div className="flex items-center gap-1 flex-shrink-0 relative">
+            {onNavigate && (
+              <div className="flex items-center mr-0.5 border-r border-limona-border/50 pr-1">
+                <button onClick={() => requestNavigate(-1)} disabled={!hasPrev} title="Poprzednia karta"
+                  className="p-2 text-limona-text-dim hover:text-limona-lime disabled:opacity-25 disabled:hover:text-limona-text-dim transition-colors">
+                  <ChevronLeft size={18} />
+                </button>
+                <button onClick={() => requestNavigate(1)} disabled={!hasNext} title="Następna karta"
+                  className="p-2 text-limona-text-dim hover:text-limona-lime disabled:opacity-25 disabled:hover:text-limona-text-dim transition-colors">
+                  <ChevronRight size={18} />
+                </button>
+              </div>
+            )}
             <button onClick={handleDeleteTask}
               className="p-2 text-limona-text-dim hover:text-limona-red transition-colors">
               <Trash2 size={16} />

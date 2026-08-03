@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   X, Phone, Mail, MapPin, Tag, Flame, Snowflake, Sun, Calendar, User,
   MessageCircle, Send, Trash2, ChevronDown, ArrowRight, AlertTriangle, ExternalLink,
-  ListTodo, Plus, CheckCircle, Circle,
+  ListTodo, Plus, CheckCircle, Circle, ChevronLeft, ChevronRight,
 } from 'lucide-react'
 import { Avatar } from '@/components/ui/Avatar'
 import { Badge } from '@/components/ui/Badge'
@@ -48,10 +48,15 @@ interface LeadDetailModalProps {
   isAdmin: boolean
   canAssign: boolean
   profiles: Profile[]
+  /** Nawigacja ‹ › po aktualnie przefiltrowanej liście (opcjonalna) */
+  onNavigate?: (dir: -1 | 1) => void
+  hasPrev?: boolean
+  hasNext?: boolean
 }
 
 export function LeadDetailModal({
   lead, isOpen, onClose, onUpdate, onDelete, onConvert, userId, userName, isAdmin, canAssign, profiles,
+  onNavigate, hasPrev, hasNext,
 }: LeadDetailModalProps) {
   const confirmDialog = useConfirm()
   const [comments, setComments] = useState<LeadComment[]>([])
@@ -157,6 +162,14 @@ export function LeadDetailModal({
     if (notes !== (lead.notes || '')) await onUpdate(lead.id, { notes: notes || null })
   }
 
+  // Przejście do sąsiedniego leada — zapisujemy edytowane notatki, żeby nic
+  // nie przepadło, po czym prosimy rodzica o zmianę leada.
+  async function requestNavigate(dir: -1 | 1) {
+    if (editingNotes && notes !== (lead.notes || '')) await saveNotes()
+    setEditingNotes(false)
+    onNavigate?.(dir)
+  }
+
   async function handleCreateTask(data: Partial<Task>) {
     const { error } = await createTask({ ...data, lead_id: lead.id }, userId)
     return { error: error ?? null }
@@ -243,6 +256,18 @@ export function LeadDetailModal({
             )}
           </div>
           <div className="flex items-center gap-1 flex-shrink-0">
+            {onNavigate && (
+              <div className="flex items-center mr-0.5 border-r border-limona-border/50 pr-1">
+                <button onClick={() => requestNavigate(-1)} disabled={!hasPrev} title="Poprzedni lead"
+                  className="p-2 text-limona-text-dim hover:text-limona-lime disabled:opacity-25 disabled:hover:text-limona-text-dim transition-colors">
+                  <ChevronLeft size={18} />
+                </button>
+                <button onClick={() => requestNavigate(1)} disabled={!hasNext} title="Następny lead"
+                  className="p-2 text-limona-text-dim hover:text-limona-lime disabled:opacity-25 disabled:hover:text-limona-text-dim transition-colors">
+                  <ChevronRight size={18} />
+                </button>
+              </div>
+            )}
             {onDelete && (
               <button
                 onClick={async () => { if (await confirmDialog({ message: 'Na pewno usunąć tego leada? Historia przepadnie.', confirmLabel: 'Usuń' })) { await onDelete(lead.id); onClose() } }}

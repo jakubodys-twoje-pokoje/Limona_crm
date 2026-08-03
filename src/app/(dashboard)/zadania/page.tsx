@@ -104,6 +104,16 @@ export default function ZadaniaPage() {
 
   const byStatus = (status: TaskStatus) => sortedTasks.filter(t => t.status === status)
 
+  // Kolejność nawigacji ‹ › w modalu — zgodna z tym, co widać: w kanbanie
+  // kolumnami (Do zrobienia → … → Zablokowane), w widoku listy wprost sortedTasks.
+  const navTasks = useMemo(
+    () => view === 'kanban'
+      ? columns.flatMap(c => sortedTasks.filter(t => t.status === c.status))
+      : sortedTasks,
+    [view, sortedTasks],
+  )
+  const taskNavIndex = selectedTask ? navTasks.findIndex(t => t.id === selectedTask.id) : -1
+
   async function handleCreateTask(data: Partial<Task>) {
     if (!user) return { error: 'Brak użytkownika' }
     const { error } = await createTask({ ...data, board_id: selectedBoardId }, user.id)
@@ -434,6 +444,9 @@ export default function ZadaniaPage() {
           canAssign={canAssign}
           profiles={profiles}
           tasks={tasks}
+          onNavigate={dir => { const next = navTasks[taskNavIndex + dir]; if (next) setSelectedTask(next) }}
+          hasPrev={taskNavIndex > 0}
+          hasNext={taskNavIndex >= 0 && taskNavIndex < navTasks.length - 1}
         />
       )}
 
