@@ -428,6 +428,7 @@ export default function LeadyPage() {
           userName={profile?.full_name || ''}
           isAdmin={profile?.role === 'admin'}
           canAssign={canManage}
+          canDelete={canManage}
           profiles={profiles}
           onNavigate={dir => { const next = navLeads[leadNavIndex + dir]; if (next) setSelectedLead(next) }}
           hasPrev={leadNavIndex > 0}

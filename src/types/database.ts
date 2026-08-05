@@ -482,6 +482,23 @@ export interface DailyReport {
   updated_at: string
 }
 
+export interface DeletionRequest {
+  id: string
+  entity_type: 'lead' | 'kontakt' | 'property'
+  entity_id: string
+  entity_label: string | null
+  reason: string
+  status: 'pending' | 'approved' | 'rejected'
+  requested_by: string | null
+  reviewed_by: string | null
+  review_note: string | null
+  reviewed_at: string | null
+  created_at: string
+  // Joined
+  requester?: { id: string; full_name: string; avatar_url: string | null }
+  reviewer?: { id: string; full_name: string; avatar_url: string | null }
+}
+
 export interface Database {
   public: {
     Tables: {

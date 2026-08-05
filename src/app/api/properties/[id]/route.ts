@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getSessionUser, unauthorized, forbidden } from '@/lib/api-auth'
-import { canSeeAllTeams } from '@/lib/roles'
+import { canDeleteRecords } from '@/lib/deletion'
 import { geocodeAddress } from '@/lib/geocode'
 import { getStatusDluznikaLabel, getStatusInwestoraLabel } from '@/lib/stages'
 import { formatStatusChangeComment } from '@/lib/status-comments'
@@ -116,17 +116,9 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   const supabase = await createClient()
   const { id } = await params
 
-  // Usuwać może właściciel (przypisany/twórca) oraz role zarządzające zespołem.
-  // Zwykły agent kasuje tylko swoje — cudzych nie rusza (i tak ich nie widzi).
-  if (!canSeeAllTeams(user.role)) {
-    const { data: existing } = await supabase
-      .from('properties')
-      .select('assigned_to, created_by')
-      .eq('id', id)
-      .maybeSingle()
-    if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-    if (existing.assigned_to !== user.id && existing.created_by !== user.id) return forbidden()
-  }
+  // Usuwać wprost mogą tylko role zarządzające zespołem — zwykły użytkownik
+  // zgłasza prośbę o usunięcie (POST /api/deletion-requests)
+  if (!canDeleteRecords(user.role)) return forbidden()
 
   const { error } = await supabase.from('properties').delete().eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

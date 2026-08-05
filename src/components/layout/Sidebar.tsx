@@ -1,9 +1,9 @@
 'use client'
 
-import { memo, useState } from 'react'
+import { memo, useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
-import { LayoutDashboard, Building2, ListTodo, MessageSquare, Users, UserCog, User, LogOut, BookUser, MapPin, Inbox, CalendarDays, ChevronDown, Landmark, Gavel, Briefcase, Users2, TrendingUp, ClipboardList, ShieldCheck } from 'lucide-react'
+import { LayoutDashboard, Building2, ListTodo, MessageSquare, Users, UserCog, User, LogOut, BookUser, MapPin, Inbox, CalendarDays, ChevronDown, Landmark, Gavel, Briefcase, Users2, TrendingUp, ClipboardList, ShieldCheck, Trash2 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { useMyGrants, grantsIncludeInvestors } from '@/hooks/useMyGrants'
 import { useWallContext } from '@/hooks/useWallProvider'
@@ -43,6 +43,7 @@ const adminItems: NavItem[] = [
 const managementItems: NavItem[] = [
   { href: '/raporty', icon: ClipboardList, label: 'Raporty' },
   { href: '/dostepy', icon: ShieldCheck, label: 'Panel dostępów' },
+  { href: '/usuniecia', icon: Trash2, label: 'Prośby o usunięcie' },
 ]
 
 export const Sidebar = memo(function Sidebar() {
@@ -55,6 +56,21 @@ export const Sidebar = memo(function Sidebar() {
   const isAdmin = profile?.role === 'admin'
   const canInvestors = canSeeInvestors(profile?.role) || grantsIncludeInvestors(grants)
   const [manuallyToggled, setManuallyToggled] = useState<Record<string, boolean>>({})
+
+  // Liczba oczekujących próśb o usunięcie (plakietka przy pozycji w menu) — centrala
+  const [deletionCount, setDeletionCount] = useState(0)
+  const canManage = canManageTeams(profile?.role)
+  useEffect(() => {
+    if (!canManage) return
+    let active = true
+    const fetchCount = () => fetch('/api/deletion-requests/count')
+      .then(r => r.ok ? r.json() : { count: 0 })
+      .then(d => { if (active) setDeletionCount(d.count ?? 0) })
+      .catch(() => {})
+    fetchCount()
+    const id = setInterval(fetchCount, 60000)
+    return () => { active = false; clearInterval(id) }
+  }, [canManage])
 
   const allItems = [...navItems, ...(canManageTeams(profile?.role) ? managementItems : []), ...(isAdmin ? adminItems : [])].map(item => {
     if (item.href !== '/kontakty' || !item.children || canInvestors) return item
@@ -88,7 +104,9 @@ export const Sidebar = memo(function Sidebar() {
         {allItems.map(item => {
           const hasChildActive = item.children?.some(isChildActive) ?? false
           const isActive = pathname.startsWith(item.href)
-          const counter = 'showCounter' in item && item.showCounter ? unreadCount : 0
+          const counter = item.href === '/usuniecia'
+            ? deletionCount
+            : ('showCounter' in item && item.showCounter ? unreadCount : 0)
 
           if (item.children) {
             const expanded = manuallyToggled[item.href] ?? hasChildActive

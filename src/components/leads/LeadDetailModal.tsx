@@ -10,6 +10,7 @@ import { Avatar } from '@/components/ui/Avatar'
 import { Badge } from '@/components/ui/Badge'
 import { SortToggle } from '@/components/ui/SortToggle'
 import { StatusChangeCommentModal } from '@/components/shared/StatusChangeCommentModal'
+import { RequestDeletionModal } from '@/components/shared/RequestDeletionModal'
 import { TaskFormModal } from '@/components/tasks/TaskFormModal'
 import { TaskDetailModal } from '@/components/tasks/TaskDetailModal'
 import { createNotification } from '@/hooks/useNotifications'
@@ -47,6 +48,8 @@ interface LeadDetailModalProps {
   userName: string
   isAdmin: boolean
   canAssign: boolean
+  /** Czy użytkownik może usuwać wprost (centrala/zarząd) — inaczej „Zgłoś do usunięcia" */
+  canDelete: boolean
   profiles: Profile[]
   /** Nawigacja ‹ › po aktualnie przefiltrowanej liście (opcjonalna) */
   onNavigate?: (dir: -1 | 1) => void
@@ -55,7 +58,7 @@ interface LeadDetailModalProps {
 }
 
 export function LeadDetailModal({
-  lead, isOpen, onClose, onUpdate, onDelete, onConvert, userId, userName, isAdmin, canAssign, profiles,
+  lead, isOpen, onClose, onUpdate, onDelete, onConvert, userId, userName, isAdmin, canAssign, canDelete, profiles,
   onNavigate, hasPrev, hasNext,
 }: LeadDetailModalProps) {
   const confirmDialog = useConfirm()
@@ -69,6 +72,7 @@ export function LeadDetailModal({
   const [pendingStatus, setPendingStatus] = useState<LeadStatus | null>(null)
   const [editingNotes, setEditingNotes] = useState(false)
   const [notes, setNotes] = useState(lead.notes || '')
+  const [showRequestDelete, setShowRequestDelete] = useState(false)
 
   // Zadania leada — jak na kartach nieruchomości i kontaktów
   const { tasks, createTask, updateTask, deleteTask } = useTasks(undefined, undefined, undefined, undefined, isOpen, lead.id)
@@ -268,10 +272,19 @@ export function LeadDetailModal({
                 </button>
               </div>
             )}
-            {onDelete && (
+            {canDelete && onDelete ? (
               <button
                 onClick={async () => { if (await confirmDialog({ message: 'Na pewno usunąć tego leada? Historia przepadnie.', confirmLabel: 'Usuń' })) { await onDelete(lead.id); onClose() } }}
                 className="p-2 text-limona-text-dim hover:text-limona-red transition-colors"
+                title="Usuń leada"
+              >
+                <Trash2 size={16} />
+              </button>
+            ) : !isFrozen && (
+              <button
+                onClick={() => setShowRequestDelete(true)}
+                className="p-2 text-limona-text-dim hover:text-limona-red transition-colors"
+                title="Zgłoś do usunięcia"
               >
                 <Trash2 size={16} />
               </button>
@@ -588,6 +601,15 @@ export function LeadDetailModal({
         onConfirm={confirmStatusChange}
         newStatusLabel={pendingStatus ? LEAD_STATUS_LABELS[pendingStatus] : ''}
         entityLabel="leada"
+      />
+
+      <RequestDeletionModal
+        isOpen={showRequestDelete}
+        onClose={() => setShowRequestDelete(false)}
+        entityType="lead"
+        entityId={lead.id}
+        entityLabel={lead.name}
+        onDone={onClose}
       />
 
       <TaskFormModal

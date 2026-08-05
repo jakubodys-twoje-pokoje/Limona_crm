@@ -4,7 +4,8 @@ import { createClient } from '@/lib/supabase/server'
 import { getSessionUser, unauthorized, forbidden } from '@/lib/api-auth'
 import { geocodeAddress } from '@/lib/geocode'
 import { formatFlagChangeComment } from '@/lib/status-comments'
-import { canSeeInvestors, canManageTeams, canSeeAllTeams } from '@/lib/roles'
+import { canSeeInvestors, canManageTeams } from '@/lib/roles'
+import { canDeleteRecords } from '@/lib/deletion'
 
 const SELECT_WITH_RELATIONS = `*,
   creator:profiles!kontakty_created_by_fkey(id,full_name,avatar_url),
@@ -116,20 +117,9 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   const supabase = await createClient()
   const { id } = await params
 
-  // Usuwać może właściciel (przypisany/twórca) oraz role zarządzające zespołem.
-  // Osłona inwestorów: kto ich nie widzi, ten ich nie usunie.
-  if (!canSeeAllTeams(user.role)) {
-    const { data: existing } = await supabase
-      .from('kontakty')
-      .select('typ, assigned_to, created_by')
-      .eq('id', id)
-      .maybeSingle()
-    if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-    if (existing.typ === 'inwestor' && !canSeeInvestors(user.role)) {
-      return NextResponse.json({ error: 'Not found' }, { status: 404 })
-    }
-    if (existing.assigned_to !== user.id && existing.created_by !== user.id) return forbidden()
-  }
+  // Usuwać wprost mogą tylko role zarządzające zespołem — zwykły użytkownik
+  // zgłasza prośbę o usunięcie (POST /api/deletion-requests)
+  if (!canDeleteRecords(user.role)) return forbidden()
 
   const { error } = await supabase.from('kontakty').delete().eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

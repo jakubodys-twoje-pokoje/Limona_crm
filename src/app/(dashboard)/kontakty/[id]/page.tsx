@@ -20,6 +20,7 @@ import { KontaktForm } from '@/components/kontakty/KontaktForm'
 import { KontaktKomentarze } from '@/components/kontakty/KontaktKomentarze'
 import { DriveFiles } from '@/components/shared/DriveFiles'
 import { StatusChangeCommentModal } from '@/components/shared/StatusChangeCommentModal'
+import { RequestDeletionModal } from '@/components/shared/RequestDeletionModal'
 import { TaskDetailModal } from '@/components/tasks/TaskDetailModal'
 import { TaskFormModal } from '@/components/tasks/TaskFormModal'
 import { cn, daysSince, activityStaleness } from '@/lib/utils'
@@ -98,6 +99,7 @@ export default function KontaktDetailPage() {
   const [profiles, setProfiles] = useState<Profile[]>([])
   const [showEditModal, setShowEditModal] = useState(false)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [showRequestDelete, setShowRequestDelete] = useState(false)
   const [saving, setSaving] = useState(false)
   const [showAddTask, setShowAddTask] = useState(false)
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
@@ -375,15 +377,13 @@ export default function KontaktDetailPage() {
           >
             <Edit size={13} /> Edytuj
           </button>
-          {(canAssign || kontakt.assigned_to === user?.id || kontakt.created_by === user?.id) && (
-            <button
-              onClick={() => setShowDeleteModal(true)}
-              title="Usuń kontakt"
-              className="p-2 rounded border border-limona-border text-limona-text-muted hover:border-limona-red hover:text-limona-red transition-colors"
-            >
-              <Trash2 size={14} />
-            </button>
-          )}
+          <button
+            onClick={() => canAssign ? setShowDeleteModal(true) : setShowRequestDelete(true)}
+            title={canAssign ? 'Usuń kontakt' : 'Zgłoś do usunięcia'}
+            className="p-2 rounded border border-limona-border text-limona-text-muted hover:border-limona-red hover:text-limona-red transition-colors"
+          >
+            <Trash2 size={14} />
+          </button>
         </div>
       </div>
 
@@ -733,6 +733,15 @@ export default function KontaktDetailPage() {
           </div>
         </div>
       </Modal>
+
+      <RequestDeletionModal
+        isOpen={showRequestDelete}
+        onClose={() => setShowRequestDelete(false)}
+        entityType="kontakt"
+        entityId={kontaktId}
+        entityLabel={kontakt.nazwa}
+        onDone={() => router.push('/kontakty')}
+      />
 
       <StatusChangeCommentModal
         isOpen={!!pendingFlag}

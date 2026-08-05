@@ -14,6 +14,7 @@ import { useToast } from '@/components/ui/Toast'
 import { useConfirm } from '@/components/ui/Confirm'
 import { PropertyForm } from '@/components/properties/PropertyForm'
 import { StatusChangeCommentModal } from '@/components/shared/StatusChangeCommentModal'
+import { RequestDeletionModal } from '@/components/shared/RequestDeletionModal'
 import { Badge } from '@/components/ui/Badge'
 import { Avatar } from '@/components/ui/Avatar'
 import { Modal } from '@/components/ui/Modal'
@@ -98,6 +99,7 @@ export default function PropertyDetailPage() {
   const [activeTab, setActiveTab] = useState<'komentarze' | 'tasks' | 'docs' | 'checklist' | 'negocjacja' | 'inwestorzy' | 'log' | 'report'>('tasks')
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   const [showEditModal, setShowEditModal] = useState(false)
+  const [showRequestDelete, setShowRequestDelete] = useState(false)
   const [showAddTask, setShowAddTask] = useState(false)
   const [showTemplates, setShowTemplates] = useState(false)
   const [selectedTemplates, setSelectedTemplates] = useState<string[]>([])
@@ -467,17 +469,19 @@ export default function PropertyDetailPage() {
             <Edit size={14} />
             Edytuj
           </button>
-          {(canAssign || property.assigned_to === user?.id || property.created_by === user?.id) && (
-            <button
-              onClick={async () => {
+          <button
+            onClick={async () => {
+              if (canAssign) {
                 if (await confirmDialog({ message: `Na pewno usunąć nieruchomość ${formatPropertyAddress(property)}? Zadania, dokumenty i komentarze przepadną.`, confirmLabel: 'Usuń' })) handleDelete()
-              }}
-              className="p-2.5 rounded-full border border-limona-border text-limona-text-muted hover:border-limona-red hover:text-limona-red transition-colors"
-              title="Usuń nieruchomość"
-            >
-              <Trash2 size={14} />
-            </button>
-          )}
+              } else {
+                setShowRequestDelete(true)
+              }
+            }}
+            className="p-2.5 rounded-full border border-limona-border text-limona-text-muted hover:border-limona-red hover:text-limona-red transition-colors"
+            title={canAssign ? 'Usuń nieruchomość' : 'Zgłoś do usunięcia'}
+          >
+            <Trash2 size={14} />
+          </button>
         </div>
       </div>
 
@@ -1189,6 +1193,15 @@ export default function PropertyDetailPage() {
         onConfirm={confirmStatusChange}
         newStatusLabel={statusChange?.label || ''}
         entityLabel="nieruchomości"
+      />
+
+      <RequestDeletionModal
+        isOpen={showRequestDelete}
+        onClose={() => setShowRequestDelete(false)}
+        entityType="property"
+        entityId={property.id}
+        entityLabel={formatPropertyAddress(property)}
+        onDone={() => router.push('/nieruchomosci')}
       />
 
       {selectedTask && (
