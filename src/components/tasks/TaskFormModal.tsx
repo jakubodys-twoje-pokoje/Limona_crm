@@ -28,6 +28,7 @@ export interface TaskFormData {
   recurrence_until: string
   property_id: string | null
   kontakt_id: string | null
+  lead_id: string | null
 }
 
 export const EMPTY_TASK_FORM: TaskFormData = {
@@ -46,6 +47,7 @@ export const EMPTY_TASK_FORM: TaskFormData = {
   recurrence_until: '',
   property_id: null,
   kontakt_id: null,
+  lead_id: null,
 }
 
 const RECURRENCE_FREQ_LABELS: Record<RecurrenceFreq, string> = {
@@ -104,6 +106,7 @@ export function TaskFormModal({
   // Leniwe ładowanie list powiązań (prawie 2000 kontaktów) — tylko gdy potrzebne
   const [pickProperties, setPickProperties] = useState<EntityPickerItem[]>([])
   const [pickKontakty, setPickKontakty] = useState<EntityPickerItem[]>([])
+  const [pickLeads, setPickLeads] = useState<EntityPickerItem[]>([])
   // Ostatnia wizyta per kontakt — pokazywana po wybraniu kontaktu
   const [kontaktVisits, setKontaktVisits] = useState<Record<string, string | null>>({})
   const [propertyKontaktVisits, setPropertyKontaktVisits] = useState<Record<string, string | null>>({})
@@ -137,6 +140,18 @@ export function TaskFormModal({
         })
         .catch(() => {})
     }
+    // Lead pokazujemy w ogólnym formularzu (Kanban/Terminarz) — nie na kartach encji
+    if (!lockedLeadLabel && !lockedPropertyLabel && !lockedKontaktLabel) {
+      fetch('/api/leads')
+        .then(r => r.ok ? r.json() : [])
+        .then((data: { id: string; name: string; location: string | null; phone: string | null; status: string }[]) => {
+          // Skonwertowanych/odrzuconych nie proponujemy — to zamknięte tematy
+          setPickLeads(data
+            .filter(l => l.status !== 'converted' && l.status !== 'rejected')
+            .map(l => ({ id: l.id, label: l.name, sublabel: [l.location, l.phone].filter(Boolean).join(' · ') || undefined })))
+        })
+        .catch(() => {})
+    }
   }, [isOpen, visibleIds, lockedPropertyLabel, lockedKontaktLabel, lockedLeadLabel])
 
   async function handleSubmit(e: React.FormEvent) {
@@ -160,6 +175,7 @@ export function TaskFormModal({
       recurrence_until: form.recurrence_until || null,
       property_id: form.property_id,
       kontakt_id: form.kontakt_id,
+      lead_id: form.lead_id,
       ...(defaults?.board_id !== undefined ? { board_id: defaults.board_id } : {}),
       ...(defaults?.list_id !== undefined ? { list_id: defaults.list_id } : {}),
     }
@@ -263,6 +279,17 @@ export function TaskFormModal({
               </p>
             )
           })()}
+          {/* Lead — dostępny w ogólnym formularzu (Kanban/Terminarz) */}
+          {!lockedPropertyLabel && !lockedKontaktLabel && (
+            <EntityPicker
+              label="Powiąż z leadem"
+              placeholder="Wpisz nazwę leada..."
+              items={pickLeads}
+              value={form.lead_id}
+              onChange={id => setForm(f => ({ ...f, lead_id: id }))}
+              accentClass="text-limona-lime"
+            />
+          )}
           </>
         )}
 

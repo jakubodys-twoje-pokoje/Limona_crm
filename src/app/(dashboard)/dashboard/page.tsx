@@ -475,7 +475,7 @@ export default function DashboardPage() {
           ) : (
             <div className="space-y-2 flex-1">
               {recentLeads.map(l => (
-                <Link key={l.id} href="/leady"
+                <Link key={l.id} href={`/leady?open=${l.id}`}
                   className="flex items-center gap-2 p-2 rounded hover:bg-limona-surface-2 transition-colors group">
                   <div className={cn('w-1.5 h-6 rounded-full flex-shrink-0',
                     l.status === 'new' ? 'bg-limona-text-dim' :

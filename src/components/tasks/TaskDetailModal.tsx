@@ -449,7 +449,7 @@ export function TaskDetailModal({
               </a>
             )}
             {task.lead && (
-              <a href="/leady"
+              <a href={`/leady?open=${task.lead.id}`}
                 className="flex items-center gap-1 text-xs text-limona-lime hover:text-limona-lime/80 mt-1">
                 <LinkIcon size={10} />
                 Lead: {task.lead.name}
