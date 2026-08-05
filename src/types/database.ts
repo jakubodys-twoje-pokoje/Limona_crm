@@ -166,6 +166,8 @@ export interface Task {
   board_id: string | null
   list_id: string | null
   position: number
+  /** Ręczna kolejność zadań całodniowych (bez godziny) w Terminarzu — mniejsze = wyżej */
+  sort_order: number
   created_by: string | null
   completed_at: string | null
   property_stage: string | null

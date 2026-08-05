@@ -25,7 +25,7 @@ export default function ZadaniaKalendarzPage() {
   const { user, profile } = useAuth()
   const canAssign = canSeeAllTeams(profile?.role)
   const { visibleIds, loading: visLoading } = useVisibleUserIds(user?.id, profile?.role)
-  const { tasks, loading, createTask, updateTask, deleteTask } = useTasks(undefined, visibleIds, undefined, undefined, !visLoading)
+  const { tasks, loading, createTask, updateTask, deleteTask, reorderTasks } = useTasks(undefined, visibleIds, undefined, undefined, !visLoading)
   const [profiles, setProfiles] = useState<Profile[]>([])
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   const [assigneeFilter, setAssigneeFilter] = usePersistentState('zadania:assignee', '')
@@ -148,6 +148,7 @@ export default function ZadaniaKalendarzPage() {
           onOpenTask={setSelectedTask}
           onToggleDone={handleToggleDone}
           onRequestAdd={(date, time) => setAddCtx({ date, time })}
+          onReorder={reorderTasks}
         />
       )}
 

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   ChevronLeft, ChevronRight, ChevronDown, ChevronUp, CheckCircle2, Circle,
-  Plus, AlertTriangle, Repeat, Building2, BookUser, Clock,
+  Plus, AlertTriangle, Repeat, Building2, BookUser, Clock, ArrowUpDown, Check,
 } from 'lucide-react'
 import { Avatar } from '@/components/ui/Avatar'
 import { cn, formatPropertyAddress } from '@/lib/utils'
@@ -59,9 +59,16 @@ function dayLabel(key: string, todayKey: string): string {
 
 function sortDayTasks(tasks: Task[]): Task[] {
   return [...tasks].sort((a, b) => {
-    const at = a.due_time ?? '99:99', bt = b.due_time ?? '99:99'
-    if (at !== bt) return at < bt ? -1 : 1
-    return PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority]
+    const at = a.due_time, bt = b.due_time
+    // Zadania z godziną najpierw (po godzinie), potem całodniowe
+    if (at && bt) { if (at !== bt) return at < bt ? -1 : 1 }
+    else if (at && !bt) return -1
+    else if (!at && bt) return 1
+    // Całodniowe (lub ta sama godzina): kolejność RĘCZNA (sort_order), a przy
+    // remisie — priorytet, na końcu nowsze wyżej (do czasu ułożenia ręcznego)
+    if (a.sort_order !== b.sort_order) return a.sort_order - b.sort_order
+    if (PRIORITY_ORDER[a.priority] !== PRIORITY_ORDER[b.priority]) return PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority]
+    return a.created_at < b.created_at ? 1 : -1
   })
 }
 
@@ -72,15 +79,29 @@ interface AgendaViewProps {
   onToggleDone: (t: Task) => Promise<void>
   /** Otwarcie pełnego formularza „Dodaj zadanie" z prefiltrowanym terminem */
   onRequestAdd: (dueDateKey: string, dueTime: string | null) => void
+  /** Zapis ręcznej kolejności zadań całodniowych danego dnia */
+  onReorder?: (orders: { id: string; sort_order: number }[]) => Promise<{ error: string | null }> | void
 }
 
-export function AgendaView({ tasks, loading, onOpenTask, onToggleDone, onRequestAdd }: AgendaViewProps) {
+export function AgendaView({ tasks, loading, onOpenTask, onToggleDone, onRequestAdd, onReorder }: AgendaViewProps) {
   const todayKey = toDateKey(new Date())
   const [selectedDate, setSelectedDate] = useState(todayKey)
   const [monthExpanded, setMonthExpanded] = useState(false)
   const [showNoDate, setShowNoDate] = useState(false)
   const [showDone, setShowDone] = useState(true)
+  // Tryb układania kolejności zadań całodniowych — na telefonie zamiast
+  // przeciągania (zawodne dotykiem) dajemy przyciski ↑↓ pod tryb „Edytuj".
+  const [reorderMode, setReorderMode] = useState(false)
   const dayRefs = useRef<Record<string, HTMLDivElement | null>>({})
+
+  // Przesuwa zadanie całodniowe w obrębie dnia i zapisuje kolejność (0,1,2…)
+  function moveUntimed(untimed: Task[], index: number, dir: -1 | 1) {
+    const j = index + dir
+    if (j < 0 || j >= untimed.length) return
+    const arr = [...untimed]
+    ;[arr[index], arr[j]] = [arr[j], arr[index]]
+    onReorder?.(arr.map((t, idx) => ({ id: t.id, sort_order: idx })))
+  }
 
   // Zadania per dzień (YYYY-MM-DD)
   const byDay = useMemo(() => {
@@ -154,14 +175,18 @@ export function AgendaView({ tasks, loading, onOpenTask, onToggleDone, onRequest
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  function TaskRow({ task, showDate }: { task: Task; showDate?: boolean }) {
+  function TaskRow({ task, showDate, reorder }: {
+    task: Task
+    showDate?: boolean
+    reorder?: { canUp: boolean; canDown: boolean; onUp: () => void; onDown: () => void }
+  }) {
     const done = task.status === 'done'
     return (
       <div
-        onClick={() => onOpenTask(task)}
+        onClick={reorder ? undefined : () => onOpenTask(task)}
         className={cn(
-          'relative limona-card p-3 pl-4 cursor-pointer transition-colors overflow-hidden',
-          'hover:border-limona-lime/40 active:bg-limona-surface-2',
+          'relative limona-card p-3 pl-4 transition-colors overflow-hidden',
+          reorder ? 'ring-1 ring-limona-lime/30' : 'cursor-pointer hover:border-limona-lime/40 active:bg-limona-surface-2',
           done && 'opacity-55'
         )}
       >
@@ -217,7 +242,26 @@ export function AgendaView({ tasks, loading, onOpenTask, onToggleDone, onRequest
               )}
             </div>
           </div>
-          {task.assignee && (
+          {reorder ? (
+            <div className="flex flex-col flex-shrink-0 -my-1">
+              <button
+                onClick={e => { e.stopPropagation(); reorder.onUp() }}
+                disabled={!reorder.canUp}
+                className="p-1.5 rounded text-limona-text-dim hover:text-limona-lime hover:bg-limona-surface-2 disabled:opacity-25 disabled:hover:bg-transparent transition-colors"
+                title="W górę"
+              >
+                <ChevronUp size={20} />
+              </button>
+              <button
+                onClick={e => { e.stopPropagation(); reorder.onDown() }}
+                disabled={!reorder.canDown}
+                className="p-1.5 rounded text-limona-text-dim hover:text-limona-lime hover:bg-limona-surface-2 disabled:opacity-25 disabled:hover:bg-transparent transition-colors"
+                title="W dół"
+              >
+                <ChevronDown size={20} />
+              </button>
+            </div>
+          ) : task.assignee && (
             <div className="flex-shrink-0" title={task.assignee.full_name}>
               <Avatar name={task.assignee.full_name} url={task.assignee.avatar_url} size="sm" />
             </div>
@@ -295,8 +339,19 @@ export function AgendaView({ tasks, loading, onOpenTask, onToggleDone, onRequest
           })}
         </div>
 
-        {/* Przełącznik ukrywania zrobionych */}
-        <div className="flex justify-end mt-1">
+        {/* Tryb kolejności + przełącznik ukrywania zrobionych */}
+        <div className="flex justify-between items-center mt-1">
+          {onReorder ? (
+            <button
+              onClick={() => setReorderMode(v => !v)}
+              className={cn(
+                'flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider transition-colors',
+                reorderMode ? 'text-limona-lime' : 'text-limona-text-dim hover:text-limona-text',
+              )}
+            >
+              {reorderMode ? <><Check size={13} /> Gotowe</> : <><ArrowUpDown size={13} /> Ustaw kolejność</>}
+            </button>
+          ) : <span />}
           <button
             onClick={() => setShowDone(v => !v)}
             className="text-[11px] text-limona-text-dim hover:text-limona-text transition-colors"
@@ -305,6 +360,13 @@ export function AgendaView({ tasks, loading, onOpenTask, onToggleDone, onRequest
           </button>
         </div>
       </div>
+
+      {reorderMode && (
+        <p className="flex items-center gap-2 text-[11px] text-limona-lime bg-limona-lime/5 border border-limona-lime/30 rounded-lg px-3 py-2">
+          <ArrowUpDown size={13} className="flex-shrink-0" />
+          Układasz zadania całodniowe strzałkami ↑↓. Zadania z godziną trzymają się swojej pory. Kolejność zapisuje się od razu.
+        </p>
+      )}
 
       {/* Zaległe */}
       {overdue.length > 0 && (
@@ -318,7 +380,12 @@ export function AgendaView({ tasks, loading, onOpenTask, onToggleDone, onRequest
 
       {/* Dni */}
       {dayKeys.map(key => {
-        const dayTasks = sortDayTasks((byDay[key] ?? []).filter(t => showDone || t.status !== 'done'))
+        // W trybie układania pokazujemy wszystkie zadania dnia (także zrobione),
+        // żeby to, co przestawiasz, pokrywało się z tym, co widać.
+        const all = sortDayTasks(byDay[key] ?? [])
+        const dayTasks = reorderMode ? all : all.filter(t => showDone || t.status !== 'done')
+        const timed = dayTasks.filter(t => t.due_time)
+        const untimed = dayTasks.filter(t => !t.due_time)
         return (
           <div key={key} ref={el => { dayRefs.current[key] = el }} className="space-y-2 scroll-mt-2">
             <div className="flex items-center justify-between">
@@ -338,6 +405,22 @@ export function AgendaView({ tasks, loading, onOpenTask, onToggleDone, onRequest
             </div>
             {dayTasks.length === 0 ? (
               <p className="text-xs text-limona-text-dim pl-1">Brak zadań</p>
+            ) : reorderMode ? (
+              <>
+                {timed.map(t => <TaskRow key={t.id} task={t} />)}
+                {untimed.map((t, i) => (
+                  <TaskRow
+                    key={t.id}
+                    task={t}
+                    reorder={{
+                      canUp: i > 0,
+                      canDown: i < untimed.length - 1,
+                      onUp: () => moveUntimed(untimed, i, -1),
+                      onDown: () => moveUntimed(untimed, i, 1),
+                    }}
+                  />
+                ))}
+              </>
             ) : (
               dayTasks.map(t => <TaskRow key={t.id} task={t} />)
             )}

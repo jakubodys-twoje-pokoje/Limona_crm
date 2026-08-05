@@ -62,6 +62,25 @@ export function useTasks(propertyId?: string, visibleUserIds?: string[] | null, 
     return { data: updated, error: null }
   }
 
+  // Ręczna kolejność zadań całodniowych (Terminarz). Optymistycznie ustawiamy
+  // sort_order lokalnie (płynność na telefonie), zapisujemy hurtem, po czym
+  // odświeżamy dla pewności.
+  const reorderTasks = async (orders: { id: string; sort_order: number }[]) => {
+    const map = new Map(orders.map(o => [o.id, o.sort_order]))
+    setTasks(prev => prev.map(t => map.has(t.id) ? { ...t, sort_order: map.get(t.id)! } : t))
+    const res = await fetch('/api/tasks/reorder', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ orders }),
+    })
+    if (!res.ok) {
+      fetchTasks() // rollback do stanu z serwera
+      return { error: (await res.json()).error || 'Error' }
+    }
+    fetchTasks()
+    return { error: null }
+  }
+
   const deleteTask = async (id: string, scope?: 'one' | 'following' | 'series') => {
     const qs = scope && scope !== 'one' ? `?scope=${scope}` : ''
     const res = await fetch(`/api/tasks/${id}${qs}`, { method: 'DELETE' })
@@ -70,5 +89,5 @@ export function useTasks(propertyId?: string, visibleUserIds?: string[] | null, 
     return { error: null }
   }
 
-  return { tasks, loading, fetchTasks, createTask, updateTask, deleteTask }
+  return { tasks, loading, fetchTasks, createTask, updateTask, deleteTask, reorderTasks }
 }

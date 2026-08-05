@@ -397,7 +397,11 @@ export function CalendarView({ tasks, loading, onOpenTask, onRequestAdd, onMoveT
           <div className="grid gap-0" style={{ gridTemplateColumns: gridCols }}>
             <div className="text-[9px] text-limona-text-dim text-right pr-1 pt-1 uppercase tracking-wider">cały dzień</div>
             {visibleDays.map(dayKey => {
+              // Ta sama ręczna kolejność co w Terminarzu (agendzie): sort_order rosnąco
               const allDayTasks = dayTasksFor(dayKey).filter(t => !t.due_time)
+                .sort((a, b) => a.sort_order - b.sort_order
+                  || PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority]
+                  || (a.created_at < b.created_at ? 1 : -1))
               return (
                 <div
                   key={dayKey}
