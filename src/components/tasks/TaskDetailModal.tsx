@@ -326,6 +326,20 @@ export function TaskDetailModal({
     await saveField('realization_date', dateStr || null)
   }
 
+  // Jawne czyszczenie daty — natywny „Wyczyść" w pickerze na telefonie często
+  // nie wysyła zdarzenia do aplikacji, więc dajemy własny przycisk. Zdejmujemy
+  // termin (i godzinę) — zadanie zostaje, tylko znika z konkretnego dnia.
+  async function clearDueDate() {
+    setDueDate('')
+    setDueTime('')
+    await onUpdate(task.id, { due_date: null, due_time: null } as Partial<Task>)
+  }
+
+  async function clearRealizationDate() {
+    setRealizationDate('')
+    await onUpdate(task.id, { realization_date: null } as Partial<Task>)
+  }
+
   async function handleAddComment() {
     if (!newComment.trim()) return
     setSendingComment(true)
@@ -821,11 +835,19 @@ export function TaskDetailModal({
                     disabled={!dueDate} title={!dueDate ? 'Ustaw najpierw datę' : 'Godzina (opcjonalnie)'}
                     onChange={e => handleDueTimeChange(e.target.value)} />
                 </div>
-                {dueDate && isOverdueDate(dueDate) && status !== 'done' && (
-                  <p className="flex items-center gap-1 text-[10px] text-limona-red mt-1">
-                    <AlertTriangle size={10} /> Przeterminowane
-                  </p>
-                )}
+                <div className="flex items-center justify-between mt-1 gap-2">
+                  {dueDate && isOverdueDate(dueDate) && status !== 'done' ? (
+                    <p className="flex items-center gap-1 text-[10px] text-limona-red">
+                      <AlertTriangle size={10} /> Przeterminowane
+                    </p>
+                  ) : <span />}
+                  {dueDate && (
+                    <button type="button" onClick={clearDueDate}
+                      className="inline-flex items-center gap-1 text-[11px] text-limona-text-dim hover:text-limona-red transition-colors py-1">
+                      <X size={12} /> Wyczyść termin
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* Data realizacji — dla zadań „w trakcie": przełożony termin /
@@ -838,9 +860,17 @@ export function TaskDetailModal({
                     <input type="date" className="limona-input text-xs py-2 flex-1" value={realizationDate}
                       onChange={e => handleRealizationDateChange(e.target.value)} />
                   </div>
-                  <p className="text-[10px] text-limona-text-dim mt-1">
-                    Planowany dzień domknięcia — pokaże się w raporcie zamiast „niezrobione”.
-                  </p>
+                  <div className="flex items-center justify-between mt-1 gap-2">
+                    <p className="text-[10px] text-limona-text-dim">
+                      Planowany dzień domknięcia — pokaże się w raporcie zamiast „niezrobione”.
+                    </p>
+                    {realizationDate && (
+                      <button type="button" onClick={clearRealizationDate}
+                        className="inline-flex items-center gap-1 text-[11px] text-limona-text-dim hover:text-limona-red transition-colors py-1 flex-shrink-0">
+                        <X size={12} /> Wyczyść
+                      </button>
+                    )}
+                  </div>
                 </div>
               )}
 

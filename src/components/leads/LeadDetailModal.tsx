@@ -541,11 +541,19 @@ export function LeadDetailModal({
                     onChange={e => onUpdate(lead.id, { nextContactAt: e.target.value || null })}
                   />
                 </div>
-                {followUpOverdue && (
-                  <p className="flex items-center gap-1 text-[10px] text-limona-red mt-1">
-                    <AlertTriangle size={10} /> Kontakt zaległy
-                  </p>
-                )}
+                <div className="flex items-center justify-between mt-1 gap-2">
+                  {followUpOverdue ? (
+                    <p className="flex items-center gap-1 text-[10px] text-limona-red">
+                      <AlertTriangle size={10} /> Kontakt zaległy
+                    </p>
+                  ) : <span />}
+                  {lead.next_contact_at && !isFrozen && (
+                    <button type="button" onClick={() => onUpdate(lead.id, { nextContactAt: null })}
+                      className="inline-flex items-center gap-1 text-[11px] text-limona-text-dim hover:text-limona-red transition-colors py-1 flex-shrink-0">
+                      <X size={12} /> Wyczyść
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* Meta */}
