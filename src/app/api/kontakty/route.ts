@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getSessionUser, unauthorized, forbidden } from '@/lib/api-auth'
 import { geocodeAddress } from '@/lib/geocode'
 import { canSeeAllTeams, canSeeInvestors, canManageTeams } from '@/lib/roles'
-import { getUserGrants, hasKontaktTypeGrant } from '@/lib/access'
+import { getUserGrants, hasKontaktTypeGrant, userCanSeeInvestors } from '@/lib/access'
 
 const SELECT_WITH_RELATIONS = `*,
   creator:profiles!kontakty_created_by_fkey(id,full_name,avatar_url),
@@ -129,7 +129,8 @@ export async function POST(req: NextRequest) {
   const supabase = await createClient()
 
   const body = await req.json()
-  if (body.typ === 'inwestor' && !canSeeInvestors(user.role)) return forbidden()
+  // Tworzenie inwestora — rola LUB grant na inwestorów (kuracja objęta grantem)
+  if (body.typ === 'inwestor' && !(await userCanSeeInvestors(supabase, user.id, user.role))) return forbidden()
   // Przypisywanie kontaktu do innego agenta — tylko centrala/admin. Zwykły
   // user zawsze staje się właścicielem własnego nowego kontaktu.
   if (!canManageTeams(user.role)) body.assigned_to = user.id

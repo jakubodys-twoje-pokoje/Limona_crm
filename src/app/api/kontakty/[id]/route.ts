@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getSessionUser, unauthorized, forbidden } from '@/lib/api-auth'
 import { geocodeAddress } from '@/lib/geocode'
 import { formatFlagChangeComment } from '@/lib/status-comments'
-import { canSeeInvestors, canManageTeams } from '@/lib/roles'
+import { canManageTeams } from '@/lib/roles'
 import { canDeleteRecords } from '@/lib/deletion'
 import { userCanSeeInvestors } from '@/lib/access'
 
@@ -43,7 +43,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const statusComment: string | undefined = body.statusComment
   delete body.statusComment
 
-  if (!canSeeInvestors(user.role)) {
+  // Edycja inwestora (lub przełączenie na typ inwestor) — rola LUB grant
+  if (!(await userCanSeeInvestors(supabase, user.id, user.role))) {
     const { data: existing } = await supabase.from('kontakty').select('typ').eq('id', id).maybeSingle()
     if (!existing || existing.typ === 'inwestor' || body.typ === 'inwestor') {
       return NextResponse.json({ error: 'Not found' }, { status: 404 })

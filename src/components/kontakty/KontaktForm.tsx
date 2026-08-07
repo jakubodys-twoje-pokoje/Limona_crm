@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
+import { useMyGrants, grantsIncludeInvestors } from '@/hooks/useMyGrants'
 import { canSeeInvestors, canManageTeams } from '@/lib/roles'
 import type { Kontakt, KontaktTyp, KontaktRozmiar, KontaktPriorytet, Profile, WeeklyHours } from '@/types/database'
 import { KONTAKT_TYP_LABELS, KONTAKT_TYPY, KONTAKT_ROZMIAR_LABELS, KONTAKT_ROZMIARY, KONTAKT_PRIORYTETY, KONTAKT_PRIORYTET_LABELS, TYPY_SPOLDZIELNIA, TYPY_Z_PROWIZJA, WEEK_DAYS, WEEK_DAY_LABELS } from '@/types/database'
@@ -60,6 +61,7 @@ function Field({ label, children, className }: { label: string; children: React.
 
 export function KontaktForm({ initial, profiles, onSubmit, onCancel, submitLabel = 'Zapisz' }: Props) {
   const { user, profile } = useAuth()
+  const { grants } = useMyGrants(user?.id)
   const canAssign = canManageTeams(profile?.role)
   // initial bywa całym rekordem z API (z dołączonymi assignee/creator/komentarze) —
   // te pola nie istnieją jako kolumny, więc nie mogą trafić do form state ani do payloadu.
@@ -74,7 +76,9 @@ export function KontaktForm({ initial, profiles, onSubmit, onCancel, submitLabel
   const typ = (form.typ || 'spoldzielnia') as KontaktTyp
   const isSpoldzielnia = TYPY_SPOLDZIELNIA.has(typ)
   const hasWspolpracaWithProwizja = TYPY_Z_PROWIZJA.has(typ)
-  const visibleTypy = canSeeInvestors(profile?.role) ? KONTAKT_TYPY : KONTAKT_TYPY.filter(t => t !== 'inwestor')
+  // Typ „inwestor" w formularzu — rola LUB grant na inwestorów (kuracja)
+  const canInvestors = canSeeInvestors(profile?.role) || grantsIncludeInvestors(grants)
+  const visibleTypy = canInvestors ? KONTAKT_TYPY : KONTAKT_TYPY.filter(t => t !== 'inwestor')
 
   function set(field: keyof Kontakt, value: unknown) {
     setForm(prev => ({ ...prev, [field]: value }))
