@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { KONTAKT_TYPY, KONTAKT_TYP_LABELS } from '@/types/database'
 import type { KontaktTyp } from '@/types/database'
+import { canSeeInvestors } from '@/lib/roles'
 
 // ---------------------------------------------------------------
 // Zakresy grantów: nieruchomości, leady, kontakty per typ
@@ -89,4 +90,21 @@ export async function getUserGrants(supabase: SupabaseClient, granteeId: string)
 export function hasKontaktTypeGrant(grants: UserGrants, typ: KontaktTyp): boolean {
   const g = grants.kontaktTypes[typ]
   return !!g && (g.all || g.userIds.length > 0)
+}
+
+/**
+ * Czy user WIDZI inwestorów — rola (centrala/admin) LUB grant na inwestorów.
+ * Wspólna bramka dla wszystkich miejsc pokazujących dane inwestorów, żeby
+ * grant odblokowywał funkcję wszędzie tak samo (zakładka w nieruchomości,
+ * karta kontaktu inwestora itd.). Zapis/edycja tożsamości inwestora zostaje
+ * po stronie roli — tu chodzi o widoczność i pracę operacyjną.
+ */
+export async function userCanSeeInvestors(
+  supabase: SupabaseClient,
+  userId: string,
+  role: string | undefined,
+): Promise<boolean> {
+  if (canSeeInvestors(role)) return true
+  const grants = await getUserGrants(supabase, userId)
+  return hasKontaktTypeGrant(grants, 'inwestor')
 }

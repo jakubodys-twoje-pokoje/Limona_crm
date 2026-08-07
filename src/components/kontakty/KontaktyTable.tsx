@@ -39,6 +39,8 @@ interface Props {
   onAdd: () => void
   /** Odświeżenie listy po edycji zbiorczej */
   onRefresh?: () => void
+  /** Czy pokazywać typ „inwestor" w filtrach — rola LUB grant na inwestorów */
+  canInvestors?: boolean
 }
 
 function PriorytetBadge({ priorytet }: { priorytet: 'A' | 'B' | 'C' }) {
@@ -95,11 +97,12 @@ function FilterSection({ title, children }: { title: string; children: React.Rea
   )
 }
 
-export function KontaktyTable({ kontakty, loading, profiles, onAdd, onRefresh }: Props) {
+export function KontaktyTable({ kontakty, loading, profiles, onAdd, onRefresh, canInvestors }: Props) {
   const router = useRouter()
   const { profile } = useAuth()
   const { showToast } = useToast()
-  const visibleTypy = canSeeInvestors(profile?.role) ? KONTAKT_TYPY : KONTAKT_TYPY.filter(t => t !== 'inwestor')
+  const showInvestors = canInvestors ?? canSeeInvestors(profile?.role)
+  const visibleTypy = showInvestors ? KONTAKT_TYPY : KONTAKT_TYPY.filter(t => t !== 'inwestor')
 
   // Edycja zbiorcza — tylko admin
   const isAdmin = profile?.role === 'admin'

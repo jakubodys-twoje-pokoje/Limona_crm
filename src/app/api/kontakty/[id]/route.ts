@@ -6,6 +6,7 @@ import { geocodeAddress } from '@/lib/geocode'
 import { formatFlagChangeComment } from '@/lib/status-comments'
 import { canSeeInvestors, canManageTeams } from '@/lib/roles'
 import { canDeleteRecords } from '@/lib/deletion'
+import { userCanSeeInvestors } from '@/lib/access'
 
 const SELECT_WITH_RELATIONS = `*,
   creator:profiles!kontakty_created_by_fkey(id,full_name,avatar_url),
@@ -25,7 +26,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     .maybeSingle()
 
   if (!kontakt) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-  if (kontakt.typ === 'inwestor' && !canSeeInvestors(user.role)) {
+  // Inwestora otworzy centrala/admin ORAZ user z grantem na inwestorów
+  if (kontakt.typ === 'inwestor' && !(await userCanSeeInvestors(supabase, user.id, user.role))) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
   return NextResponse.json(kontakt)

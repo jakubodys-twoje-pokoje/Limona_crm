@@ -28,6 +28,7 @@ import { PropertyComments } from '@/components/properties/PropertyComments'
 import { DriveFiles } from '@/components/shared/DriveFiles'
 import { sumLineItems } from '@/lib/calculator'
 import { canSeeInvestors, canSeeAllTeams } from '@/lib/roles'
+import { useMyGrants, grantsIncludeInvestors } from '@/hooks/useMyGrants'
 import type { Property, Task, Document, PropertyNegotiationNote, PropertyInvestor, StatusDluznika, StatusInwestora, InvestorPropertyStatus, ChecklistItemState, Profile } from '@/types/database'
 import {
   STAGE_TASK_TEMPLATES, DEAL_TYPE_LABELS,
@@ -86,6 +87,9 @@ export default function PropertyDetailPage() {
   const propertyId = Array.isArray(id) ? id[0] : id
   const router = useRouter()
   const { user, profile } = useAuth()
+  const { grants } = useMyGrants(user?.id)
+  // Zakładkę Inwestorzy widzi centrala/admin oraz user z grantem na inwestorów
+  const canInvestors = canSeeInvestors(profile?.role) || grantsIncludeInvestors(grants)
   const { updateProperty, deleteProperty } = useProperties()
   const { tasks, createTask, updateTask, deleteTask } = useTasks(propertyId)
   const { logs, loading: logsLoading } = useActivityLog(propertyId)
@@ -650,7 +654,7 @@ export default function PropertyDetailPage() {
           { key: 'docs', label: `Dokumenty (${documents.length})` },
           { key: 'checklist', label: `Checklista i status (${Object.values(property.checklist || {}).filter(s => s.checked).length}/${CHECKLIST_INFO.length + CHECKLIST_DOCS.length})` },
           { key: 'negocjacja', label: 'Negocjacja' },
-          ...(canSeeInvestors(profile?.role) ? [{ key: 'inwestorzy', label: `Inwestorzy (${investors.length || ''})` }] as const : []),
+          ...(canInvestors ? [{ key: 'inwestorzy', label: `Inwestorzy (${investors.length || ''})` }] as const : []),
           { key: 'report', label: 'Raport agenta' },
           { key: 'log', label: 'Historia' },
         ] as const).map(tab => (

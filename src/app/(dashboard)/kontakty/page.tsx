@@ -69,7 +69,7 @@ export default function KontaktyPage() {
               ? 'Brak dostępu do tej kategorii'
               : activeTyp
                 ? `Kontakty typu: ${KONTAKT_TYP_LABELS[activeTyp]}`
-                : canSeeInvestors(profile?.role)
+                : canInvestors
                   ? 'Inwestorzy, spółdzielnie, wspólnoty, zarządcy i komornicy'
                   : 'Spółdzielnie, wspólnoty, zarządcy i komornicy'}
           </p>
@@ -126,6 +126,7 @@ export default function KontaktyPage() {
             profiles={profiles}
             onAdd={() => setShowAddModal(true)}
             onRefresh={fetchKontakty}
+            canInvestors={canInvestors}
           />
         </div>
       ) : (
