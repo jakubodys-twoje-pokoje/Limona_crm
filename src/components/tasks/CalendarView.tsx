@@ -451,12 +451,12 @@ export function CalendarView({ tasks, loading, onOpenTask, onRequestAdd, onMoveT
                           {t.title}
                         </button>
                         <button type="button" onClick={() => moveAllDay(allDayTasks, i, -1)} disabled={i === 0}
-                          className="text-limona-text-dim hover:text-limona-lime disabled:opacity-25 transition-colors" title="W górę">
-                          <ChevronUp size={13} />
+                          className="lg:p-0.5 text-limona-text-dim hover:text-limona-lime disabled:opacity-25 transition-colors" title="W górę">
+                          <ChevronUp className="w-3.5 h-3.5 lg:w-5 lg:h-5" />
                         </button>
                         <button type="button" onClick={() => moveAllDay(allDayTasks, i, 1)} disabled={i === allDayTasks.length - 1}
-                          className="text-limona-text-dim hover:text-limona-lime disabled:opacity-25 transition-colors" title="W dół">
-                          <ChevronDown size={13} />
+                          className="lg:p-0.5 text-limona-text-dim hover:text-limona-lime disabled:opacity-25 transition-colors" title="W dół">
+                          <ChevronDown className="w-3.5 h-3.5 lg:w-5 lg:h-5" />
                         </button>
                       </div>
                     ))

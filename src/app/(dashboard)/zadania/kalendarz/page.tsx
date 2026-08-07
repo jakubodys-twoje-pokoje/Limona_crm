@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic'
 
 import { useEffect, useRef, useState, useMemo } from 'react'
 import Link from 'next/link'
-import { LayoutGrid, CalendarRange, List, Search, X, CheckCircle2, Circle, Building2, BookUser, Inbox, Clock } from 'lucide-react'
+import { LayoutGrid, CalendarRange, List } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { useVisibleUserIds } from '@/hooks/useTeamVisibility'
 import { useTasks } from '@/hooks/useTasks'
@@ -12,9 +12,9 @@ import { CalendarView } from '@/components/tasks/CalendarView'
 import { AgendaView } from '@/components/tasks/AgendaView'
 import { TaskDetailModal } from '@/components/tasks/TaskDetailModal'
 import { TaskFormModal } from '@/components/tasks/TaskFormModal'
-import { Badge } from '@/components/ui/Badge'
+import { TaskSearchBar, TaskSearchResults, searchTasks } from '@/components/tasks/TaskSearch'
 import { canSeeAllTeams } from '@/lib/roles'
-import { cn, taskMatchesAssignee, formatPropertyAddress } from '@/lib/utils'
+import { cn, taskMatchesAssignee } from '@/lib/utils'
 import { usePersistentState } from '@/hooks/usePersistentState'
 import type { Task, Profile } from '@/types/database'
 
@@ -39,24 +39,7 @@ export default function ZadaniaKalendarzPage() {
   // łatwo wrócić do sprawy sprzed tygodni („marki", numer telefonu itd.).
   const [search, setSearch] = useState('')
   const searching = search.trim().length > 0
-  const searchResults = useMemo(() => {
-    if (!searching) return []
-    const q = search.trim().toLowerCase()
-    return filteredTasks
-      .filter(t =>
-        t.title?.toLowerCase().includes(q)
-        || t.description?.toLowerCase().includes(q)
-        || (t.property && formatPropertyAddress(t.property).toLowerCase().includes(q))
-        || t.kontakt?.nazwa?.toLowerCase().includes(q)
-        || t.lead?.name?.toLowerCase().includes(q),
-      )
-      .sort((a, b) => {
-        // Najświeższe terminy u góry; bez terminu na końcu
-        const ad = a.due_date ?? '', bd = b.due_date ?? ''
-        if (ad !== bd) return ad < bd ? 1 : -1
-        return a.created_at < b.created_at ? 1 : -1
-      })
-  }, [searching, search, filteredTasks])
+  const searchResults = useMemo(() => searchTasks(filteredTasks, search), [filteredTasks, search])
 
   // Kolejność nawigacji ‹ › w modalu — chronologicznie (najbliższy termin
   // u góry), zgodnie z układem terminarza; bez terminu na końcu.
@@ -167,72 +150,9 @@ export default function ZadaniaKalendarzPage() {
       </div>
 
       {/* Wyszukiwarka zadań — po wszystkich datach */}
-      <div className="relative">
-        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-limona-text-muted pointer-events-none" />
-        <input
-          className="limona-input w-full pl-9 pr-9 text-sm py-2.5"
-          placeholder="Szukaj we wszystkich zadaniach — nazwa, numer telefonu, nieruchomość, kontakt..."
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-        />
-        {search && (
-          <button onClick={() => setSearch('')} title="Wyczyść"
-            className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-limona-text-dim hover:text-limona-white transition-colors">
-            <X size={15} />
-          </button>
-        )}
-      </div>
+      <TaskSearchBar value={search} onChange={setSearch} />
 
-      {searching && (
-        <div className="space-y-2">
-          <p className="text-xs text-limona-text-muted">Znaleziono: {searchResults.length}</p>
-          {searchResults.length === 0 ? (
-            <p className="text-center text-limona-text-dim py-10 limona-card">Brak zadań pasujących do „{search.trim()}”</p>
-          ) : (
-            searchResults.map(task => (
-              <button key={task.id} onClick={() => setSelectedTask(task)}
-                className="w-full text-left limona-card p-3 flex items-center gap-3 hover:border-limona-lime/40 transition-colors">
-                {task.status === 'done'
-                  ? <CheckCircle2 size={18} className="text-limona-green flex-shrink-0" />
-                  : <Circle size={18} className="text-limona-text-dim flex-shrink-0" />}
-                <div className="flex-1 min-w-0">
-                  <p className={cn('text-sm', task.status === 'done' ? 'line-through text-limona-text-muted' : 'text-limona-text')}>
-                    {task.title}
-                  </p>
-                  <div className="flex items-center gap-x-3 gap-y-1 flex-wrap mt-0.5 text-[11px] text-limona-text-dim">
-                    {task.due_date ? (
-                      <span className="inline-flex items-center gap-1">
-                        <Clock size={10} />
-                        {new Date(task.due_date).toLocaleDateString('pl-PL', { day: 'numeric', month: 'short', year: 'numeric' })}
-                        {task.due_time && ` ${task.due_time.slice(0, 5)}`}
-                      </span>
-                    ) : <span className="italic">Bez terminu</span>}
-                    {task.property && (
-                      <span className="inline-flex items-center gap-1 text-limona-blue truncate max-w-[220px]">
-                        <Building2 size={10} className="flex-shrink-0" />
-                        <span className="truncate">{formatPropertyAddress(task.property)}</span>
-                      </span>
-                    )}
-                    {task.kontakt && (
-                      <span className="inline-flex items-center gap-1 text-limona-lime truncate max-w-[220px]">
-                        <BookUser size={10} className="flex-shrink-0" />
-                        <span className="truncate">{task.kontakt.nazwa}</span>
-                      </span>
-                    )}
-                    {task.lead && (
-                      <span className="inline-flex items-center gap-1 text-limona-lime truncate max-w-[220px]">
-                        <Inbox size={10} className="flex-shrink-0" />
-                        <span className="truncate">{task.lead.name}</span>
-                      </span>
-                    )}
-                  </div>
-                </div>
-                <Badge value={task.priority} />
-              </button>
-            ))
-          )}
-        </div>
-      )}
+      {searching && <TaskSearchResults results={searchResults} query={search} onOpen={setSelectedTask} />}
 
       {!searching && mode === 'agenda' && (
         <AgendaView

@@ -16,6 +16,7 @@ import { Modal } from '@/components/ui/Modal'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { TaskDetailModal } from '@/components/tasks/TaskDetailModal'
 import { TaskFormModal } from '@/components/tasks/TaskFormModal'
+import { TaskSearchBar, TaskSearchResults, searchTasks } from '@/components/tasks/TaskSearch'
 import { BoardView, BOARD_COLORS } from '@/components/tasks/BoardView'
 import { canSeeAllTeams } from '@/lib/roles'
 import { cn, formatPropertyAddress, isOverdueDate, taskMatchesAssignee } from '@/lib/utils'
@@ -65,6 +66,17 @@ export default function ZadaniaPage() {
   const [assigneeFilter, setAssigneeFilter] = usePersistentState('zadania:assignee', '')
   // Filtr po agencie ma sens tylko, gdy widać zadania więcej niż jednej osoby
   const canFilterByAgent = canAssign || (visibleIds?.length ?? 0) > 1
+
+  // Wyszukiwarka zadań — przeszukuje WSZYSTKIE zadania (wszystkie tablice i
+  // daty), nie tylko bieżącą zakładkę. Osobny fetch dociąga się dopiero przy
+  // wpisaniu frazy (enabled), więc nie obciąża zwykłego widoku.
+  const [search, setSearch] = useState('')
+  const searching = search.trim().length > 0
+  const { tasks: allTasks } = useTasks(undefined, visibleIds, undefined, undefined, !visLoading && searching)
+  const searchResults = useMemo(
+    () => searchTasks(allTasks.filter(t => taskMatchesAssignee(t, assigneeFilter)), search),
+    [allTasks, assigneeFilter, search],
+  )
 
   // New board modal state
   const [showNewBoardModal, setShowNewBoardModal] = useState(false)
@@ -314,8 +326,13 @@ export default function ZadaniaPage() {
 
       {tabBar}
 
+      {/* Wyszukiwarka zadań — po wszystkich tablicach i datach */}
+      <TaskSearchBar value={search} onChange={setSearch} />
+
+      {searching && <TaskSearchResults results={searchResults} query={search} onOpen={setSelectedTask} />}
+
       {/* Kanban View */}
-      {view === 'kanban' && (
+      {!searching && view === 'kanban' && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {columns.map(col => {
             const colTasks = byStatus(col.status)
@@ -354,7 +371,7 @@ export default function ZadaniaPage() {
       )}
 
       {/* List View */}
-      {view === 'list' && (
+      {!searching && view === 'list' && (
         <div className="limona-card">
           <table className="w-full text-sm">
             <thead>
