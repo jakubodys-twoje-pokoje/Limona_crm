@@ -371,6 +371,7 @@ export function LeadDetailModal({
                           {task.due_date && (
                             <p className="text-xs text-limona-text-dim mt-0.5">
                               Termin: {new Date(task.due_date).toLocaleDateString('pl-PL')}
+                              {task.due_time && ` ${task.due_time.slice(0, 5)}`}
                             </p>
                           )}
                         </div>
