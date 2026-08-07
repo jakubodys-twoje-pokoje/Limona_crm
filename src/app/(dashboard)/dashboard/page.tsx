@@ -2,9 +2,9 @@
 
 export const dynamic = 'force-dynamic'
 
-import { useMemo } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import Link from 'next/link'
-import { Building2, ListTodo, Clock, CheckCircle, AlertCircle, Plus, Inbox, ArrowRight, MessageSquare, Bell, ClipboardList } from 'lucide-react'
+import { Building2, ListTodo, Clock, CheckCircle, AlertCircle, Plus, Inbox, ArrowRight, MessageSquare, Bell, ClipboardList, Trash2 } from 'lucide-react'
 import { useProperties } from '@/hooks/useProperties'
 import { useTasks } from '@/hooks/useTasks'
 import { useLeads } from '@/hooks/useLeads'
@@ -44,6 +44,17 @@ const statusLabels: Record<string, string> = STATUS_DLUZNIKA_LABELS
 
 export default function DashboardPage() {
   const { user, profile } = useAuth()
+  const isCentrala = canManageTeams(profile?.role)
+  // Liczba oczekujących próśb o usunięcie — do skrótu na dashboardzie (mobile
+  // nie ma menu bocznego, więc centrala dociera tu też z telefonu)
+  const [deletionCount, setDeletionCount] = useState(0)
+  useEffect(() => {
+    if (!isCentrala) return
+    fetch('/api/deletion-requests/count')
+      .then(r => r.ok ? r.json() : { count: 0 })
+      .then(d => setDeletionCount(d.count ?? 0))
+      .catch(() => {})
+  }, [isCentrala])
   const { visibleIds, loading: visLoading } = useVisibleUserIds(profile?.id, profile?.role)
   const { properties, loading: propsLoading } = useProperties(visibleIds, !visLoading)
   const { tasks, loading: tasksLoading } = useTasks(undefined, visibleIds, undefined, undefined, !visLoading)
@@ -149,6 +160,27 @@ export default function DashboardPage() {
             <p className="text-xs uppercase tracking-wider text-limona-text-muted font-bold">Raporty</p>
             <p className="text-sm text-limona-text">Raporty dzienne i ewaluacja zespołu</p>
           </div>
+          <ArrowRight size={16} className="text-limona-text-dim flex-shrink-0" />
+        </Link>
+      )}
+
+      {/* Skrót do próśb o usunięcie — centrala, także z telefonu (brak menu bocznego) */}
+      {isCentrala && (
+        <Link href="/usuniecia" className="limona-card-hover p-4 flex items-center gap-4 border-l-[3px] border-l-limona-red">
+          <div className="w-10 h-10 rounded bg-limona-red/10 flex items-center justify-center flex-shrink-0">
+            <Trash2 size={20} className="text-limona-red" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs uppercase tracking-wider text-limona-text-muted font-bold">Prośby o usunięcie</p>
+            <p className="text-sm text-limona-text">
+              {deletionCount > 0 ? `${deletionCount} oczekuje na decyzję` : 'Brak oczekujących próśb'}
+            </p>
+          </div>
+          {deletionCount > 0 && (
+            <span className="w-6 h-6 bg-limona-red rounded-full text-[11px] font-bold text-white flex items-center justify-center flex-shrink-0">
+              {deletionCount > 9 ? '9+' : deletionCount}
+            </span>
+          )}
           <ArrowRight size={16} className="text-limona-text-dim flex-shrink-0" />
         </Link>
       )}
