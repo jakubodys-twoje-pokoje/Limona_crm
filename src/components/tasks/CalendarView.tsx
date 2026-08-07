@@ -145,11 +145,15 @@ export function CalendarView({ tasks, loading, onOpenTask, onRequestAdd, onMoveT
     [selectedDate, daysToShow],
   )
 
+  // „Zaległe" liczymy względem DZIŚ (realnej daty), nie względem oglądanego
+  // dnia — inaczej przewinięcie kalendarza na przyszły tydzień pokazywało
+  // dzisiejsze i jutrzejsze zadania jako zaległe. Zadanie staje się zaległe
+  // dopiero, gdy jego termin faktycznie minął.
   const overdueTasks = useMemo(() => {
     return visibleTasks
-      .filter(t => t.due_date && t.due_date.slice(0, 10) < selectedDate && t.status !== 'done')
+      .filter(t => t.due_date && t.due_date.slice(0, 10) < todayKey && t.status !== 'done')
       .sort((a, b) => PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority])
-  }, [visibleTasks, selectedDate])
+  }, [visibleTasks, todayKey])
 
   function dayTasksFor(key: string): Task[] {
     const all = tasksByDate[key] ?? []
