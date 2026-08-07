@@ -393,7 +393,7 @@ export default function ZadaniaPage() {
                     <td className="py-3 px-4">
                       {task.due_date ? (
                         <span className={cn('text-xs font-mono', isOverdue(task) && 'text-limona-red')}>
-                          {new Date(task.due_date).toLocaleDateString('pl-PL')}
+                          {new Date(task.due_date).toLocaleDateString('pl-PL')}{task.due_time && ` ${task.due_time.slice(0, 5)}`}
                         </span>
                       ) : <span className="text-limona-text-dim">—</span>}
                     </td>
@@ -594,7 +594,7 @@ function TaskCard({ task, isOverdue, onMove, onDelete, onOpen }: {
         {task.due_date && !isOverdue && (
           <span className="flex items-center gap-1 text-[10px] text-limona-text-dim">
             <Calendar size={10} />
-            {new Date(task.due_date).toLocaleDateString('pl-PL')}
+            {new Date(task.due_date).toLocaleDateString('pl-PL')}{task.due_time && ` ${task.due_time.slice(0, 5)}`}
           </span>
         )}
       </div>

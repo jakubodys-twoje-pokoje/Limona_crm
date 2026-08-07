@@ -23,7 +23,7 @@ import { StatusChangeCommentModal } from '@/components/shared/StatusChangeCommen
 import { RequestDeletionModal } from '@/components/shared/RequestDeletionModal'
 import { TaskDetailModal } from '@/components/tasks/TaskDetailModal'
 import { TaskFormModal } from '@/components/tasks/TaskFormModal'
-import { cn, daysSince, activityStaleness } from '@/lib/utils'
+import { cn, daysSince, activityStaleness, sortTasksDoneLast } from '@/lib/utils'
 import { formatWeeklyHours } from '@/lib/godziny'
 import { compressImage } from '@/lib/imageCompress'
 import { canSeeAllTeams } from '@/lib/roles'
@@ -554,7 +554,7 @@ export default function KontaktDetailPage() {
               <p className="text-center text-limona-text-muted text-sm py-4">Brak zadań</p>
             ) : (
               <div className="space-y-2">
-                {tasks.map(task => (
+                {sortTasksDoneLast(tasks).map(task => (
                   <div key={task.id}
                     onClick={() => setSelectedTask(task)}
                     className="flex items-center gap-3 p-2.5 rounded bg-limona-surface-2/40 cursor-pointer hover:bg-limona-surface-2 transition-colors"

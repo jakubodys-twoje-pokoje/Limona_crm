@@ -98,3 +98,12 @@ export function sortByCreatedAt<T extends { created_at: string }>(items: T[], di
   const sorted = [...items].sort((a, b) => a.created_at.localeCompare(b.created_at))
   return dir === 'desc' ? sorted.reverse() : sorted
 }
+
+/**
+ * Zadania zrobione na dół listy, niezrobione na górze — bez zmiany kolejności
+ * w obrębie grupy (sort stabilny). Używane w listach zadań na kartach encji,
+ * gdzie agent trzyma „do zrobienia" pod ręką, a domknięte schodzą z oczu.
+ */
+export function sortTasksDoneLast<T extends { status: string }>(tasks: T[]): T[] {
+  return [...tasks].sort((a, b) => (a.status === 'done' ? 1 : 0) - (b.status === 'done' ? 1 : 0))
+}

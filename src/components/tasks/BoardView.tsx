@@ -359,7 +359,9 @@ function BoardTaskCard({ task, allLists, onMoveToList, onOpen, onDelete }: {
         {task.assignee && <Avatar name={task.assignee.full_name} url={task.assignee.avatar_url} size="sm" />}
         {isOverdue && <span className="text-[10px] text-limona-red uppercase tracking-wider">⚠ Termin</span>}
         {task.due_date && !isOverdue && (
-          <span className="text-[10px] text-limona-text-dim">{new Date(task.due_date).toLocaleDateString('pl-PL')}</span>
+          <span className="text-[10px] text-limona-text-dim">
+            {new Date(task.due_date).toLocaleDateString('pl-PL')}{task.due_time && ` ${task.due_time.slice(0, 5)}`}
+          </span>
         )}
       </div>
 

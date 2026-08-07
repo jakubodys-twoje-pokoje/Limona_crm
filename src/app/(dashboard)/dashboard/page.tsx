@@ -378,7 +378,7 @@ export default function DashboardPage() {
                         <AlertCircle size={16} className="text-limona-red flex-shrink-0" />
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-limona-white truncate">{task.title}</p>
-                          {task.due_date && <p className="text-xs text-limona-red">{new Date(task.due_date).toLocaleDateString('pl-PL')}</p>}
+                          {task.due_date && <p className="text-xs text-limona-red">{new Date(task.due_date).toLocaleDateString('pl-PL')}{task.due_time && ` ${task.due_time.slice(0, 5)}`}</p>}
                         </div>
                         <Badge value={task.priority} />
                       </div>

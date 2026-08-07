@@ -19,7 +19,7 @@ import { Badge } from '@/components/ui/Badge'
 import { Avatar } from '@/components/ui/Avatar'
 import { Modal } from '@/components/ui/Modal'
 import { Skeleton } from '@/components/ui/Skeleton'
-import { formatMoney, formatPropertyAddress, cn, sortByCreatedAt, type SortDirection } from '@/lib/utils'
+import { formatMoney, formatPropertyAddress, cn, sortByCreatedAt, sortTasksDoneLast, type SortDirection } from '@/lib/utils'
 import { SortToggle } from '@/components/ui/SortToggle'
 import { TaskDetailModal } from '@/components/tasks/TaskDetailModal'
 import { TaskFormModal } from '@/components/tasks/TaskFormModal'
@@ -725,7 +725,7 @@ export default function PropertyDetailPage() {
           {tasks.length === 0 ? (
             <p className="text-center text-limona-text-muted py-8">Brak zadań</p>
           ) : (
-            tasks.map(task => (
+            sortTasksDoneLast(tasks).map(task => (
               <div key={task.id}
                 onClick={() => setSelectedTask(task)}
                 className="limona-card flex items-center gap-3 p-3 cursor-pointer hover:border-limona-lime/40 transition-colors"

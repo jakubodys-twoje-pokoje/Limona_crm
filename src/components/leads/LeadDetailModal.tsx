@@ -17,7 +17,7 @@ import { createNotification } from '@/hooks/useNotifications'
 import { useTasks } from '@/hooks/useTasks'
 import { LEAD_STATUS_LABELS } from '@/lib/status-comments'
 import { LEAD_TRANSITIONS } from '@/lib/lead-rules'
-import { cn, isOverdueDate, sortByCreatedAt, type SortDirection } from '@/lib/utils'
+import { cn, isOverdueDate, sortByCreatedAt, sortTasksDoneLast, type SortDirection } from '@/lib/utils'
 import { DriveFiles } from '@/components/shared/DriveFiles'
 import { useConfirm } from '@/components/ui/Confirm'
 import type { Lead, LeadComment, LeadStatus, LeadTemperature, Profile, Task } from '@/types/database'
@@ -353,7 +353,7 @@ export function LeadDetailModal({
                   <p className="text-xs text-limona-text-dim text-center py-3">Brak zadań</p>
                 ) : (
                   <div className="space-y-2">
-                    {tasks.map(task => (
+                    {sortTasksDoneLast(tasks).map(task => (
                       <div key={task.id}
                         onClick={() => setSelectedTask(task)}
                         className="flex items-center gap-3 p-2.5 rounded bg-limona-surface-2/40 cursor-pointer hover:bg-limona-surface-2 transition-colors"
