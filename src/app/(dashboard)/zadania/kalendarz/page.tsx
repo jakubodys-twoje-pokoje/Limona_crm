@@ -160,6 +160,7 @@ export default function ZadaniaKalendarzPage() {
           onOpenTask={setSelectedTask}
           onRequestAdd={(date, time) => setAddCtx({ date, time })}
           onMoveTask={handleMoveTask}
+          onReorder={reorderTasks}
         />
       )}
 

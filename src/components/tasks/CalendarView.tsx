@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   ChevronLeft, ChevronRight, Calendar as CalendarIcon, LayoutGrid, AlertTriangle,
-  Link as LinkIcon, BookUser, CheckCircle2, Circle, Plus,
+  Link as LinkIcon, BookUser, CheckCircle2, Circle, Plus, ChevronUp, ChevronDown, ArrowUpDown, Check,
 } from 'lucide-react'
 import { Avatar } from '@/components/ui/Avatar'
 import { Badge } from '@/components/ui/Badge'
@@ -86,9 +86,11 @@ interface CalendarViewProps {
   onRequestAdd?: (dueDateKey: string, dueTime: string | null) => void
   /** Przeciągnięcie zadania na inny dzień/godzinę */
   onMoveTask?: (taskId: string, dueDateKey: string, dueTime: string | null) => Promise<void>
+  /** Zapis ręcznej kolejności zadań całodniowych danego dnia */
+  onReorder?: (orders: { id: string; sort_order: number }[]) => Promise<{ error: string | null }> | void
 }
 
-export function CalendarView({ tasks, loading, onOpenTask, onRequestAdd, onMoveTask }: CalendarViewProps) {
+export function CalendarView({ tasks, loading, onOpenTask, onRequestAdd, onMoveTask, onReorder }: CalendarViewProps) {
   // Domyślnie 1 dzień (po kliknięciu w Terminarz), z opcją 3 dni i miesiąca
   const [mode, setMode] = useState<'day' | 'threeday' | 'month'>('day')
   const daysToShow = mode === 'threeday' ? 3 : 1
@@ -99,7 +101,18 @@ export function CalendarView({ tasks, loading, onOpenTask, onRequestAdd, onMoveT
   })
   const [hideDone, setHideDone] = useState(false)
   const [dragOverSlot, setDragOverSlot] = useState<string | null>(null)
+  // Tryb ręcznego układania kolejności zadań całodniowych (kolumna „cały dzień")
+  const [reorderMode, setReorderMode] = useState(false)
   const gridScrollRef = useRef<HTMLDivElement>(null)
+
+  // Przesuwa zadanie całodniowe w obrębie dnia i zapisuje kolejność (0,1,2…)
+  function moveAllDay(list: Task[], index: number, dir: -1 | 1) {
+    const j = index + dir
+    if (j < 0 || j >= list.length) return
+    const arr = [...list]
+    ;[arr[index], arr[j]] = [arr[j], arr[index]]
+    onReorder?.(arr.map((t, idx) => ({ id: t.id, sort_order: idx })))
+  }
 
   function openQuickAdd(dateKey: string, time: string | null, e?: React.MouseEvent) {
     e?.stopPropagation()
@@ -286,6 +299,18 @@ export function CalendarView({ tasks, loading, onOpenTask, onRequestAdd, onMoveT
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
+          {onReorder && (
+            <button
+              onClick={() => setReorderMode(v => !v)}
+              className={cn(
+                'flex items-center gap-1 text-xs font-bold uppercase tracking-wider px-2 py-1 rounded transition-colors',
+                reorderMode ? 'bg-limona-lime text-black' : 'text-limona-text-muted hover:text-limona-white',
+              )}
+              title="Ręczne układanie zadań całodniowych"
+            >
+              {reorderMode ? <><Check size={13} /> Gotowe</> : <><ArrowUpDown size={13} /> Ustaw kolejność</>}
+            </button>
+          )}
           <label className="flex items-center gap-1.5 text-xs text-limona-text-muted cursor-pointer select-none">
             <input type="checkbox" checked={hideDone} onChange={e => setHideDone(e.target.checked)} className="accent-limona-lime" />
             Ukryj zrobione
@@ -409,24 +434,44 @@ export function CalendarView({ tasks, loading, onOpenTask, onRequestAdd, onMoveT
               return (
                 <div
                   key={dayKey}
-                  onDragOver={e => { e.preventDefault(); setDragOverSlot(`all-${dayKey}`) }}
-                  onDragLeave={() => setDragOverSlot(null)}
-                  onDrop={e => handleDropAllDay(e, dayKey)}
+                  onDragOver={reorderMode ? undefined : e => { e.preventDefault(); setDragOverSlot(`all-${dayKey}`) }}
+                  onDragLeave={reorderMode ? undefined : () => setDragOverSlot(null)}
+                  onDrop={reorderMode ? undefined : e => handleDropAllDay(e, dayKey)}
                   className={cn(
                     'min-h-[36px] border-l-2 p-1.5 space-y-1 transition-colors overflow-hidden',
-                    dragOverSlot === `all-${dayKey}` ? 'border-limona-lime bg-limona-lime/5' : 'border-limona-border',
+                    reorderMode ? 'border-limona-lime/40' : dragOverSlot === `all-${dayKey}` ? 'border-limona-lime bg-limona-lime/5' : 'border-limona-border',
                   )}
                 >
-                  {allDayTasks.map(t => (
-                    <MiniTaskChip
-                      key={t.id}
-                      task={t}
-                      onOpen={() => onOpenTask(t)}
-                      draggable={!!onMoveTask}
-                      onDragStart={e => handleDragStart(e, t)}
-                    />
-                  ))}
-                  {onRequestAdd && (
+                  {reorderMode ? (
+                    allDayTasks.map((t, i) => (
+                      <div key={t.id} className="flex items-center gap-1 bg-limona-surface-2 border border-limona-lime/30 rounded px-1 py-0.5">
+                        <span className={cn('w-1.5 h-1.5 rounded-full flex-shrink-0', PRIORITY_DOT[t.priority])} />
+                        <button type="button" onClick={() => onOpenTask(t)} title={t.title}
+                          className={cn('text-[10px] truncate flex-1 text-left', t.status === 'done' && 'line-through text-limona-text-muted')}>
+                          {t.title}
+                        </button>
+                        <button type="button" onClick={() => moveAllDay(allDayTasks, i, -1)} disabled={i === 0}
+                          className="text-limona-text-dim hover:text-limona-lime disabled:opacity-25 transition-colors" title="W górę">
+                          <ChevronUp size={13} />
+                        </button>
+                        <button type="button" onClick={() => moveAllDay(allDayTasks, i, 1)} disabled={i === allDayTasks.length - 1}
+                          className="text-limona-text-dim hover:text-limona-lime disabled:opacity-25 transition-colors" title="W dół">
+                          <ChevronDown size={13} />
+                        </button>
+                      </div>
+                    ))
+                  ) : (
+                    allDayTasks.map(t => (
+                      <MiniTaskChip
+                        key={t.id}
+                        task={t}
+                        onOpen={() => onOpenTask(t)}
+                        draggable={!!onMoveTask}
+                        onDragStart={e => handleDragStart(e, t)}
+                      />
+                    ))
+                  )}
+                  {!reorderMode && onRequestAdd && (
                     <button
                       type="button"
                       onClick={() => openQuickAdd(dayKey, null)}
