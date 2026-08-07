@@ -508,7 +508,7 @@ export function TaskDetailModal({
                 {editingDesc ? (
                   <div>
                     <textarea
-                      className="limona-input w-full min-h-[100px] resize-y text-sm"
+                      className="limona-input w-full min-h-[240px] resize-y text-sm"
                       value={description}
                       onChange={e => setDescription(e.target.value)}
                       placeholder="Dodaj szczegółowy opis..."
