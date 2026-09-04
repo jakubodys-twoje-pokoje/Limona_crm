@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getSessionUser, unauthorized, forbidden } from '@/lib/api-auth'
 import { warsawDayRange, warsawToday, shiftDate } from '@/lib/reports'
-import type { CategoryCounters, DailyReportData, ReportDayTask, ReportProperty } from '@/lib/reports'
+import type { CategoryCounters, DailyReportData, ReportDayTask, ReportProperty, ReportCardComment } from '@/lib/reports'
 import { formatPropertyAddress } from '@/lib/utils'
 import { canManageTeams } from '@/lib/roles'
 import type { ContactCategory, TaskOutcome } from '@/types/database'
@@ -65,7 +65,7 @@ export async function GET(req: NextRequest) {
   const mine = `assigned_to.eq.${userId},and(assigned_to.is.null,created_by.eq.${userId})`
   const dayClause = `due_date.eq.${date},and(completed_at.gte.${start},completed_at.lt.${end})`
 
-  const [dayTasksRes, newPropsRes, planRes, noteRes] = await Promise.all([
+  const [dayTasksRes, newPropsRes, planRes, noteRes, propCommRes, kontCommRes, leadCommRes] = await Promise.all([
     supabase
       .from('tasks')
       .select('id, title, status, priority, due_time, realization_date, task_type, contact_category, outcome, rejection_reason, kontakt_id, property:properties!tasks_property_id_fkey(id,adres,kod_pocztowy,miasto), kontakt:kontakty!tasks_kontakt_id_fkey(id,nazwa,typ)')
@@ -92,6 +92,22 @@ export async function GET(req: NextRequest) {
       .eq('user_id', userId)
       .eq('date', date)
       .maybeSingle(),
+    // Komentarze dodane tego dnia przez usera na kartach (do sekcji „aktywność")
+    supabase
+      .from('property_comments')
+      .select('id, content, created_at, property:properties!property_comments_property_id_fkey(id,adres,kod_pocztowy,miasto)')
+      .eq('user_id', userId).gte('created_at', start).lt('created_at', end)
+      .order('created_at', { ascending: true }),
+    supabase
+      .from('kontakt_komentarze')
+      .select('id, content, created_at, kontakt:kontakty!kontakt_komentarze_kontakt_id_fkey(id,nazwa)')
+      .eq('user_id', userId).gte('created_at', start).lt('created_at', end)
+      .order('created_at', { ascending: true }),
+    supabase
+      .from('lead_comments')
+      .select('id, content, created_at, lead:leads!lead_comments_lead_id_fkey(id,name)')
+      .eq('user_id', userId).gte('created_at', start).lt('created_at', end)
+      .order('created_at', { ascending: true }),
   ])
 
   const firstError = dayTasksRes.error || newPropsRes.error || planRes.error || noteRes.error
@@ -150,6 +166,18 @@ export async function GET(req: NextRequest) {
   const newProperties: ReportProperty[] = ((newPropsRes.data ?? []) as unknown as RawPropertyRef[])
     .map(p => ({ id: p.id, location: formatPropertyAddress(p) }))
 
+  // Komentarze na kartach z całego dnia — jedna lista z etykietą encji
+  const one = <T,>(v: T | T[] | null | undefined): T | null => (Array.isArray(v) ? v[0] ?? null : v ?? null)
+  const cardComments: ReportCardComment[] = [
+    ...((propCommRes.data ?? []) as unknown as { id: string; content: string; created_at: string; property: RawPropertyRef | null }[])
+      .map(r => { const p = one(r.property); return p ? { id: r.id, entity: 'nieruchomość' as const, entityId: p.id, label: formatPropertyAddress(p), content: r.content, created_at: r.created_at } : null }),
+    ...((kontCommRes.data ?? []) as unknown as { id: string; content: string; created_at: string; kontakt: { id: string; nazwa: string } | null }[])
+      .map(r => { const k = one(r.kontakt); return k ? { id: r.id, entity: 'kontakt' as const, entityId: k.id, label: k.nazwa, content: r.content, created_at: r.created_at } : null }),
+    ...((leadCommRes.data ?? []) as unknown as { id: string; content: string; created_at: string; lead: { id: string; name: string } | null }[])
+      .map(r => { const l = one(r.lead); return l ? { id: r.id, entity: 'lead' as const, entityId: l.id, label: l.name, content: r.content, created_at: r.created_at } : null }),
+  ].filter((c): c is ReportCardComment => c !== null)
+    .sort((a, b) => a.created_at.localeCompare(b.created_at))
+
   const data: DailyReportData = {
     date,
     userId,
@@ -158,6 +186,7 @@ export async function GET(req: NextRequest) {
     categories,
     newProperties,
     planTomorrow: ((planRes.data ?? []) as unknown as { property: RawPropertyRef | null; [k: string]: unknown }[]).map(withLocation) as unknown as DailyReportData['planTomorrow'],
+    cardComments,
     note: {
       content: noteRes.data?.content ?? '',
       submitted_at: noteRes.data?.submitted_at ?? null,

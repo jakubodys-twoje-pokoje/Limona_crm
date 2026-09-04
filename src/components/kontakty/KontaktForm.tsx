@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { cn } from '@/lib/utils'
+import { cn, normalizeUrl } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
 import { useMyGrants, grantsIncludeInvestors } from '@/hooks/useMyGrants'
 import { canSeeInvestors, canManageTeams } from '@/lib/roles'
@@ -91,8 +91,9 @@ export function KontaktForm({ initial, profiles, onSubmit, onCancel, submitLabel
 
     const payload: Partial<Kontakt> = {
       ...form,
+      www:               normalizeUrl(form.www),
       ustalona_prowizja: (hasWspolpracaWithProwizja && form.chec_wspolpracy) ? (form.ustalona_prowizja || null) : null,
-      umowa_url:         (hasWspolpracaWithProwizja && form.chec_wspolpracy) ? (form.umowa_url || null) : null,
+      umowa_url:         (hasWspolpracaWithProwizja && form.chec_wspolpracy) ? normalizeUrl(form.umowa_url) : null,
     }
 
     try {
@@ -199,11 +200,11 @@ export function KontaktForm({ initial, profiles, onSubmit, onCancel, submitLabel
 
           <Field label="Strona www">
             <input
-              type="url"
+              type="text"
               className="limona-input w-full"
               value={form.www || ''}
               onChange={e => set('www', e.target.value)}
-              placeholder="https://firma.pl"
+              placeholder="firma.pl (https:// dokleimy sami)"
             />
           </Field>
 

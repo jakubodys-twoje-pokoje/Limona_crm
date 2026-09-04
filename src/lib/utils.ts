@@ -94,6 +94,17 @@ export function withinActivityWindow(iso: string | null | undefined, windowValue
 export type SortDirection = 'asc' | 'desc'
 
 /** Sortuje po `created_at` — 'desc' (najnowsze na górze, jak w Trello) albo 'asc'. */
+/**
+ * Normalizuje adres strony wpisany bez „https://" — dokleja protokół, żeby
+ * dało się zapisać „firma.pl" / „www.firma.pl", a link i tak działał.
+ */
+export function normalizeUrl(v: string | null | undefined): string | null {
+  const s = (v || '').trim()
+  if (!s) return null
+  if (/^https?:\/\//i.test(s)) return s
+  return `https://${s}`
+}
+
 export function sortByCreatedAt<T extends { created_at: string }>(items: T[], dir: SortDirection): T[] {
   const sorted = [...items].sort((a, b) => a.created_at.localeCompare(b.created_at))
   return dir === 'desc' ? sorted.reverse() : sorted

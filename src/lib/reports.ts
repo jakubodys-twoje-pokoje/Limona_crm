@@ -94,7 +94,18 @@ export interface DailyReportData {
   categories: Partial<Record<ContactCategory, CategoryCounters>>
   newProperties: ReportProperty[]
   planTomorrow: { id: string; title: string; property: { id: string; location: string } | null }[]
+  /** Komentarze dodane tego dnia na kartach (nieruchomość/kontakt/lead) */
+  cardComments: ReportCardComment[]
   note: { content: string; submitted_at: string | null; edited_at: string | null }
+}
+
+export interface ReportCardComment {
+  id: string
+  entity: 'nieruchomość' | 'kontakt' | 'lead'
+  entityId: string
+  label: string
+  content: string
+  created_at: string
 }
 
 // ---------------------------------------------------------------
@@ -179,6 +190,16 @@ export function buildReportText(data: DailyReportData): string {
     lines.push(`Niezainteresowani: ${c?.niezainteresowany ?? 0}`)
     lines.push('')
   }
+
+  lines.push(`KOMENTARZE NA KARTACH (${data.cardComments?.length ?? 0})`)
+  if (!data.cardComments?.length) {
+    lines.push('—')
+  } else {
+    for (const c of data.cardComments) {
+      lines.push(`- ${c.entity} ${c.label}: ${c.content.trim()}`)
+    }
+  }
+  lines.push('')
 
   lines.push('NOWE TEMATY')
   lines.push(data.newProperties.length ? data.newProperties.map(p => p.location).join(', ') : '—')

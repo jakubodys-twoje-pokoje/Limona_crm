@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getSessionUser, unauthorized } from '@/lib/api-auth'
 import { validateTaskRules } from '@/lib/task-rules'
 import { TASK_STATUS_LABELS, formatStatusChangeComment } from '@/lib/status-comments'
+import { mirrorTaskCommentToCards } from '@/lib/taskCommentMirror'
 import { canSeeAllTeams } from '@/lib/roles'
 import { notifyCardActivity } from '@/lib/notify'
 import type { TaskStatus } from '@/types/database'
@@ -74,11 +75,16 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
 
   if (statusChanging && statusComment) {
+    const statusText = formatStatusChangeComment(TASK_STATUS_LABELS[body.status as TaskStatus], statusComment)
     await supabase.from('task_comments').insert({
       task_id: id,
       user_id: user.id,
-      content: formatStatusChangeComment(TASK_STATUS_LABELS[body.status as TaskStatus], statusComment),
+      content: statusText,
     })
+
+    // Domknięcie/zmiana statusu z opisem trafia też na powiązaną kartę —
+    // agent nie musi przeklejać, co ustalił (np. „SM Piast").
+    await mirrorTaskCommentToCards(supabase, task, statusText, user.id)
 
     // Powiadom kierownictwo i osoby powiązane z zadaniem o zmianie statusu
     await notifyCardActivity(supabase, {

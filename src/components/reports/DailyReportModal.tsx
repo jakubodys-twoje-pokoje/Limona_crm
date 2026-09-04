@@ -248,6 +248,24 @@ export function DailyReportModal({ isOpen, onClose, onSubmitted, viewUserId, vie
             })}
           </section>
 
+          {/* KOMENTARZE NA KARTACH */}
+          <section>
+            <h3 className="limona-eyebrow mb-2">Komentarze na kartach ({data.cardComments.length})</h3>
+            {data.cardComments.length === 0 ? (
+              <p className="text-sm text-limona-text-dim">Brak komentarzy dodanych tego dnia</p>
+            ) : (
+              <ul className="space-y-1.5">
+                {data.cardComments.map(c => (
+                  <li key={c.id} className="text-sm flex items-baseline gap-2 flex-wrap">
+                    <span className="text-[10px] uppercase tracking-wider font-bold text-limona-text-dim flex-shrink-0">{c.entity}</span>
+                    <span className="text-limona-lime text-xs">{c.label}</span>
+                    <span className="text-limona-text">— {c.content}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+
           {/* NOWE TEMATY */}
           <section>
             <h3 className="limona-eyebrow mb-2">Nowe tematy ({data.newProperties.length})</h3>
