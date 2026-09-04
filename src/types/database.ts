@@ -227,6 +227,7 @@ export interface Lead {
   temperature: LeadTemperature
   next_contact_at: string | null
   assigned_to: string | null
+  co_assignees: string[]
   property_id: string | null
   kontakt_id: string | null
   converted_at: string | null

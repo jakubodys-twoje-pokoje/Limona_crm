@@ -27,13 +27,14 @@ export async function GET(req: NextRequest) {
   if (assignedTo) query = query.eq('assigned_to', assignedTo)
   if (temperature) query = query.eq('temperature', temperature)
 
-  // Zwykły user widzi swoje / przypisane leady + to, co odblokują granty
-  // dostępu (cała kategoria „leady" znosi filtr, per-osoba dokłada właścicieli)
+  // Zwykły user widzi swoje / przypisane leady, leady gdzie jest dodatkowym
+  // opiekunem (co_assignees[]) + to, co odblokują granty dostępu (cała
+  // kategoria „leady" znosi filtr, per-osoba dokłada właścicieli)
   if (!canSeeAllTeams(user.role)) {
     const grants = await getUserGrants(supabase, user.id)
     if (!grants.leady.all) {
       const ids = [...new Set([user.id, ...grants.leady.userIds])].join(',')
-      query = query.or(`created_by.in.(${ids}),assigned_to.in.(${ids})`)
+      query = query.or(`created_by.in.(${ids}),assigned_to.in.(${ids}),co_assignees.ov.{${user.id}}`)
     }
   }
 

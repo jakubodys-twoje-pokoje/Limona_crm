@@ -69,6 +69,7 @@ export function LeadDetailModal({
   const [sortDir, setSortDir] = useState<SortDirection>('desc')
   const [showStatusMenu, setShowStatusMenu] = useState(false)
   const [showAssignMenu, setShowAssignMenu] = useState(false)
+  const [showCoMenu, setShowCoMenu] = useState(false)
   const [pendingStatus, setPendingStatus] = useState<LeadStatus | null>(null)
   const [editingNotes, setEditingNotes] = useState(false)
   const [notes, setNotes] = useState(lead.notes || '')
@@ -154,6 +155,25 @@ export function LeadDetailModal({
         fromUserId: userId,
         type: 'new_lead',
         title: `${userName} przypisał/a Ci leada`,
+        body: lead.name,
+        link: `/leady?open=${lead.id}`,
+        referenceId: lead.id,
+      })
+    }
+  }
+
+  // Dodatkowi opiekunowie — dołączona osoba widzi leada u siebie i może działać
+  const coAssignees = lead.co_assignees ?? []
+  const canManageCo = canAssign || userId === lead.assigned_to || userId === lead.created_by || coAssignees.includes(userId)
+  async function toggleCoAssignee(profileId: string, checked: boolean) {
+    const next = checked ? [...coAssignees, profileId] : coAssignees.filter(x => x !== profileId)
+    const { error } = await onUpdate(lead.id, { coAssignees: next })
+    if (!error && checked && profileId !== userId) {
+      await createNotification({
+        userId: profileId,
+        fromUserId: userId,
+        type: 'new_lead',
+        title: `${userName} dołączył/a Cię do leada`,
         body: lead.name,
         link: `/leady?open=${lead.id}`,
         referenceId: lead.id,
@@ -538,6 +558,55 @@ export function LeadDetailModal({
                     ) : (
                       <><User size={14} className="text-limona-text-dim" /><span className="flex-1 text-limona-text-dim">Nieprzypisany</span></>
                     )}
+                  </div>
+                )}
+              </div>
+
+              {/* Dodatkowi opiekunowie */}
+              <div className="relative">
+                <label className="text-[10px] uppercase tracking-wider text-limona-text-dim font-bold block mb-1">Dodatkowi opiekunowie</label>
+                {canManageCo && !isFrozen ? (
+                  <>
+                    <button onClick={() => { setShowCoMenu(!showCoMenu); setShowAssignMenu(false); setShowStatusMenu(false) }}
+                      className="w-full flex items-center gap-2 px-3 py-2 bg-limona-surface-2 rounded-lg hover:bg-limona-surface-2/80 transition-colors text-sm">
+                      <User size={14} className="text-limona-text-dim" />
+                      <span className="flex-1 text-left truncate">{coAssignees.length > 0 ? `${coAssignees.length} dołączonych` : 'Brak'}</span>
+                      <ChevronDown size={12} className="text-limona-text-dim" />
+                    </button>
+                    {showCoMenu && (
+                      <div className="absolute top-full left-0 right-0 mt-1 bg-limona-surface border border-limona-border rounded-lg shadow-xl z-10 max-h-48 overflow-y-auto p-1">
+                        {profiles.filter(p => p.id !== lead.assigned_to).map(p => (
+                          <label key={p.id} className="flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer hover:bg-limona-surface-2 transition-colors">
+                            <input type="checkbox" className="accent-limona-lime"
+                              checked={coAssignees.includes(p.id)}
+                              onChange={e => toggleCoAssignee(p.id, e.target.checked)} />
+                            <Avatar name={p.full_name} url={p.avatar_url} size="sm" />
+                            <span className="text-sm truncate flex-1">{p.full_name}</span>
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                ) : coAssignees.length === 0 ? (
+                  <p className="text-xs text-limona-text-dim px-1">Brak</p>
+                ) : null}
+                {coAssignees.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-1.5">
+                    {coAssignees.map(id => {
+                      const p = profiles.find(pr => pr.id === id)
+                      if (!p) return null
+                      return (
+                        <span key={id} className="inline-flex items-center gap-1 text-[10px] bg-limona-surface-2 rounded-full pl-1 pr-2 py-0.5">
+                          <Avatar name={p.full_name} url={p.avatar_url} size="sm" />
+                          <span className="truncate max-w-[80px]">{p.full_name}</span>
+                          {canManageCo && !isFrozen && (
+                            <button onClick={() => toggleCoAssignee(id, false)} className="text-limona-text-dim hover:text-limona-red">
+                              <X size={10} />
+                            </button>
+                          )}
+                        </span>
+                      )
+                    })}
                   </div>
                 )}
               </div>

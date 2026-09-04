@@ -40,7 +40,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const { data: existing } = await supabase
     .from('leads')
-    .select('status, assigned_to')
+    .select('status, assigned_to, created_by, co_assignees')
     .eq('id', id)
     .maybeSingle()
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
@@ -71,6 +71,20 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
   if (body.nextContactAt !== undefined) updates.next_contact_at = body.nextContactAt || null
   if (body.assignedTo !== undefined) updates.assigned_to = body.assignedTo || null
+
+  // Dodatkowi opiekunowie: może zmieniać centrala oraz prowadzący/twórca leada
+  // i dotychczasowi współopiekunowie (zespół sam zarządza, kogo dołączyć)
+  if (body.coAssignees !== undefined) {
+    const canManageCo = canSeeAllTeams(user.role)
+      || existing.assigned_to === user.id
+      || existing.created_by === user.id
+      || (existing.co_assignees ?? []).includes(user.id)
+    if (!canManageCo) return forbidden()
+    const finalAssigned = body.assignedTo !== undefined ? body.assignedTo : existing.assigned_to
+    updates.co_assignees = Array.isArray(body.coAssignees)
+      ? body.coAssignees.filter((cid: string) => cid && cid !== finalAssigned)
+      : []
+  }
 
   // Re-geokodowanie przy zmianie lokalizacji (edycja starego leada też
   // dorabia mu współrzędne na mapę)
