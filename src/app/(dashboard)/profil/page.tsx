@@ -8,6 +8,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { useToast } from '@/components/ui/Toast'
 import { Avatar } from '@/components/ui/Avatar'
 import { applyTheme } from '@/components/ThemeProvider'
+import { CalendarSync } from '@/components/profile/CalendarSync'
 import { cn } from '@/lib/utils'
 
 const THEME_OPTIONS = [
@@ -94,6 +95,8 @@ export default function ProfilPage() {
         <span className="limona-eyebrow">Konto</span>
         <h1 className="limona-heading text-3xl mt-1">Profil</h1>
       </div>
+
+      <CalendarSync />
 
       <div className="limona-card p-6 space-y-5">
         <h2 className="limona-eyebrow">Wygląd</h2>
