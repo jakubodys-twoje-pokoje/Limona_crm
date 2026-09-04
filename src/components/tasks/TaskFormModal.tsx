@@ -50,9 +50,16 @@ export const EMPTY_TASK_FORM: TaskFormData = {
   lead_id: null,
 }
 
-const RECURRENCE_FREQ_LABELS: Record<RecurrenceFreq, string> = {
-  daily: 'Codziennie', weekly: 'Co tydzień', monthly: 'Co miesiąc',
-}
+// Gotowe opcje powtarzania (freq + interwał) — czytelne dla nietechnicznych
+const RECURRENCE_PRESETS: { value: string; label: string; freq: RecurrenceFreq | ''; interval: number }[] = [
+  { value: '', label: 'Nie powtarzaj', freq: '', interval: 1 },
+  { value: 'daily:1', label: 'Codziennie', freq: 'daily', interval: 1 },
+  { value: 'weekly:1', label: 'Co tydzień', freq: 'weekly', interval: 1 },
+  { value: 'weekly:2', label: 'Co 2 tygodnie', freq: 'weekly', interval: 2 },
+  { value: 'weekly:3', label: 'Co 3 tygodnie', freq: 'weekly', interval: 3 },
+  { value: 'weekly:4', label: 'Co 4 tygodnie', freq: 'weekly', interval: 4 },
+  { value: 'monthly:1', label: 'Co miesiąc', freq: 'monthly', interval: 1 },
+]
 
 interface TaskFormModalProps {
   isOpen: boolean
@@ -319,12 +326,15 @@ export function TaskFormModal({
         <div className="grid grid-cols-2 gap-4 items-end">
           <div>
             <label className="limona-label block mb-2">Powtarzaj (zadanie cykliczne)</label>
-            <select className="limona-select disabled:opacity-50" value={form.recurrence_freq}
+            <select className="limona-select disabled:opacity-50"
+              value={form.recurrence_freq ? `${form.recurrence_freq}:${form.recurrence_interval}` : ''}
               disabled={!form.due_date}
-              onChange={e => setForm(f => ({ ...f, recurrence_freq: e.target.value as RecurrenceFreq | '' }))}>
-              <option value="">Nie powtarzaj</option>
-              {(Object.keys(RECURRENCE_FREQ_LABELS) as RecurrenceFreq[]).map(f => (
-                <option key={f} value={f}>{RECURRENCE_FREQ_LABELS[f]}</option>
+              onChange={e => {
+                const preset = RECURRENCE_PRESETS.find(p => p.value === e.target.value) ?? RECURRENCE_PRESETS[0]
+                setForm(f => ({ ...f, recurrence_freq: preset.freq, recurrence_interval: preset.interval }))
+              }}>
+              {RECURRENCE_PRESETS.map(p => (
+                <option key={p.value} value={p.value}>{p.label}</option>
               ))}
             </select>
             {!form.due_date && (

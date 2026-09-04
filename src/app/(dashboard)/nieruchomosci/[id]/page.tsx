@@ -165,6 +165,25 @@ export default function PropertyDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, propertyId])
 
+  // Liczniki na zakładkach — od razu widać, że karta ma komentarze/pliki,
+  // bez wchodzenia w zakładkę. Drive liczymy best-effort (top-level folderu).
+  const [commentCount, setCommentCount] = useState<number | null>(null)
+  const [driveCount, setDriveCount] = useState<number | null>(null)
+  useEffect(() => {
+    if (!propertyId) return
+    fetch(`/api/properties/${propertyId}/comments`)
+      .then(r => r.ok ? r.json() : [])
+      .then(d => setCommentCount(Array.isArray(d) ? d.length : 0))
+      .catch(() => {})
+  }, [propertyId])
+  useEffect(() => {
+    if (!propertyId) return
+    fetch(`/api/drive/property/${propertyId}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => setDriveCount(Array.isArray(d?.files) ? d.files.length : null))
+      .catch(() => {})
+  }, [propertyId])
+
   async function fetchNegotiation() {
     setNegLoading(true)
     const res = await fetch(`/api/properties/${propertyId}/negotiation`)
@@ -649,9 +668,9 @@ export default function PropertyDetailPage() {
 
       <div className="flex gap-1 border-b border-limona-border overflow-x-auto">
         {([
-          { key: 'komentarze', label: 'Komentarze' },
+          { key: 'komentarze', label: `Komentarze${commentCount !== null ? ` (${commentCount})` : ''}` },
           { key: 'tasks', label: `Zadania (${tasks.length})` },
-          { key: 'docs', label: `Dokumenty (${documents.length})` },
+          { key: 'docs', label: `Dokumenty${driveCount !== null ? ` (${driveCount})` : ''}` },
           { key: 'checklist', label: `Checklista i status (${Object.values(property.checklist || {}).filter(s => s.checked).length}/${CHECKLIST_INFO.length + CHECKLIST_DOCS.length})` },
           { key: 'negocjacja', label: 'Negocjacja' },
           ...(canInvestors ? [{ key: 'inwestorzy', label: `Inwestorzy (${investors.length || ''})` }] as const : []),
