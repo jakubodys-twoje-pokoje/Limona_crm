@@ -29,10 +29,51 @@ export function canSeeInvestors(role: UserRole | string | undefined): boolean {
   return role === 'admin' || role === 'kierownik_centrali'
 }
 
+/**
+ * Dział prawny — konto obsługujące wyłącznie tor prawny: widzi Zadania
+ * i Nieruchomości (w tym wszystkie zadania prawne), bez bazy kontaktów,
+ * leadów, zespołów i panelu centrali.
+ */
+export function isDzialPrawny(role: UserRole | string | undefined): boolean {
+  return role === 'dzial_prawny'
+}
+
+/**
+ * Kto widzi wszystkie nieruchomości (bez filtra właściciela). Poza rolami
+ * ponadzespołowymi także dział prawny — prowadzi sprawy prawne na cudzych
+ * nieruchomościach, więc musi je otworzyć.
+ */
+export function canSeeAllProperties(role: UserRole | string | undefined): boolean {
+  return canSeeAllTeams(role) || isDzialPrawny(role)
+}
+
+/**
+ * Kto ma dostęp do bazy klienckiej (kontakty, leady). Dział prawny — nie:
+ * jego dostęp kończy się na zadaniach i nieruchomościach.
+ */
+export function canSeeClientBase(role: UserRole | string | undefined): boolean {
+  return !isDzialPrawny(role)
+}
+
+/** Ścieżki dostępne dla działu prawnego (reszta menu jest ukryta i zablokowana) */
+const DZIAL_PRAWNY_PATHS = ['/zadania', '/nieruchomosci', '/profil']
+
+/** Czy rola może wejść na daną ścieżkę aplikacji (bramka nawigacyjna) */
+export function canAccessPath(role: UserRole | string | undefined, pathname: string): boolean {
+  if (!isDzialPrawny(role)) return true
+  return DZIAL_PRAWNY_PATHS.some(p => pathname === p || pathname.startsWith(`${p}/`))
+}
+
+/** Strona startowa roli — dział prawny nie ma dostępu do Dashboardu */
+export function homePathForRole(role: UserRole | string | undefined): string {
+  return isDzialPrawny(role) ? '/zadania' : '/dashboard'
+}
+
 export const ROLE_LABELS: Record<UserRole, string> = {
   admin: 'Admin',
   kierownik_centrali: 'Kierownik centrali',
   manager: 'Manager',
+  dzial_prawny: 'Dział prawny',
   user: 'User',
   viewer: 'Viewer',
 }

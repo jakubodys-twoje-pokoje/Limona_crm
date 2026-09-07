@@ -6,6 +6,7 @@ import { validateTaskRules } from '@/lib/task-rules'
 import { TASK_STATUS_LABELS, formatStatusChangeComment } from '@/lib/status-comments'
 import { mirrorTaskCommentToCards } from '@/lib/taskCommentMirror'
 import { canSeeAllTeams } from '@/lib/roles'
+import { normalizeTaskKind, withPropertyOwnersAsCoAssignees } from '@/lib/legal-tasks'
 import { notifyCardActivity } from '@/lib/notify'
 import type { TaskStatus } from '@/types/database'
 
@@ -30,7 +31,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   // Reguły domykania walidujemy na stanie PO zmianie (istniejące + patch)
   const { data: existing } = await supabase
     .from('tasks')
-    .select('status, task_type, outcome, rejection_reason, rejection_note, assigned_to, co_assignees')
+    .select('status, task_type, task_kind, property_id, outcome, rejection_reason, rejection_note, assigned_to, co_assignees')
     .eq('id', id)
     .maybeSingle()
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
@@ -48,6 +49,20 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const finalCoAssignees = 'co_assignees' in body ? body.co_assignees : existing.co_assignees
     if (finalAssignedTo && Array.isArray(finalCoAssignees)) {
       body.co_assignees = finalCoAssignees.filter((cid: string) => cid !== finalAssignedTo)
+    }
+  }
+
+  // Rodzaj zadania (zwykłe / prawne). Gdy zadanie staje się prawne,
+  // opiekunowie powiązanej nieruchomości dołączają do współwykonawców —
+  // inaczej zadanie zniknęłoby im z listy, mimo że dotyczy ich sprawy.
+  if ('task_kind' in body) {
+    body.task_kind = normalizeTaskKind(body.task_kind)
+    if (body.task_kind === 'prawne' && existing.task_kind !== 'prawne') {
+      body.co_assignees = await withPropertyOwnersAsCoAssignees(supabase, {
+        propertyId: 'property_id' in body ? body.property_id : existing.property_id,
+        assignedTo: 'assigned_to' in body ? body.assigned_to : existing.assigned_to,
+        coAssignees: 'co_assignees' in body ? body.co_assignees : existing.co_assignees,
+      })
     }
   }
 

@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic'
 
 import { useState, useEffect, useRef, useMemo } from 'react'
 import Link from 'next/link'
-import { Plus, Calendar, CalendarDays, Link as LinkIcon, Trash2, CheckCircle, Clock, AlertCircle, XCircle, X } from 'lucide-react'
+import { Plus, Calendar, CalendarDays, Link as LinkIcon, Trash2, CheckCircle, Clock, AlertCircle, XCircle, X, Scale } from 'lucide-react'
 import { useTasks } from '@/hooks/useTasks'
 import { useBoards } from '@/hooks/useBoards'
 import { useAuth } from '@/hooks/useAuth'
@@ -19,6 +19,7 @@ import { TaskFormModal } from '@/components/tasks/TaskFormModal'
 import { TaskSearchBar, TaskSearchResults, searchTasks } from '@/components/tasks/TaskSearch'
 import { BoardView, BOARD_COLORS } from '@/components/tasks/BoardView'
 import { canSeeAllTeams } from '@/lib/roles'
+import { isLegalTask } from '@/lib/legal-tasks'
 import { cn, formatPropertyAddress, isOverdueDate, taskMatchesAssignee } from '@/lib/utils'
 import { usePersistentState } from '@/hooks/usePersistentState'
 import type { Task, TaskStatus, Profile } from '@/types/database'
@@ -393,7 +394,10 @@ export default function ZadaniaPage() {
                     className="border-b border-limona-border/50 hover:bg-limona-surface-2/50 transition-colors cursor-pointer"
                     onClick={() => setSelectedTask(task)}>
                     <td className="py-3 px-4">
-                      <p className={cn('font-medium', task.status === 'done' && 'line-through text-limona-text-muted')}>
+                      <p className={cn('font-medium flex items-center gap-1.5', task.status === 'done' && 'line-through text-limona-text-muted')}>
+                        {isLegalTask(task.task_kind) && (
+                          <Scale size={12} className="text-limona-yellow flex-shrink-0" aria-label="Zadanie prawne" />
+                        )}
                         {task.title}
                       </p>
                     </td>
@@ -598,6 +602,12 @@ function TaskCard({ task, isOverdue, onMove, onDelete, onOpen }: {
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <Badge value={task.priority} />
+          {isLegalTask(task.task_kind) && (
+            <span title="Zadanie prawne"
+              className="inline-flex items-center gap-1 text-[9px] uppercase tracking-wider font-bold text-limona-yellow bg-limona-yellow/15 rounded-full px-1.5 py-0.5">
+              <Scale size={9} /> Prawne
+            </span>
+          )}
           {task.assignee && (
             <Avatar name={task.assignee.full_name} url={task.assignee.avatar_url} size="sm" />
           )}

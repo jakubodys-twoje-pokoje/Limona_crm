@@ -5,10 +5,11 @@ import { Link as LinkIcon, X, Clock } from 'lucide-react'
 import { Modal } from '@/components/ui/Modal'
 import { EntityPicker, type EntityPickerItem } from '@/components/shared/EntityPicker'
 import { TASK_TYPE_LABELS, CONTACT_CATEGORY_LABELS } from '@/lib/reports'
+import { TASK_KINDS, TASK_KIND_LABELS } from '@/lib/legal-tasks'
 import { formatPropertyAddress } from '@/lib/utils'
 import { KONTAKT_TYP_LABELS } from '@/types/database'
 import type {
-  Task, TaskStatus, TaskPriority, TaskType, ContactCategory, Profile,
+  Task, TaskStatus, TaskPriority, TaskType, TaskKind, ContactCategory, Profile,
   RecurrenceFreq, KontaktTyp,
 } from '@/types/database'
 
@@ -21,6 +22,7 @@ export interface TaskFormData {
   status: TaskStatus
   assigned_to: string
   co_assignees: string[]
+  task_kind: TaskKind
   task_type: TaskType | ''
   contact_category: ContactCategory | ''
   recurrence_freq: RecurrenceFreq | ''
@@ -40,6 +42,7 @@ export const EMPTY_TASK_FORM: TaskFormData = {
   status: 'todo',
   assigned_to: '',
   co_assignees: [],
+  task_kind: 'zwykle',
   task_type: '',
   contact_category: '',
   recurrence_freq: '',
@@ -72,6 +75,8 @@ interface TaskFormModalProps {
   profiles: Profile[]
   /** Wartości startowe (status, termin, powiązania, board_id/list_id itp.) */
   defaults?: Partial<TaskFormData> & { board_id?: string | null; list_id?: string | null }
+  /** Rodzaj zadania ustalony przez kontekst (zakładka Zadania prawne) — pole tylko do odczytu */
+  lockedKind?: boolean
   /** Ukryj wybór nieruchomości (karta nieruchomości) i pokaż powiązanie jako stałe */
   lockedPropertyLabel?: string
   /** Ukryj wybór kontaktu (karta spółdzielni/kontaktu) i pokaż powiązanie jako stałe */
@@ -91,7 +96,7 @@ interface TaskFormModalProps {
  */
 export function TaskFormModal({
   isOpen, onClose, onCreate, userId, canAssign, profiles,
-  defaults, lockedPropertyLabel, lockedKontaktLabel, lockedLeadLabel, visibleIds,
+  defaults, lockedKind, lockedPropertyLabel, lockedKontaktLabel, lockedLeadLabel, visibleIds,
   title = 'Dodaj zadanie', onSuccess,
 }: TaskFormModalProps) {
   const buildInitial = (): TaskFormData => ({
@@ -175,6 +180,7 @@ export function TaskFormModal({
       status: form.status,
       assigned_to: form.assigned_to || null,
       co_assignees: form.co_assignees,
+      task_kind: form.task_kind,
       task_type: form.task_type || null,
       contact_category: form.contact_category || null,
       recurrence_freq: form.due_date ? (form.recurrence_freq || null) : null,
@@ -208,6 +214,21 @@ export function TaskFormModal({
             onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
             placeholder="Szczegóły..." rows={3} />
         </div>
+        <div>
+          <label className="limona-label block mb-2">Rodzaj zadania</label>
+          <select className="limona-select disabled:opacity-60" value={form.task_kind} disabled={lockedKind}
+            onChange={e => setForm(f => ({ ...f, task_kind: e.target.value as TaskKind }))}>
+            {TASK_KINDS.map(k => (
+              <option key={k} value={k}>{TASK_KIND_LABELS[k]}</option>
+            ))}
+          </select>
+          <p className="text-[10px] text-limona-text-dim mt-1">
+            {form.task_kind === 'prawne'
+              ? 'Trafia do zakładki „Zadania prawne" — widzi je dział prawny i osoba przypisana do nieruchomości.'
+              : 'Zwykłe zadanie operacyjne.'}
+          </p>
+        </div>
+
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="limona-label block mb-2">Typ zadania</label>

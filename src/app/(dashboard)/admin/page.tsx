@@ -326,6 +326,7 @@ export default function AdminPage() {
               <option value="admin">Admin</option>
               <option value="kierownik_centrali">Kierownik centrali</option>
               <option value="manager">Manager</option>
+              <option value="dzial_prawny">Dział prawny</option>
               <option value="user">User</option>
               <option value="viewer">Viewer</option>
             </select>
@@ -361,6 +362,7 @@ export default function AdminPage() {
               <option value="admin">Admin — pełny dostęp + panel admina</option>
               <option value="kierownik_centrali">Kierownik centrali — ewaluacja wszystkich zespołów, bez zarządzania kontami</option>
               <option value="manager">Manager — widzi wszystko, zarządza leadami</option>
+              <option value="dzial_prawny">Dział prawny — tylko Zadania i Nieruchomości (zadania prawne)</option>
               <option value="user">User — widzi swoje + przypisane</option>
               <option value="viewer">Viewer — tylko odczyt</option>
             </select>

@@ -18,6 +18,7 @@ const ROLE_BADGE_STYLE: Record<UserRole, string> = {
   admin: 'bg-limona-lime/20 text-limona-lime',
   kierownik_centrali: 'bg-limona-blue/20 text-limona-blue',
   manager: 'bg-limona-yellow/20 text-limona-yellow',
+  dzial_prawny: 'bg-limona-yellow/20 text-limona-yellow',
   user: 'bg-limona-border text-limona-text-muted',
   viewer: 'bg-limona-border text-limona-text-dim',
 }

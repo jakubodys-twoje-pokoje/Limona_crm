@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import {
   X, Calendar, User, Tag, AlignLeft, MessageCircle, Send, Trash2,
   CheckCircle, Clock, XCircle, AlertTriangle, ChevronDown, Link as LinkIcon,
-  ChevronLeft, ChevronRight,
+  ChevronLeft, ChevronRight, Scale,
 } from 'lucide-react'
 import { Avatar } from '@/components/ui/Avatar'
 import { Badge } from '@/components/ui/Badge'
@@ -16,13 +16,14 @@ import {
   TASK_TYPE_LABELS, CONTACT_CATEGORY_LABELS, OUTCOME_LABELS, REJECTION_REASON_LABELS,
 } from '@/lib/reports'
 import { TASK_STATUS_LABELS } from '@/lib/status-comments'
+import { TASK_KINDS, TASK_KIND_LABELS, isLegalTask } from '@/lib/legal-tasks'
 import { StatusChangeCommentModal } from '@/components/shared/StatusChangeCommentModal'
 import { cn, formatPropertyAddress, isOverdueDate, sortByCreatedAt, type SortDirection } from '@/lib/utils'
 import { SortToggle } from '@/components/ui/SortToggle'
 import { useConfirm } from '@/components/ui/Confirm'
 import type {
   Task, TaskStatus, TaskPriority, Profile,
-  TaskType, ContactCategory, TaskOutcome, RejectionReason,
+  TaskType, TaskKind, ContactCategory, TaskOutcome, RejectionReason,
 } from '@/types/database'
 
 interface TaskDetailModalProps {
@@ -87,6 +88,8 @@ export function TaskDetailModal({
   const [editingTitle, setEditingTitle] = useState(false)
   const [editingDesc, setEditingDesc] = useState(false)
 
+  // Rodzaj zadania — zwykłe / prawne (osobna zakładka na nieruchomości)
+  const [taskKind, setTaskKind] = useState<TaskKind>(task.task_kind || 'zwykle')
   // Etap 0: dane strukturalne z pracy kontaktowej
   const [taskType, setTaskType] = useState<TaskType | ''>(task.task_type || '')
   const [contactCategory, setContactCategory] = useState<ContactCategory | ''>(task.contact_category || '')
@@ -120,6 +123,7 @@ export function TaskDetailModal({
     setRealizationDate(task.realization_date ? task.realization_date.split('T')[0] : '')
     setAssignedTo(task.assigned_to || '')
     setCoAssignees(task.co_assignees || [])
+    setTaskKind(task.task_kind || 'zwykle')
     setTaskType(task.task_type || '')
     setContactCategory(task.contact_category || '')
     setOutcome(task.outcome || '')
@@ -429,6 +433,11 @@ export function TaskDetailModal({
                 {title}
               </h2>
             )}
+            {isLegalTask(taskKind) && (
+              <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-full bg-limona-yellow/15 text-limona-yellow text-[10px] uppercase tracking-wider font-bold">
+                <Scale size={10} /> Zadanie prawne
+              </span>
+            )}
             {task.property && (
               <a href={`/nieruchomosci/${task.property_id}`}
                 className="flex items-center gap-1 text-xs text-limona-blue hover:text-limona-blue/80 mt-1">
@@ -615,6 +624,24 @@ export function TaskDetailModal({
                     ))}
                   </div>
                 )}
+              </div>
+
+              {/* Rodzaj zadania — zwykłe / prawne */}
+              <div>
+                <label className="text-[10px] uppercase tracking-wider text-limona-text-dim font-bold block mb-1">Rodzaj</label>
+                <select
+                  className="limona-select text-sm w-full"
+                  value={taskKind}
+                  onChange={e => {
+                    const v = e.target.value as TaskKind
+                    setTaskKind(v)
+                    saveField('task_kind', v)
+                  }}
+                >
+                  {TASK_KINDS.map(k => (
+                    <option key={k} value={k}>{TASK_KIND_LABELS[k]}</option>
+                  ))}
+                </select>
               </div>
 
               {/* Typ zadania */}

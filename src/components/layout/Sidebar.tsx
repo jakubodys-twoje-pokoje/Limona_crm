@@ -10,7 +10,7 @@ import { useWallContext } from '@/hooks/useWallProvider'
 import { NotificationBell } from '@/components/ui/NotificationBell'
 import { Avatar } from '@/components/ui/Avatar'
 import { cn } from '@/lib/utils'
-import { canSeeInvestors, canManageTeams } from '@/lib/roles'
+import { canSeeInvestors, canManageTeams, isDzialPrawny, homePathForRole } from '@/lib/roles'
 
 interface NavChild { href: string; icon: typeof ListTodo; label: string }
 interface NavItem { href: string; icon: typeof ListTodo; label: string; showCounter?: boolean; children?: NavChild[] }
@@ -35,6 +35,9 @@ const navItems: NavItem[] = [
   { href: '/mapa',         icon: MapPin,          label: 'Mapa' },
   { href: '/zespol',       icon: Users,           label: 'Zespół' },
 ]
+
+// Menu roli „dział prawny" — tylko zadania i nieruchomości
+const DZIAL_PRAWNY_NAV = ['/zadania', '/nieruchomosci']
 
 const adminItems: NavItem[] = [
   { href: '/admin', icon: UserCog, label: 'Użytkownicy' },
@@ -72,7 +75,13 @@ export const Sidebar = memo(function Sidebar() {
     return () => { active = false; clearInterval(id) }
   }, [canManage])
 
-  const allItems = [...navItems, ...(canManageTeams(profile?.role) ? managementItems : []), ...(isAdmin ? adminItems : [])].map(item => {
+  // Dział prawny pracuje wyłącznie na Zadaniach i Nieruchomościach —
+  // reszta menu (kontakty, leady, mapa, zespół, centrala) jest dla niego ukryta.
+  const baseItems = isDzialPrawny(profile?.role)
+    ? navItems.filter(i => DZIAL_PRAWNY_NAV.includes(i.href))
+    : [...navItems, ...(canManageTeams(profile?.role) ? managementItems : []), ...(isAdmin ? adminItems : [])]
+
+  const allItems = baseItems.map(item => {
     if (item.href !== '/kontakty' || !item.children || canInvestors) return item
     return { ...item, children: item.children.filter(c => c.href !== '/kontakty?typ=inwestor') }
   })
@@ -85,7 +94,7 @@ export const Sidebar = memo(function Sidebar() {
     <aside className="hidden lg:flex flex-col w-64 h-screen bg-limona-surface border-r border-limona-border fixed left-0 top-0 z-40">
       {/* Logo */}
       <div className="p-6 border-b border-limona-border flex-shrink-0">
-        <Link href="/dashboard" className="flex items-center gap-3">
+        <Link href={homePathForRole(profile?.role)} className="flex items-center gap-3">
           <div className="w-10 h-10 rounded bg-limona-lime/10 flex items-center justify-center">
             <Building2 size={22} className="text-limona-lime" />
           </div>

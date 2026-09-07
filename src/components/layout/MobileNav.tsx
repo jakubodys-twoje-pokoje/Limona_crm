@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation'
 import { Building2, LayoutDashboard, ListTodo, MessageSquare, Map, BookUser, Inbox } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { useWallContext } from '@/hooks/useWallProvider'
+import { isDzialPrawny } from '@/lib/roles'
 import { cn } from '@/lib/utils'
 
 // Profil jest dostępny przez avatar w górnym pasku, więc w dolnym pasku
@@ -21,15 +22,21 @@ const tabs = [
   { href: '/mapa',          icon: Map,             label: 'Mapa' },
 ]
 
+// Dział prawny ma w aplikacji tylko Zadania i Nieruchomości
+const DZIAL_PRAWNY_TABS = ['/zadania/kalendarz', '/nieruchomosci']
+
 export const MobileNav = memo(function MobileNav() {
   const pathname = usePathname()
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
   const { unreadCount } = useWallContext()
+  const visibleTabs = isDzialPrawny(profile?.role)
+    ? tabs.filter(t => DZIAL_PRAWNY_TABS.includes(t.href))
+    : tabs
 
   return (
     <nav className="lg:hidden flex-shrink-0 z-50 bg-limona-surface border-t border-limona-border">
       <div className="flex items-center justify-around h-16 px-1">
-        {tabs.map(tab => {
+        {visibleTabs.map(tab => {
           const isActive = pathname.startsWith('activePrefix' in tab && tab.activePrefix ? tab.activePrefix : tab.href)
           const counter = 'showCounter' in tab && tab.showCounter ? unreadCount : 0
           return (

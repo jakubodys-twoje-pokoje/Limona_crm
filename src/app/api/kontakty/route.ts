@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getSessionUser, unauthorized, forbidden } from '@/lib/api-auth'
 import { geocodeAddress } from '@/lib/geocode'
-import { canSeeAllTeams, canSeeInvestors, canManageTeams } from '@/lib/roles'
+import { canSeeAllTeams, canSeeInvestors, canManageTeams, canSeeClientBase } from '@/lib/roles'
 import { getUserGrants, hasKontaktTypeGrant, userCanSeeInvestors } from '@/lib/access'
 
 const SELECT_WITH_RELATIONS = `*,
@@ -18,6 +18,8 @@ const BOOL_FLAGS = [
 export async function GET(req: NextRequest) {
   const user = await getSessionUser()
   if (!user) return unauthorized()
+  // Dział prawny nie ma dostępu do bazy kontaktów (tylko zadania i nieruchomości)
+  if (!canSeeClientBase(user.role)) return forbidden()
   const supabase = await createClient()
 
   const sp = req.nextUrl.searchParams

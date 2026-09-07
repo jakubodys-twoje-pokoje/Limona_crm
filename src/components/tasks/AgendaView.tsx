@@ -3,9 +3,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   ChevronLeft, ChevronRight, ChevronDown, ChevronUp, CheckCircle2, Circle,
-  Plus, AlertTriangle, Repeat, Building2, BookUser, Clock, ArrowUpDown, Check,
+  Plus, AlertTriangle, Repeat, Building2, BookUser, Clock, ArrowUpDown, Check, Scale,
 } from 'lucide-react'
 import { Avatar } from '@/components/ui/Avatar'
+import { isLegalTask } from '@/lib/legal-tasks'
 import { cn, formatPropertyAddress } from '@/lib/utils'
 import type { Task, TaskPriority } from '@/types/database'
 
@@ -217,6 +218,12 @@ export function AgendaView({ tasks, loading, onOpenTask, onToggleDone, onRequest
               {task.due_time && (
                 <span className="inline-flex items-center gap-1 text-[11px] font-mono text-limona-text-muted">
                   <Clock size={10} />{task.due_time.slice(0, 5)}
+                </span>
+              )}
+              {isLegalTask(task.task_kind) && (
+                <span title="Zadanie prawne"
+                  className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wider font-bold text-limona-yellow">
+                  <Scale size={10} /> Prawne
                 </span>
               )}
               {task.recurrence_freq && (

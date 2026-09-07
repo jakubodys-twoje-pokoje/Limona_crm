@@ -3,7 +3,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getSessionUser, unauthorized } from '@/lib/api-auth'
 import { validateTaskRules } from '@/lib/task-rules'
-import { canSeeAllTeams } from '@/lib/roles'
+import { canSeeAllTeams, isDzialPrawny } from '@/lib/roles'
+import { normalizeTaskKind, withPropertyOwnersAsCoAssignees, legalDepartmentIds } from '@/lib/legal-tasks'
+import { notifyCardActivity } from '@/lib/notify'
 import { generateOccurrenceDates } from '@/lib/recurrence'
 import type { RecurrenceFreq } from '@/types/database'
 
@@ -26,6 +28,8 @@ export async function GET(req: NextRequest) {
   const leadId = searchParams.get('leadId')
   const visibleIds = searchParams.get('visibleIds')?.split(',').filter(Boolean)
   const boardId = searchParams.get('boardId')
+  // kind=prawne|zwykle — rozdzielenie toru prawnego od operacyjnego
+  const kind = searchParams.get('kind')
   const dueFrom = searchParams.get('dueFrom')
   const dueTo = searchParams.get('dueTo')
 
@@ -43,10 +47,17 @@ export async function GET(req: NextRequest) {
   else if (boardId) query = query.eq('board_id', boardId)
   if (dueFrom) query = query.gte('due_date', dueFrom)
   if (dueTo) query = query.lte('due_date', dueTo)
+  if (kind === 'prawne' || kind === 'zwykle') query = query.eq('task_kind', kind)
   if (visibleIds?.length) {
     const ids = visibleIds.join(',')
     // widać też zadania, gdzie user jest współprzypisanym (co_assignees[])
-    query = query.or(`assigned_to.in.(${ids}),created_by.in.(${ids}),co_assignees.ov.{${ids}}`)
+    const conds = [`assigned_to.in.(${ids})`, `created_by.in.(${ids})`, `co_assignees.ov.{${ids}}`]
+    // Dział prawny widzi WSZYSTKIE zadania prawne (niezależnie od tego, kto
+    // je założył) — to jego wspólna kolejka spraw. Opiekun nieruchomości
+    // widzi zadania prawne swojej nieruchomości, bo przy tworzeniu trafia
+    // do współwykonawców (patrz lib/legal-tasks).
+    if (isDzialPrawny(user.role)) conds.push('task_kind.eq.prawne')
+    query = query.or(conds.join(','))
   }
 
   const { data, error } = await query
@@ -64,18 +75,28 @@ export async function POST(req: NextRequest) {
   const ruleError = validateTaskRules(body)
   if (ruleError) return NextResponse.json({ error: ruleError }, { status: 400 })
 
+  const taskKind = normalizeTaskKind(body.task_kind)
+
   // Zwykły user zawsze jest głównym wykonawcą własnego zadania — nie może
   // go oddać komuś innemu, może tylko dopisać współwykonawców. Bez
   // wybranego przypisania (rola z uprawnieniami) zadanie trafia do twórcy.
   const assignedTo = canSeeAllTeams(user.role) ? (body.assigned_to ?? user.id) : user.id
   // Główny wykonawca nie może być jednocześnie współwykonawcą (CC)
-  const coAssignees = Array.isArray(body.co_assignees)
-    ? body.co_assignees.filter((id: string) => id !== assignedTo)
-    : body.co_assignees
+  const coAssignees = taskKind === 'prawne'
+    // Zadanie prawne na nieruchomości widzi też jej opiekun — dopisujemy go
+    // do współwykonawców, żeby nie zniknęło mu z listy zadań.
+    ? await withPropertyOwnersAsCoAssignees(supabase, {
+        propertyId: body.property_id,
+        assignedTo,
+        coAssignees: body.co_assignees,
+      })
+    : Array.isArray(body.co_assignees)
+      ? body.co_assignees.filter((id: string) => id !== assignedTo)
+      : body.co_assignees
 
   const { data: task, error } = await supabase
     .from('tasks')
-    .insert({ ...body, assigned_to: assignedTo, co_assignees: coAssignees, created_by: user.id })
+    .insert({ ...body, task_kind: taskKind, assigned_to: assignedTo, co_assignees: coAssignees, created_by: user.id })
     .select(SELECT_WITH_RELATIONS)
     .single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -87,6 +108,20 @@ export async function POST(req: NextRequest) {
       user_id: user.id,
       action: 'task_created',
       details: { title: task.title },
+    })
+  }
+
+  // Nowe zadanie prawne — powiadom dział prawny i opiekunów nieruchomości,
+  // żeby sprawa nie czekała na przypadkowe zauważenie na liście.
+  if (taskKind === 'prawne') {
+    await notifyCardActivity(supabase, {
+      actorId: user.id,
+      linkedUserIds: [...(await legalDepartmentIds(supabase)), task.assigned_to, ...(task.co_assignees ?? [])],
+      type: 'card_change',
+      title: 'Nowe zadanie prawne',
+      body: `${user.name} — ${task.title}`,
+      link: '/zadania',
+      referenceId: task.id,
     })
   }
 
@@ -105,6 +140,7 @@ export async function POST(req: NextRequest) {
         description: task.description,
         status: 'todo',
         priority: task.priority,
+        task_kind: task.task_kind,
         task_type: task.task_type,
         contact_category: task.contact_category,
         due_date: dueDate,

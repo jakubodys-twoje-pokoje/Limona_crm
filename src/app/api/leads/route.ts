@@ -2,8 +2,8 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getSessionUser, unauthorized } from '@/lib/api-auth'
-import { canSeeAllTeams } from '@/lib/roles'
+import { getSessionUser, unauthorized, forbidden } from '@/lib/api-auth'
+import { canSeeAllTeams, canSeeClientBase } from '@/lib/roles'
 import { findDuplicateLead, duplicateAssigneeName } from '@/lib/lead-dedupe'
 import { geocodeAddress } from '@/lib/geocode'
 import { getUserGrants } from '@/lib/access'
@@ -15,6 +15,8 @@ const SELECT_WITH_RELATIONS = `*,
 export async function GET(req: NextRequest) {
   const user = await getSessionUser()
   if (!user) return unauthorized()
+  // Dział prawny nie ma dostępu do leadów (tylko zadania i nieruchomości)
+  if (!canSeeClientBase(user.role)) return forbidden()
   const supabase = await createClient()
 
   const { searchParams } = req.nextUrl

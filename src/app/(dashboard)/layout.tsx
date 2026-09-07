@@ -1,8 +1,9 @@
 'use client'
 
 import { useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
+import { canAccessPath, homePathForRole } from '@/lib/roles'
 import { Sidebar } from '@/components/layout/Sidebar'
 import { MobileNav } from '@/components/layout/MobileNav'
 import { TopBar } from '@/components/layout/TopBar'
@@ -20,13 +21,21 @@ export default function DashboardLayout({
 }) {
   const { user, profile, loading } = useAuth()
   const router = useRouter()
+  const pathname = usePathname()
   const requiresDailyReport = profile?.role === 'user'
+  // Bramka nawigacyjna ról o zawężonym dostępie (dział prawny: tylko
+  // Zadania i Nieruchomości) — wejście z linku/adresu wraca na ich stronę startową.
+  const pathAllowed = canAccessPath(profile?.role, pathname)
 
   useEffect(() => {
     if (!loading && !user) {
       router.push('/auth/login')
+      return
     }
-  }, [user, loading, router])
+    if (!loading && user && profile && !pathAllowed) {
+      router.replace(homePathForRole(profile.role))
+    }
+  }, [user, profile, loading, pathAllowed, router])
 
   if (loading) {
     return (
@@ -37,6 +46,7 @@ export default function DashboardLayout({
   }
 
   if (!user) return null
+  if (profile && !pathAllowed) return null
 
   return (
     <ToastProvider>

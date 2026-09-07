@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic'
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Edit, Clock, User, Phone, Plus, CheckCircle, Circle, Trash2, Layers, FileText, ExternalLink, Square, CheckSquare, Building2, Compass, MessageSquare, Users, X, Save, Archive, RotateCcw } from 'lucide-react'
+import { ArrowLeft, Edit, Clock, User, Phone, Plus, CheckCircle, Circle, Trash2, Layers, FileText, ExternalLink, Square, CheckSquare, Building2, Compass, MessageSquare, Users, X, Save, Archive, RotateCcw, Scale } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { useProperties } from '@/hooks/useProperties'
 import { useTasks } from '@/hooks/useTasks'
@@ -28,8 +28,9 @@ import { PropertyComments } from '@/components/properties/PropertyComments'
 import { DriveFiles } from '@/components/shared/DriveFiles'
 import { sumLineItems } from '@/lib/calculator'
 import { canSeeInvestors, canSeeAllTeams } from '@/lib/roles'
+import { isLegalTask } from '@/lib/legal-tasks'
 import { useMyGrants, grantsIncludeInvestors } from '@/hooks/useMyGrants'
-import type { Property, Task, Document, PropertyNegotiationNote, PropertyInvestor, StatusDluznika, StatusInwestora, InvestorPropertyStatus, ChecklistItemState, Profile } from '@/types/database'
+import type { Property, Task, TaskKind, Document, PropertyNegotiationNote, PropertyInvestor, StatusDluznika, StatusInwestora, InvestorPropertyStatus, ChecklistItemState, Profile } from '@/types/database'
 import {
   STAGE_TASK_TEMPLATES, DEAL_TYPE_LABELS,
   STATUS_DLUZNIKA_OPTIONS, STATUS_DLUZNIKA_LABELS, STATUS_INWESTORA_OPTIONS, STATUS_INWESTORA_LABELS,
@@ -96,15 +97,21 @@ export default function PropertyDetailPage() {
   const { showToast } = useToast()
   const confirmDialog = useConfirm()
   const canAssign = canSeeAllTeams(profile?.role)
+  // Tor prawny jest prowadzony obok zwykłych zadań — te same karty zadań,
+  // ale w osobnej zakładce, żeby lista operacyjna się nie zaśmiecała.
+  const regularTasks = tasks.filter(t => !isLegalTask(t.task_kind))
+  const legalTasks = tasks.filter(t => isLegalTask(t.task_kind))
 
   const [property, setProperty] = useState<Property | null>(null)
   const [profiles, setProfiles] = useState<Profile[]>([])
   const [loadingProp, setLoadingProp] = useState(true)
-  const [activeTab, setActiveTab] = useState<'komentarze' | 'tasks' | 'docs' | 'checklist' | 'negocjacja' | 'inwestorzy' | 'log' | 'report'>('tasks')
+  const [activeTab, setActiveTab] = useState<'komentarze' | 'tasks' | 'tasks_legal' | 'docs' | 'checklist' | 'negocjacja' | 'inwestorzy' | 'log' | 'report'>('tasks')
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   const [showEditModal, setShowEditModal] = useState(false)
   const [showRequestDelete, setShowRequestDelete] = useState(false)
   const [showAddTask, setShowAddTask] = useState(false)
+  // Rodzaj zadania dodawanego z karty — wynika z otwartej zakładki
+  const [addTaskKind, setAddTaskKind] = useState<TaskKind>('zwykle')
   const [showTemplates, setShowTemplates] = useState(false)
   const [selectedTemplates, setSelectedTemplates] = useState<string[]>([])
 
@@ -669,7 +676,8 @@ export default function PropertyDetailPage() {
       <div className="flex gap-1 border-b border-limona-border overflow-x-auto">
         {([
           { key: 'komentarze', label: `Komentarze${commentCount !== null ? ` (${commentCount})` : ''}` },
-          { key: 'tasks', label: `Zadania (${tasks.length})` },
+          { key: 'tasks', label: `Zadania (${regularTasks.length})` },
+          { key: 'tasks_legal', label: `Zadania prawne (${legalTasks.length})` },
           { key: 'docs', label: `Dokumenty${driveCount !== null ? ` (${driveCount})` : ''}` },
           { key: 'checklist', label: `Checklista i status (${Object.values(property.checklist || {}).filter(s => s.checked).length}/${CHECKLIST_INFO.length + CHECKLIST_DOCS.length})` },
           { key: 'negocjacja', label: 'Negocjacja' },
@@ -692,14 +700,26 @@ export default function PropertyDetailPage() {
         ))}
       </div>
 
-      {activeTab === 'tasks' && (
+      {(activeTab === 'tasks' || activeTab === 'tasks_legal') && (() => {
+        const legalTab = activeTab === 'tasks_legal'
+        const shownTasks = legalTab ? legalTasks : regularTasks
+        return (
         <div className="space-y-3">
+          {legalTab && (
+            <p className="text-xs text-limona-text-muted flex items-start gap-2 limona-card p-3">
+              <Scale size={14} className="text-limona-yellow flex-shrink-0 mt-0.5" />
+              <span>
+                Zadania prawne prowadzi dział prawny. Widzą je: dział prawny oraz osoby przypisane
+                do tej nieruchomości — zwykłe zadania operacyjne zostają w zakładce obok.
+              </span>
+            </p>
+          )}
           <div className="flex gap-2">
-            <button type="button" onClick={() => setShowAddTask(true)} className="limona-btn-sm flex items-center gap-1">
+            <button type="button" onClick={() => { setAddTaskKind(legalTab ? 'prawne' : 'zwykle'); setShowAddTask(true) }} className="limona-btn-sm flex items-center gap-1">
               <Plus size={14} />
-              Dodaj zadanie
+              {legalTab ? 'Dodaj zadanie prawne' : 'Dodaj zadanie'}
             </button>
-            {stageTemplates.length > 0 && (
+            {!legalTab && stageTemplates.length > 0 && (
               <button
                 type="button"
                 onClick={() => { setShowTemplates(true); setSelectedTemplates([...stageTemplates]) }}
@@ -712,7 +732,7 @@ export default function PropertyDetailPage() {
           </div>
 
           {/* Stage templates modal */}
-          {showTemplates && (
+          {!legalTab && showTemplates && (
             <div className="limona-card-accent p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <p className="text-xs text-limona-lime uppercase tracking-wider font-bold">
@@ -745,10 +765,12 @@ export default function PropertyDetailPage() {
             </div>
           )}
 
-          {tasks.length === 0 ? (
-            <p className="text-center text-limona-text-muted py-8">Brak zadań</p>
+          {shownTasks.length === 0 ? (
+            <p className="text-center text-limona-text-muted py-8">
+              {legalTab ? 'Brak zadań prawnych' : 'Brak zadań'}
+            </p>
           ) : (
-            sortTasksDoneLast(tasks).map(task => (
+            sortTasksDoneLast(shownTasks).map(task => (
               <div key={task.id}
                 onClick={() => setSelectedTask(task)}
                 className="limona-card flex items-center gap-3 p-3 cursor-pointer hover:border-limona-lime/40 transition-colors"
@@ -771,6 +793,9 @@ export default function PropertyDetailPage() {
                   )}
                 </div>
                 <div className="flex items-center gap-2">
+                  {isLegalTask(task.task_kind) && (
+                    <span title="Zadanie prawne" className="text-limona-yellow"><Scale size={13} /></span>
+                  )}
                   <Badge value={task.priority} />
                   <button
                     onClick={e => { e.stopPropagation(); deleteTask(task.id) }}
@@ -783,7 +808,8 @@ export default function PropertyDetailPage() {
             ))
           )}
         </div>
-      )}
+        )
+      })()}
 
       {activeTab === 'docs' && (
         <div className="space-y-4">
@@ -1251,6 +1277,9 @@ export default function PropertyDetailPage() {
         userId={user?.id || ''}
         canAssign={canAssign}
         profiles={profiles}
+        defaults={{ task_kind: addTaskKind }}
+        lockedKind
+        title={addTaskKind === 'prawne' ? 'Dodaj zadanie prawne' : 'Dodaj zadanie'}
         lockedPropertyLabel={formatPropertyAddress(property)}
       />
     </div>

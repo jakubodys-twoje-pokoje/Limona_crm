@@ -29,7 +29,15 @@ export type TaskStatus = 'todo' | 'in_progress' | 'done' | 'blocked'
 
 export type TaskPriority = 'low' | 'medium' | 'high' | 'urgent'
 
-export type UserRole = 'admin' | 'kierownik_centrali' | 'manager' | 'user' | 'viewer'
+/**
+ * Rodzaj zadania — rozdziela tor operacyjny od prawnego:
+ *  'zwykle' → zwykłe zadanie (domyślne),
+ *  'prawne' → zadanie działu prawnego (własna zakładka na nieruchomości,
+ *             widoczne dla opiekuna nieruchomości i dla działu prawnego).
+ */
+export type TaskKind = 'zwykle' | 'prawne'
+
+export type UserRole = 'admin' | 'kierownik_centrali' | 'manager' | 'dzial_prawny' | 'user' | 'viewer'
 
 // --- Etap 0: dane strukturalne z pracy kontaktowej + temperatura leada ---
 export type TaskType = 'wizyta' | 'telefon' | 'inne'
@@ -152,6 +160,7 @@ export interface Task {
   description: string | null
   status: TaskStatus
   priority: TaskPriority
+  task_kind: TaskKind
   task_type: TaskType | null
   contact_category: ContactCategory | null
   outcome: TaskOutcome | null
