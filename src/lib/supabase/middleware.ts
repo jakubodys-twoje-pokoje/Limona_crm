@@ -6,8 +6,11 @@ import { createServerClient } from '@supabase/ssr'
  * może zapisać odświeżone tokeny do cookies przy żądaniach do
  * Server Components. Nie robi redirectów (ochrona tras pozostaje
  * w aplikacji, jak przed migracją).
+ *
+ * Zwraca też id zalogowanego użytkownika — proxy sprawdza po nim, czy
+ * ciasteczko podglądu „jako" należy do tej sesji.
  */
-export async function updateSession(request: NextRequest) {
+export async function updateSession(request: NextRequest): Promise<{ response: NextResponse; userId: string | null }> {
   let response = NextResponse.next({ request })
 
   const supabase = createServerClient(
@@ -32,7 +35,7 @@ export async function updateSession(request: NextRequest) {
   )
 
   // Nie usuwać: getUser() odświeża wygasły token i zapisuje go w cookies.
-  await supabase.auth.getUser()
+  const { data: { user } } = await supabase.auth.getUser()
 
-  return response
+  return { response, userId: user?.id ?? null }
 }

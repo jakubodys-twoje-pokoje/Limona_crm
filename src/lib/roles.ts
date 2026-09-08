@@ -30,6 +30,15 @@ export function canSeeInvestors(role: UserRole | string | undefined): boolean {
 }
 
 /**
+ * Kto może włączyć „podgląd jako użytkownik" — centrala (admin, kierownik
+ * centrali). Podgląd jest tylko do odczytu; służy do sprawdzenia, co widzi
+ * konkretna osoba (jej filtry widoczności, menu i uprawnienia).
+ */
+export function canViewAsUser(role: UserRole | string | undefined): boolean {
+  return role === 'admin' || role === 'kierownik_centrali'
+}
+
+/**
  * Kto zakłada zadania prawne i przełącza rodzaj zadania (zwykłe ↔ prawne):
  * wyłącznie centrala — admin i kierownik centrali. Zwykli użytkownicy oraz
  * samo konto działu prawnego zadania prawne tylko widzą i realizują; nowe

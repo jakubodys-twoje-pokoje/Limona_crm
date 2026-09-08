@@ -6,6 +6,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { canAccessPath, homePathForRole } from '@/lib/roles'
 import { Sidebar } from '@/components/layout/Sidebar'
 import { MobileNav } from '@/components/layout/MobileNav'
+import { ViewAsBanner } from '@/components/layout/ViewAsBanner'
 import { TopBar } from '@/components/layout/TopBar'
 import { ToastProvider } from '@/components/ui/Toast'
 import { ConfirmProvider } from '@/components/ui/Confirm'
@@ -19,10 +20,12 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode
 }) {
-  const { user, profile, loading } = useAuth()
+  const { user, profile, loading, viewAs } = useAuth()
   const router = useRouter()
   const pathname = usePathname()
-  const requiresDailyReport = profile?.role === 'user'
+  // W podglądzie „jako" nie wyświetlamy raportu dziennego — to zadanie
+  // oglądanej osoby, a i tak nie dałoby się go zapisać (tryb tylko do odczytu).
+  const requiresDailyReport = profile?.role === 'user' && !viewAs
   // Bramka nawigacyjna ról o zawężonym dostępie (dział prawny: tylko
   // Zadania i Nieruchomości) — wejście z linku/adresu wraca na ich stronę startową.
   const pathAllowed = canAccessPath(profile?.role, pathname)
@@ -66,6 +69,7 @@ export default function DashboardLayout({
             </div>
           )}
           <main className="lg:ml-64 pt-14 lg:pt-16 flex-1 min-h-0 overflow-y-auto lg:flex-none lg:min-h-screen lg:overflow-visible">
+            <ViewAsBanner />
             <div className="p-4 lg:p-8 lg:pt-2">
               {children}
             </div>

@@ -3,6 +3,13 @@
 import { createContext, useContext, useEffect, useMemo, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
+/** Kto naprawdę jest zalogowany, gdy trwa podgląd „jako użytkownik" */
+export interface ViewAsState {
+  real_id: string
+  real_name: string
+  real_role: string
+}
+
 interface Profile {
   id: string
   full_name: string
@@ -13,12 +20,18 @@ interface Profile {
   rejon_lat: number | null
   rejon_lng: number | null
   theme_preference: string
+  /** Niepuste tylko w trybie podglądu jako inny użytkownik */
+  view_as?: ViewAsState | null
 }
 
 interface AuthContextType {
   user: { id: string; email: string } | null
   profile: Profile | null
   loading: boolean
+  /** Trwa podgląd jako inny użytkownik (tylko odczyt) — dane osoby oglądającej */
+  viewAs: ViewAsState | null
+  /** Wyjście z podglądu i powrót na własne konto */
+  exitViewAs: () => Promise<void>
   signIn: (email: string, password: string) => Promise<{ error: string | null }>
   signOut: () => Promise<void>
 }
@@ -27,6 +40,8 @@ const AuthContext = createContext<AuthContextType>({
   user: null,
   profile: null,
   loading: true,
+  viewAs: null,
+  exitViewAs: async () => {},
   signIn: async () => ({ error: null }),
   signOut: async () => {},
 })
@@ -58,7 +73,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       try {
         const res = await fetch('/api/profiles/me')
-        if (res.ok && !cancelled) setProfile(await res.json())
+        if (res.ok && !cancelled) {
+          const data: Profile = await res.json()
+          setProfile(data)
+          // W podglądzie „jako" tożsamością efektywną (także dla UI) jest
+          // osoba oglądana — API filtruje dane dokładnie tak samo.
+          if (data.view_as) setUser({ id: data.id, email: data.email })
+        }
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -86,13 +107,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { error: null }
   }, [supabase])
 
+  const exitViewAs = useCallback(async () => {
+    await fetch('/api/impersonate', { method: 'DELETE' })
+    // Twardy reload: wszystkie widoki mają się przeładować na własne dane
+    window.location.href = '/dashboard'
+  }, [])
+
   const signOut = useCallback(async () => {
+    // Wylogowanie kończy też podgląd — inaczej ciasteczko zostałoby na przeglądarce
+    await fetch('/api/impersonate', { method: 'DELETE' }).catch(() => {})
     await supabase.auth.signOut()
   }, [supabase])
 
   const value = useMemo(() => ({
-    user, profile, loading, signIn, signOut,
-  }), [user, profile, loading, signIn, signOut])
+    user, profile, loading, viewAs: profile?.view_as ?? null, exitViewAs, signIn, signOut,
+  }), [user, profile, loading, exitViewAs, signIn, signOut])
 
   return (
     <AuthContext.Provider value={value}>

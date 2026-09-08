@@ -14,6 +14,7 @@ import { Modal } from '@/components/ui/Modal'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { cn } from '@/lib/utils'
 import { canManageTeams, ROLE_LABELS } from '@/lib/roles'
+import { ViewAsIconButton } from '@/components/shared/ViewAsUser'
 import type { Profile, UserRole } from '@/types/database'
 
 export default function AdminPage() {
@@ -177,6 +178,7 @@ export default function AdminPage() {
                     {ROLE_LABELS[p.role] ?? p.role}
                   </span>
                   <div className="flex gap-1">
+                    <ViewAsIconButton userId={p.id} name={p.full_name} />
                     <button onClick={() => startEdit(p)} className="p-2 text-limona-text-muted hover:text-limona-lime transition-colors" title="Edytuj">
                       <Edit size={16} />
                     </button>

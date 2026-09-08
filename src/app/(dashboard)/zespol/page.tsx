@@ -12,6 +12,7 @@ import { Modal } from '@/components/ui/Modal'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { cn } from '@/lib/utils'
 import { canManageTeams, ROLE_LABELS } from '@/lib/roles'
+import { ViewAsButton } from '@/components/shared/ViewAsUser'
 import type { UserRole, Team } from '@/types/database'
 
 const ROLE_BADGE_STYLE: Record<UserRole, string> = {
@@ -131,11 +132,14 @@ export default function ZespolPage() {
             Nazwane zespoły, liderzy i widoczność raportów/zadań
           </p>
         </div>
-        {canManage && (
-          <button onClick={() => setShowCreate(true)} className="limona-btn flex items-center gap-2 flex-shrink-0">
-            <Plus size={14} /> Nowy zespół
-          </button>
-        )}
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <ViewAsButton />
+          {canManage && (
+            <button onClick={() => setShowCreate(true)} className="limona-btn flex items-center gap-2 flex-shrink-0">
+              <Plus size={14} /> Nowy zespół
+            </button>
+          )}
+        </div>
       </div>
 
       {!canManage && (

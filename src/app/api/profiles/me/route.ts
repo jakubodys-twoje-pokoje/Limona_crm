@@ -15,5 +15,13 @@ export async function GET() {
     .single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  return NextResponse.json(profile)
+  // Przy podglądzie „jako użytkownik" zwracamy profil OGLĄDANEJ osoby (UI ma
+  // wyglądać jak u niej) plus informację, kto naprawdę jest zalogowany —
+  // z tego korzysta pasek podglądu i wyjście z trybu.
+  return NextResponse.json({
+    ...profile,
+    view_as: user.viewAs
+      ? { real_id: user.viewAs.realId, real_name: user.viewAs.realName, real_role: user.viewAs.realRole }
+      : null,
+  })
 }
