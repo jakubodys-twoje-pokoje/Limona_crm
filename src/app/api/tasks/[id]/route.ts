@@ -5,7 +5,7 @@ import { getSessionUser, unauthorized } from '@/lib/api-auth'
 import { validateTaskRules } from '@/lib/task-rules'
 import { TASK_STATUS_LABELS, formatStatusChangeComment } from '@/lib/status-comments'
 import { mirrorTaskCommentToCards } from '@/lib/taskCommentMirror'
-import { canSeeAllTeams } from '@/lib/roles'
+import { canSeeAllTeams, canCreateLegalTasks } from '@/lib/roles'
 import { normalizeTaskKind, withPropertyOwnersAsCoAssignees } from '@/lib/legal-tasks'
 import { notifyCardActivity } from '@/lib/notify'
 import type { TaskStatus } from '@/types/database'
@@ -57,6 +57,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   // inaczej zadanie zniknęłoby im z listy, mimo że dotyczy ich sprawy.
   if ('task_kind' in body) {
     body.task_kind = normalizeTaskKind(body.task_kind)
+    // Przełączać tor zwykły ↔ prawny może tylko centrala
+    if (body.task_kind !== existing.task_kind && !canCreateLegalTasks(user.role)) {
+      return NextResponse.json(
+        { error: 'Rodzaj zadania (zwykłe / prawne) zmienia centrala — admin albo kierownik centrali' },
+        { status: 403 },
+      )
+    }
     if (body.task_kind === 'prawne' && existing.task_kind !== 'prawne') {
       body.co_assignees = await withPropertyOwnersAsCoAssignees(supabase, {
         propertyId: 'property_id' in body ? body.property_id : existing.property_id,

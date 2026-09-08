@@ -21,6 +21,8 @@ interface BoardViewProps {
   userName: string
   isAdmin: boolean
   canAssign: boolean
+  /** Może zakładać zadania prawne (centrala) */
+  canCreateLegal?: boolean
   profiles: Profile[]
   allTasks: Task[]
   /** Filtr po agencie (id) — pusty = wszyscy */
@@ -29,7 +31,7 @@ interface BoardViewProps {
   onBoardDelete: () => Promise<void>
 }
 
-export function BoardView({ board, visibleIds, userId, userName, isAdmin, canAssign, profiles, assigneeFilter = '', onBoardUpdate, onBoardDelete }: BoardViewProps) {
+export function BoardView({ board, visibleIds, userId, userName, isAdmin, canAssign, canCreateLegal = false, profiles, assigneeFilter = '', onBoardUpdate, onBoardDelete }: BoardViewProps) {
   const confirmDialog = useConfirm()
   const [lists, setLists] = useState<BoardList[]>([])
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
@@ -210,6 +212,7 @@ export function BoardView({ board, visibleIds, userId, userName, isAdmin, canAss
           userName={userName}
           isAdmin={isAdmin}
           canAssign={canAssign}
+          canCreateLegal={canCreateLegal}
           profiles={profiles}
           tasks={tasks}
         />
@@ -221,6 +224,7 @@ export function BoardView({ board, visibleIds, userId, userName, isAdmin, canAss
         onCreate={handleCreateTask}
         userId={userId}
         canAssign={canAssign}
+        canCreateLegal={canCreateLegal}
         profiles={profiles}
         visibleIds={visibleIds}
         defaults={{ status: 'todo' }}

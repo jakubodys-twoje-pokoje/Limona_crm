@@ -27,7 +27,7 @@ import { InvestorOfferCard } from '@/components/properties/InvestorOfferCard'
 import { PropertyComments } from '@/components/properties/PropertyComments'
 import { DriveFiles } from '@/components/shared/DriveFiles'
 import { sumLineItems } from '@/lib/calculator'
-import { canSeeInvestors, canSeeAllTeams } from '@/lib/roles'
+import { canSeeInvestors, canSeeAllTeams, canCreateLegalTasks } from '@/lib/roles'
 import { isLegalTask } from '@/lib/legal-tasks'
 import { useMyGrants, grantsIncludeInvestors } from '@/hooks/useMyGrants'
 import type { Property, Task, TaskKind, Document, PropertyNegotiationNote, PropertyInvestor, StatusDluznika, StatusInwestora, InvestorPropertyStatus, ChecklistItemState, Profile } from '@/types/database'
@@ -97,6 +97,8 @@ export default function PropertyDetailPage() {
   const { showToast } = useToast()
   const confirmDialog = useConfirm()
   const canAssign = canSeeAllTeams(profile?.role)
+  // Zadania prawne zakłada centrala — pozostali widzą zakładkę tylko do pracy
+  const canCreateLegal = canCreateLegalTasks(profile?.role)
   // Tor prawny jest prowadzony obok zwykłych zadań — te same karty zadań,
   // ale w osobnej zakładce, żeby lista operacyjna się nie zaśmiecała.
   const regularTasks = tasks.filter(t => !isLegalTask(t.task_kind))
@@ -711,9 +713,12 @@ export default function PropertyDetailPage() {
               <span>
                 Zadania prawne prowadzi dział prawny. Widzą je: dział prawny oraz osoby przypisane
                 do tej nieruchomości — zwykłe zadania operacyjne zostają w zakładce obok.
+                {!canCreateLegal && ' Nowe zadanie prawne zakłada centrala (admin albo kierownik centrali).'}
               </span>
             </p>
           )}
+          {/* Zadania prawne zakłada wyłącznie centrala — dla reszty zakładka jest do pracy nad sprawą */}
+          {(!legalTab || canCreateLegal) && (
           <div className="flex gap-2">
             <button type="button" onClick={() => { setAddTaskKind(legalTab ? 'prawne' : 'zwykle'); setShowAddTask(true) }} className="limona-btn-sm flex items-center gap-1">
               <Plus size={14} />
@@ -730,6 +735,7 @@ export default function PropertyDetailPage() {
               </button>
             )}
           </div>
+          )}
 
           {/* Stage templates modal */}
           {!legalTab && showTemplates && (
@@ -1265,6 +1271,7 @@ export default function PropertyDetailPage() {
           userName={profile?.full_name || ''}
           isAdmin={profile?.role === 'admin'}
           canAssign={canAssign}
+          canCreateLegal={canCreateLegal}
           profiles={profiles}
           tasks={tasks}
         />
@@ -1277,6 +1284,7 @@ export default function PropertyDetailPage() {
         userId={user?.id || ''}
         canAssign={canAssign}
         profiles={profiles}
+        canCreateLegal={canCreateLegal}
         defaults={{ task_kind: addTaskKind }}
         lockedKind
         title={addTaskKind === 'prawne' ? 'Dodaj zadanie prawne' : 'Dodaj zadanie'}

@@ -37,6 +37,8 @@ interface TaskDetailModalProps {
   isAdmin: boolean
   /** Może zmienić głównego wykonawcę (przełożyć na kogoś innego) — role z uprawnieniami zarządzania zespołem */
   canAssign: boolean
+  /** Może przełączać rodzaj zadania zwykłe ↔ prawne (centrala) */
+  canCreateLegal?: boolean
   profiles: Profile[]
   tasks: Task[]
   /** Nawigacja ‹ › po aktualnie przefiltrowanej liście (opcjonalna — bez niej strzałki się nie pokazują) */
@@ -68,7 +70,7 @@ function CircleIcon() {
 }
 
 export function TaskDetailModal({
-  task, isOpen, onClose, onUpdate, onDelete, userId, userName, isAdmin, canAssign, profiles, tasks,
+  task, isOpen, onClose, onUpdate, onDelete, userId, userName, isAdmin, canAssign, canCreateLegal = false, profiles, tasks,
   onNavigate, hasPrev, hasNext,
 }: TaskDetailModalProps) {
   const confirmDialog = useConfirm()
@@ -626,7 +628,8 @@ export function TaskDetailModal({
                 )}
               </div>
 
-              {/* Rodzaj zadania — zwykłe / prawne */}
+              {/* Rodzaj zadania — zwykłe / prawne (przełącza wyłącznie centrala) */}
+              {canCreateLegal && (
               <div>
                 <label className="text-[10px] uppercase tracking-wider text-limona-text-dim font-bold block mb-1">Rodzaj</label>
                 <select
@@ -643,6 +646,7 @@ export function TaskDetailModal({
                   ))}
                 </select>
               </div>
+              )}
 
               {/* Typ zadania */}
               <div>

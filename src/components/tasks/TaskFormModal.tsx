@@ -75,6 +75,8 @@ interface TaskFormModalProps {
   profiles: Profile[]
   /** Wartości startowe (status, termin, powiązania, board_id/list_id itp.) */
   defaults?: Partial<TaskFormData> & { board_id?: string | null; list_id?: string | null }
+  /** Może zakładać zadania prawne (centrala) — bez tego formularz tworzy tylko zadania zwykłe */
+  canCreateLegal?: boolean
   /** Rodzaj zadania ustalony przez kontekst (zakładka Zadania prawne) — pole tylko do odczytu */
   lockedKind?: boolean
   /** Ukryj wybór nieruchomości (karta nieruchomości) i pokaż powiązanie jako stałe */
@@ -96,13 +98,16 @@ interface TaskFormModalProps {
  */
 export function TaskFormModal({
   isOpen, onClose, onCreate, userId, canAssign, profiles,
-  defaults, lockedKind, lockedPropertyLabel, lockedKontaktLabel, lockedLeadLabel, visibleIds,
+  defaults, canCreateLegal = false, lockedKind, lockedPropertyLabel, lockedKontaktLabel, lockedLeadLabel, visibleIds,
   title = 'Dodaj zadanie', onSuccess,
 }: TaskFormModalProps) {
   const buildInitial = (): TaskFormData => ({
     ...EMPTY_TASK_FORM,
     assigned_to: canAssign ? '' : userId,
     ...defaults,
+    // Bez uprawnień centrali zawsze zadanie zwykłe — nawet gdyby kontekst
+    // podpowiadał inaczej (API pilnuje tego samego).
+    ...(canCreateLegal ? {} : { task_kind: 'zwykle' as TaskKind }),
   })
 
   const [form, setForm] = useState<TaskFormData>(buildInitial)
@@ -214,6 +219,7 @@ export function TaskFormModal({
             onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
             placeholder="Szczegóły..." rows={3} />
         </div>
+        {canCreateLegal && (
         <div>
           <label className="limona-label block mb-2">Rodzaj zadania</label>
           <select className="limona-select disabled:opacity-60" value={form.task_kind} disabled={lockedKind}
@@ -228,6 +234,7 @@ export function TaskFormModal({
               : 'Zwykłe zadanie operacyjne.'}
           </p>
         </div>
+        )}
 
         <div className="grid grid-cols-2 gap-4">
           <div>

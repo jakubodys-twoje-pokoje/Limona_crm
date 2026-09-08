@@ -18,7 +18,7 @@ import { TaskDetailModal } from '@/components/tasks/TaskDetailModal'
 import { TaskFormModal } from '@/components/tasks/TaskFormModal'
 import { TaskSearchBar, TaskSearchResults, searchTasks } from '@/components/tasks/TaskSearch'
 import { BoardView, BOARD_COLORS } from '@/components/tasks/BoardView'
-import { canSeeAllTeams } from '@/lib/roles'
+import { canSeeAllTeams, canCreateLegalTasks } from '@/lib/roles'
 import { isLegalTask } from '@/lib/legal-tasks'
 import { cn, formatPropertyAddress, isOverdueDate, taskMatchesAssignee } from '@/lib/utils'
 import { usePersistentState } from '@/hooks/usePersistentState'
@@ -48,6 +48,8 @@ interface NewBoardForm {
 export default function ZadaniaPage() {
   const { user, profile } = useAuth()
   const canAssign = canSeeAllTeams(profile?.role)
+  // Zadania prawne zakłada centrala (admin / kierownik centrali)
+  const canCreateLegal = canCreateLegalTasks(profile?.role)
   const { visibleIds, loading: visLoading } = useVisibleUserIds(user?.id, profile?.role)
   const { boards, loading: boardsLoading, createBoard, updateBoard, deleteBoard } = useBoards()
 
@@ -248,6 +250,7 @@ export default function ZadaniaPage() {
           userName={profile?.full_name || ''}
           isAdmin={profile?.role === 'admin'}
           canAssign={canAssign}
+          canCreateLegal={canCreateLegal}
           profiles={profiles}
           allTasks={tasks}
           assigneeFilter={assigneeFilter}
@@ -446,6 +449,7 @@ export default function ZadaniaPage() {
         onCreate={handleCreateTask}
         userId={user?.id || ''}
         canAssign={canAssign}
+        canCreateLegal={canCreateLegal}
         profiles={profiles}
         visibleIds={visibleIds}
         defaults={{ status: addStatus }}
@@ -463,6 +467,7 @@ export default function ZadaniaPage() {
           userName={profile?.full_name || ''}
           isAdmin={profile?.role === 'admin'}
           canAssign={canAssign}
+          canCreateLegal={canCreateLegal}
           profiles={profiles}
           tasks={tasks}
           onNavigate={dir => { const next = navTasks[taskNavIndex + dir]; if (next) setSelectedTask(next) }}

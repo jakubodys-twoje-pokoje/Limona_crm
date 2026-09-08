@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getSessionUser, unauthorized } from '@/lib/api-auth'
 import { validateTaskRules } from '@/lib/task-rules'
-import { canSeeAllTeams, isDzialPrawny } from '@/lib/roles'
+import { canSeeAllTeams, isDzialPrawny, canCreateLegalTasks } from '@/lib/roles'
 import { normalizeTaskKind, withPropertyOwnersAsCoAssignees, legalDepartmentIds } from '@/lib/legal-tasks'
 import { notifyCardActivity } from '@/lib/notify'
 import { generateOccurrenceDates } from '@/lib/recurrence'
@@ -75,7 +75,15 @@ export async function POST(req: NextRequest) {
   const ruleError = validateTaskRules(body)
   if (ruleError) return NextResponse.json({ error: ruleError }, { status: 400 })
 
+  // Do toru prawnego kieruje sprawy centrala — zwykły user zakłada tylko
+  // zadania zwykłe (UI nie pokazuje mu wyboru rodzaju).
   const taskKind = normalizeTaskKind(body.task_kind)
+  if (taskKind === 'prawne' && !canCreateLegalTasks(user.role)) {
+    return NextResponse.json(
+      { error: 'Zadania prawne zakłada centrala — admin albo kierownik centrali' },
+      { status: 403 },
+    )
+  }
 
   // Zwykły user zawsze jest głównym wykonawcą własnego zadania — nie może
   // go oddać komuś innemu, może tylko dopisać współwykonawców. Bez

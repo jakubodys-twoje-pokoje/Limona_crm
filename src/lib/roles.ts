@@ -30,6 +30,16 @@ export function canSeeInvestors(role: UserRole | string | undefined): boolean {
 }
 
 /**
+ * Kto zakłada zadania prawne i przełącza rodzaj zadania (zwykłe ↔ prawne):
+ * wyłącznie centrala — admin i kierownik centrali. Zwykli użytkownicy oraz
+ * samo konto działu prawnego zadania prawne tylko widzą i realizują; nowe
+ * sprawy do toru prawnego kieruje centrala.
+ */
+export function canCreateLegalTasks(role: UserRole | string | undefined): boolean {
+  return role === 'admin' || role === 'kierownik_centrali'
+}
+
+/**
  * Dział prawny — konto obsługujące wyłącznie tor prawny: widzi Zadania
  * i Nieruchomości (w tym wszystkie zadania prawne), bez bazy kontaktów,
  * leadów, zespołów i panelu centrali.

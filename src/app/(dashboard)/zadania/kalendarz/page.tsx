@@ -13,7 +13,7 @@ import { AgendaView } from '@/components/tasks/AgendaView'
 import { TaskDetailModal } from '@/components/tasks/TaskDetailModal'
 import { TaskFormModal } from '@/components/tasks/TaskFormModal'
 import { TaskSearchBar, TaskSearchResults, searchTasks } from '@/components/tasks/TaskSearch'
-import { canSeeAllTeams } from '@/lib/roles'
+import { canSeeAllTeams, canCreateLegalTasks } from '@/lib/roles'
 import { cn, taskMatchesAssignee } from '@/lib/utils'
 import { usePersistentState } from '@/hooks/usePersistentState'
 import type { Task, Profile } from '@/types/database'
@@ -25,6 +25,8 @@ type CalMode = 'agenda' | 'grid'
 export default function ZadaniaKalendarzPage() {
   const { user, profile } = useAuth()
   const canAssign = canSeeAllTeams(profile?.role)
+  // Zadania prawne zakłada centrala (admin / kierownik centrali)
+  const canCreateLegal = canCreateLegalTasks(profile?.role)
   const { visibleIds, loading: visLoading } = useVisibleUserIds(user?.id, profile?.role)
   const { tasks, loading, createTask, updateTask, deleteTask, reorderTasks } = useTasks(undefined, visibleIds, undefined, undefined, !visLoading)
   const [profiles, setProfiles] = useState<Profile[]>([])
@@ -183,6 +185,7 @@ export default function ZadaniaKalendarzPage() {
         onCreate={handleCreateTask}
         userId={user?.id || ''}
         canAssign={canAssign}
+        canCreateLegal={canCreateLegal}
         profiles={profiles}
         visibleIds={visibleIds}
         defaults={{ status: 'todo', due_date: addCtx?.date ?? '', due_time: addCtx?.time ?? '' }}
@@ -199,6 +202,7 @@ export default function ZadaniaKalendarzPage() {
           userName={profile?.full_name || ''}
           isAdmin={profile?.role === 'admin'}
           canAssign={canAssign}
+          canCreateLegal={canCreateLegal}
           profiles={profiles}
           tasks={tasks}
           onNavigate={dir => { const next = navTasks[taskNavIndex + dir]; if (next) setSelectedTask(next) }}
