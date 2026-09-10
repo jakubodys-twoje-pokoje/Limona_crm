@@ -187,7 +187,6 @@ export default function ZadaniaKalendarzPage() {
         canAssign={canAssign}
         canCreateLegal={canCreateLegal}
         profiles={profiles}
-        visibleIds={visibleIds}
         defaults={{ status: 'todo', due_date: addCtx?.date ?? '', due_time: addCtx?.time ?? '' }}
       />
 

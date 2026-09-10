@@ -3,8 +3,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getSessionUser, unauthorized, forbidden } from '@/lib/api-auth'
 import { geocodeAddress } from '@/lib/geocode'
-import { canSeeAllTeams, canSeeInvestors, canManageTeams, canSeeClientBase } from '@/lib/roles'
+import { canSeeInvestors, canManageTeams, canSeeClientBase } from '@/lib/roles'
 import { getUserGrants, hasKontaktTypeGrant, userCanSeeInvestors } from '@/lib/access'
+import { getVisibleUserIds } from '@/lib/visibility'
 
 const SELECT_WITH_RELATIONS = `*,
   creator:profiles!kontakty_created_by_fkey(id,full_name,avatar_url),
@@ -29,7 +30,11 @@ export async function GET(req: NextRequest) {
   const miasto = sp.get('miasto')
   const assignedTo = sp.get('assigned_to')
   const search = sp.get('search')
-  const visibleIds = sp.get('visibleIds')?.split(',').filter(Boolean)
+
+  // Zakres widoczności liczy serwer — parametr od klienta nic tu nie znaczy.
+  // Wcześniej brak parametru oznaczał „pokaż wszystko", więc ekrany, które go
+  // nie dokładały (Mapa), wyświetlały każdemu całą bazę kontaktów.
+  const visibleIds = await getVisibleUserIds(supabase, user.id, user.role)
 
   // Granty dostępu (panel dostępów): mogą odblokować typy kontaktów —
   // całą kategorię (np. wszyscy inwestorzy) albo rekordy konkretnej osoby.
@@ -62,7 +67,7 @@ export async function GET(req: NextRequest) {
   // listę id.in.(...) — po „Udostępnij miasto" agent ma setki udostępnień
   // i lista ID rozsadzała URL zapytania do PostgREST (błąd 500 → agentowi
   // „znikała" cała baza kontaktów, łącznie z własnymi).
-  const restricted = !canSeeAllTeams(user.role) && !!visibleIds?.length
+  const restricted = visibleIds !== null
 
   function buildQuery(from: number, to: number, variant: 'all' | 'own' | 'shared') {
     const select = variant === 'shared'

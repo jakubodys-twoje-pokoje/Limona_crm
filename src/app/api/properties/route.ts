@@ -18,7 +18,6 @@ export async function GET(req: NextRequest) {
   const supabase = await createClient()
 
   const { searchParams } = req.nextUrl
-  const visibleIds = searchParams.get('visibleIds')?.split(',').filter(Boolean)
   const archived = searchParams.get('archived') === '1'
 
   // Archiwum trzymamy maksymalnie ARCHIVE_RETENTION_DAYS — starsze usuwamy
@@ -38,13 +37,17 @@ export async function GET(req: NextRequest) {
     query = query.is('archived_at', null).order('created_at', { ascending: false })
   }
 
-  // Granty dostępu: „cała kategoria" znosi filtr, granty per-osoba dokładają
-  // widoczność rekordów wskazanych właścicieli. Dodatkowo dział prawny widzi
-  // całą bazę nieruchomości — prowadzi sprawy na cudzych nieruchomościach.
+  // Widoczność liczy serwer (klient nie może jej rozszerzyć):
+  //  - admin / manager / kierownik centrali oraz dział prawny — cała baza,
+  //  - pozostali — WYŁĄCZNIE własne karty: dodane przez siebie (created_by),
+  //    prowadzone (assigned_to) albo takie, do których zostali dopisani jako
+  //    dodatkowy opiekun (co_assignees). Nie ma tu widoczności „po terenie"
+  //    ani po zespole — nieruchomość jest sprawą osoby, która ją prowadzi.
+  //  - granty z panelu dostępów mogą to poszerzyć (cała kategoria albo
+  //    rekordy wskazanych osób).
   const grants = await getUserGrants(supabase, user.id)
-  if (visibleIds?.length && !grants.nieruchomosci.all && !canSeeAllProperties(user.role)) {
-    const ids = [...new Set([...visibleIds, ...grants.nieruchomosci.userIds])].join(',')
-    // widać też nieruchomości, gdzie user jest dodatkowym opiekunem (co_assignees[])
+  if (!canSeeAllProperties(user.role) && !grants.nieruchomosci.all) {
+    const ids = [...new Set([user.id, ...grants.nieruchomosci.userIds])].join(',')
     query = query.or(`assigned_to.in.(${ids}),created_by.in.(${ids}),co_assignees.ov.{${ids}}`)
   }
 

@@ -17,9 +17,12 @@ export interface KontaktyFilters {
   zgoda_ulotki?: boolean
   zgoda_plakat?: boolean
   operator_budowy_zainteresowani?: boolean
-  visibleIds?: string[] | null
 }
 
+/**
+ * Kontakty widoczne dla bieżącego użytkownika. Zakres (własne + udostępnione
+ * + granty) wyznacza serwer — filtry poniżej tylko go zawężają.
+ */
 export function useKontakty(filters?: KontaktyFilters, enabled: boolean = true) {
   const [kontakty, setKontakty] = useState<Kontakt[]>([])
   const [loading, setLoading] = useState(true)
@@ -33,7 +36,6 @@ export function useKontakty(filters?: KontaktyFilters, enabled: boolean = true) 
     if (filters.miasto)      p.set('miasto', filters.miasto)
     if (filters.assigned_to) p.set('assigned_to', filters.assigned_to)
     if (filters.search)      p.set('search', filters.search)
-    if (filters.visibleIds?.length) p.set('visibleIds', filters.visibleIds.join(','))
     for (const flag of [
       'wizyta_osobista',
       'wyslany_mail_oferta',
@@ -51,8 +53,6 @@ export function useKontakty(filters?: KontaktyFilters, enabled: boolean = true) 
   const initializedRef = useRef(false)
 
   const fetchKontakty = useCallback(async () => {
-    // enabled=false, dopóki nie znamy uprawnień widoczności — inaczej pierwszy
-    // fetch leci bez filtra i agent przez moment widzi cudze kontakty
     if (!enabled) return
     if (!initializedRef.current) setLoading(true)
     const res = await fetch(`/api/kontakty?${buildParams()}`)

@@ -451,7 +451,6 @@ export default function ZadaniaPage() {
         canAssign={canAssign}
         canCreateLegal={canCreateLegal}
         profiles={profiles}
-        visibleIds={visibleIds}
         defaults={{ status: addStatus }}
       />
 

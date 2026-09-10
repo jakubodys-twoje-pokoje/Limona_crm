@@ -85,8 +85,6 @@ interface TaskFormModalProps {
   lockedKontaktLabel?: string
   /** Zadanie tworzone z karty leada — pokazuje leada jako stałe powiązanie, bez pickerów */
   lockedLeadLabel?: string
-  /** Do leniwego ładowania list powiązań; gdy oba locki ustawione — pomijane */
-  visibleIds?: string[] | null
   title?: string
   onSuccess?: () => void
 }
@@ -98,7 +96,7 @@ interface TaskFormModalProps {
  */
 export function TaskFormModal({
   isOpen, onClose, onCreate, userId, canAssign, profiles,
-  defaults, canCreateLegal = false, lockedKind, lockedPropertyLabel, lockedKontaktLabel, lockedLeadLabel, visibleIds,
+  defaults, canCreateLegal = false, lockedKind, lockedPropertyLabel, lockedKontaktLabel, lockedLeadLabel,
   title = 'Dodaj zadanie', onSuccess,
 }: TaskFormModalProps) {
   const buildInitial = (): TaskFormData => ({
@@ -131,9 +129,8 @@ export function TaskFormModal({
   useEffect(() => {
     if (!isOpen || pickersFetched.current) return
     pickersFetched.current = true
-    const visParam = visibleIds?.length ? `?visibleIds=${visibleIds.join(',')}` : ''
     if (!lockedPropertyLabel && !lockedLeadLabel) {
-      fetch(`/api/properties${visParam}`)
+      fetch('/api/properties')
         .then(r => r.ok ? r.json() : [])
         .then((data: { id: string; adres: string; kod_pocztowy: string | null; miasto: string | null; kontakt?: { ostatnia_wizyta?: string | null } }[]) => {
           setPickProperties(data.map(p => ({ id: p.id, label: formatPropertyAddress(p), sublabel: p.miasto })))
@@ -145,7 +142,7 @@ export function TaskFormModal({
         .catch(() => {})
     }
     if (!lockedKontaktLabel && !lockedLeadLabel) {
-      fetch(`/api/kontakty${visParam}`)
+      fetch('/api/kontakty')
         .then(r => r.ok ? r.json() : [])
         .then((data: { id: string; nazwa: string; typ: string; miasto: string | null; ostatnia_wizyta?: string | null }[]) => {
           setPickKontakty(data.map(k => ({
@@ -169,7 +166,7 @@ export function TaskFormModal({
         })
         .catch(() => {})
     }
-  }, [isOpen, visibleIds, lockedPropertyLabel, lockedKontaktLabel, lockedLeadLabel])
+  }, [isOpen, lockedPropertyLabel, lockedKontaktLabel, lockedLeadLabel])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()

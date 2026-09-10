@@ -8,6 +8,8 @@ import { getStatusDluznikaLabel, getStatusInwestoraLabel } from '@/lib/stages'
 import { formatStatusChangeComment } from '@/lib/status-comments'
 import { notifyCardActivity } from '@/lib/notify'
 import { formatPropertyAddress } from '@/lib/utils'
+import { canSeeAllProperties } from '@/lib/roles'
+import { getUserGrants } from '@/lib/access'
 
 const SELECT_WITH_RELATIONS = `*,
   creator:profiles!properties_created_by_fkey(id,full_name,avatar_url),
@@ -26,7 +28,38 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     .maybeSingle()
 
   if (!property) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  // Ten sam zakres co na liście: własna karta (dodana albo przypisana),
+  // grant z panelu dostępów, albo zadanie przypisane mi na tej karcie —
+  // ostatni przypadek trzyma przy życiu linki z listy zadań (np. zadanie
+  // prawne na cudzej nieruchomości).
+  if (!canSeeAllProperties(user.role)) {
+    const grants = await getUserGrants(supabase, user.id)
+    const owners = [property.assigned_to, property.created_by, ...((property.co_assignees as string[] | null) ?? [])]
+      .filter((v): v is string => !!v)
+    const allowed = grants.nieruchomosci.all
+      || owners.includes(user.id)
+      || owners.some(o => grants.nieruchomosci.userIds.includes(o))
+      || await hasOwnTaskOnProperty(supabase, id, user.id)
+    if (!allowed) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
+
   return NextResponse.json(property)
+}
+
+/** Czy user ma na tej nieruchomości własne zadanie (prowadzi je lub jest dopisany) */
+async function hasOwnTaskOnProperty(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  propertyId: string,
+  userId: string,
+): Promise<boolean> {
+  const { data } = await supabase
+    .from('tasks')
+    .select('id')
+    .eq('property_id', propertyId)
+    .or(`assigned_to.eq.${userId},created_by.eq.${userId},co_assignees.ov.{${userId}}`)
+    .limit(1)
+  return !!data?.length
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {

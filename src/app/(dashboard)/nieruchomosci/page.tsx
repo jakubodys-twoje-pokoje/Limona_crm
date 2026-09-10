@@ -27,8 +27,10 @@ function daysLeftInArchive(archivedAt: string | null): number {
 
 export default function NieruchomosciPage() {
   const { user, profile } = useAuth()
-  const { visibleIds, loading: visLoading } = useVisibleUserIds(user?.id, profile?.role)
-  const { properties, loading, createProperty, updateProperty, deleteProperty } = useProperties(visibleIds, !visLoading)
+  // Zakres widoczności liczy serwer — czekamy tylko, aż będzie znany, żeby
+  // nie migać pustą listą przy pierwszym renderze.
+  const { loading: visLoading } = useVisibleUserIds(user?.id, profile?.role)
+  const { properties, loading, createProperty, updateProperty, deleteProperty } = useProperties(!visLoading)
   const { showToast } = useToast()
 
   const [view, setView] = usePersistentState<'active' | 'archive'>('nieruchomosci:view', 'active')
@@ -37,7 +39,7 @@ export default function NieruchomosciPage() {
     loading: archiveLoading,
     updateProperty: updateArchived,
     deleteProperty: deleteArchived,
-  } = useProperties(visibleIds, !visLoading && view === 'archive', true)
+  } = useProperties(!visLoading && view === 'archive', true)
 
   const [showAddModal, setShowAddModal] = useState(false)
   const [editProperty, setEditProperty] = useState<Property | null>(null)

@@ -226,7 +226,6 @@ export function BoardView({ board, visibleIds, userId, userName, isAdmin, canAss
         canAssign={canAssign}
         canCreateLegal={canCreateLegal}
         profiles={profiles}
-        visibleIds={visibleIds}
         defaults={{ status: 'todo' }}
       />
     </div>

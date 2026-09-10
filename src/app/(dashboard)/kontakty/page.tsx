@@ -31,8 +31,8 @@ export default function KontaktyPage() {
   const activeTyp: KontaktTyp | null = typParam && (KONTAKT_TYPY as string[]).includes(typParam) ? typParam as KontaktTyp : null
   const canInvestors = canSeeInvestors(profile?.role) || grantsIncludeInvestors(grants)
   const denied = activeTyp === 'inwestor' && !canInvestors
-  const { visibleIds, loading: visLoading } = useVisibleUserIds(user?.id, profile?.role)
-  const filters = useMemo(() => ({ visibleIds, typ: denied ? undefined : (activeTyp || undefined) }), [visibleIds, activeTyp, denied])
+  const { loading: visLoading } = useVisibleUserIds(user?.id, profile?.role)
+  const filters = useMemo(() => ({ typ: denied ? undefined : (activeTyp || undefined) }), [activeTyp, denied])
   const { kontakty, loading, createKontakt, fetchKontakty } = useKontakty(filters, !visLoading)
   const { showToast } = useToast()
   const [profiles, setProfiles] = useState<Profile[]>([])

@@ -56,7 +56,7 @@ export default function DashboardPage() {
       .catch(() => {})
   }, [isCentrala])
   const { visibleIds, loading: visLoading } = useVisibleUserIds(profile?.id, profile?.role)
-  const { properties, loading: propsLoading } = useProperties(visibleIds, !visLoading)
+  const { properties, loading: propsLoading } = useProperties(!visLoading)
   const { tasks, loading: tasksLoading } = useTasks(undefined, visibleIds, undefined, undefined, !visLoading)
   const { leads, loading: leadsLoading } = useLeads()
   const { messages: wallMessages, loading: wallLoading, isRead } = useWall(user?.id)
