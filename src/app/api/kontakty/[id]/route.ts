@@ -6,8 +6,8 @@ import { geocodeAddress } from '@/lib/geocode'
 import { formatFlagChangeComment } from '@/lib/status-comments'
 import { canManageTeams } from '@/lib/roles'
 import { canDeleteRecords } from '@/lib/deletion'
-import { userCanSeeInvestors, getUserGrants } from '@/lib/access'
-import { getVisibleUserIds } from '@/lib/visibility'
+import { userCanSeeInvestors } from '@/lib/access'
+import { canAccessKontakt, recordNotFound } from '@/lib/record-access'
 
 const SELECT_WITH_RELATIONS = `*,
   creator:profiles!kontakty_created_by_fkey(id,full_name,avatar_url),
@@ -27,45 +27,12 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     .maybeSingle()
 
   if (!kontakt) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-  // Inwestora otworzy centrala/admin ORAZ user z grantem na inwestorów
-  if (kontakt.typ === 'inwestor' && !(await userCanSeeInvestors(supabase, user.id, user.role))) {
-    return NextResponse.json({ error: 'Not found' }, { status: 404 })
-  }
+  // Ten sam zakres co na liście (patrz lib/record-access) — obejmuje też
+  // bramkę na inwestorów. Bez tego kartę cudzego kontaktu dałoby się
+  // otworzyć wprost z adresu, np. z pinezki na mapie.
+  if (!(await canAccessKontakt(supabase, user, id))) return recordNotFound()
 
-  // Ten sam zakres widoczności co na liście — inaczej kartę cudzego kontaktu
-  // dałoby się otworzyć wprost z adresu (np. z pinezki na mapie).
-  const visibleIds = await getVisibleUserIds(supabase, user.id, user.role)
-  if (visibleIds && !(await canOpenKontakt(supabase, user.id, visibleIds, kontakt))) {
-    return NextResponse.json({ error: 'Not found' }, { status: 404 })
-  }
   return NextResponse.json(kontakt)
-}
-
-/**
- * Czy user może otworzyć kartę kontaktu: należy do niego (lub do kogoś z jego
- * zakresu widoczności), został mu udostępniony, albo odblokowuje go grant
- * z panelu dostępów.
- */
-async function canOpenKontakt(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  userId: string,
-  visibleIds: string[],
-  kontakt: { id: string; typ: string; assigned_to: string | null; created_by: string | null },
-): Promise<boolean> {
-  const owners = [kontakt.assigned_to, kontakt.created_by].filter((v): v is string => !!v)
-  if (owners.some(id => visibleIds.includes(id))) return true
-
-  const grants = await getUserGrants(supabase, userId)
-  const g = grants.kontaktTypes[kontakt.typ as keyof typeof grants.kontaktTypes]
-  if (g && (g.all || owners.some(id => g.userIds.includes(id)))) return true
-
-  const { data: share } = await supabase
-    .from('kontakt_shares')
-    .select('id')
-    .eq('kontakt_id', kontakt.id)
-    .eq('shared_with_user_id', userId)
-    .maybeSingle()
-  return !!share
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -73,6 +40,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (!user) return unauthorized()
   const supabase = await createClient()
   const { id } = await params
+
+  // Edytować można tylko to, co się widzi — ta sama reguła co przy odczycie
+  if (!(await canAccessKontakt(supabase, user, id))) return recordNotFound()
 
   const body = await req.json()
   const statusComment: string | undefined = body.statusComment
@@ -158,6 +128,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   // Usuwać wprost mogą tylko role zarządzające zespołem — zwykły użytkownik
   // zgłasza prośbę o usunięcie (POST /api/deletion-requests)
   if (!canDeleteRecords(user.role)) return forbidden()
+  if (!(await canAccessKontakt(supabase, user, id))) return recordNotFound()
 
   const { error } = await supabase.from('kontakty').delete().eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getSessionUser, unauthorized } from '@/lib/api-auth'
+import { canAccessProperty, recordNotFound } from '@/lib/record-access'
 
 const SELECT_WITH_USER = '*, user:profiles!property_negotiation_notes_user_id_fkey(id,full_name,avatar_url)'
 
@@ -10,6 +11,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   if (!user) return unauthorized()
   const supabase = await createClient()
   const { id } = await params
+  if (!(await canAccessProperty(supabase, user, id))) return recordNotFound()
   const investorId = req.nextUrl.searchParams.get('investorId')
 
   let query = supabase
@@ -31,6 +33,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!user) return unauthorized()
   const supabase = await createClient()
   const { id } = await params
+  if (!(await canAccessProperty(supabase, user, id))) return recordNotFound()
 
   const { content, investorId } = await req.json()
   if (!content?.trim()) return NextResponse.json({ error: 'content required' }, { status: 400 })

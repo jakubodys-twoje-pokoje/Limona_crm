@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getSessionUser, unauthorized } from '@/lib/api-auth'
+import { canAccessProperty, recordNotFound } from '@/lib/record-access'
 
 export async function GET(req: NextRequest) {
   const user = await getSessionUser()
@@ -10,6 +11,8 @@ export async function GET(req: NextRequest) {
 
   const propertyId = req.nextUrl.searchParams.get('propertyId')
   if (!propertyId) return NextResponse.json({ error: 'propertyId required' }, { status: 400 })
+  // Dokumenty należą do karty nieruchomości — dostęp jak do niej samej
+  if (!(await canAccessProperty(supabase, user, propertyId))) return recordNotFound()
 
   const { data: docs, error } = await supabase
     .from('documents')
@@ -46,6 +49,7 @@ export async function POST(req: NextRequest) {
   if (!property_id || !name?.trim() || !file_url?.trim()) {
     return NextResponse.json({ error: 'property_id, name i file_url są wymagane' }, { status: 400 })
   }
+  if (!(await canAccessProperty(supabase, user, property_id))) return recordNotFound()
 
   const { data: doc, error } = await supabase
     .from('documents')

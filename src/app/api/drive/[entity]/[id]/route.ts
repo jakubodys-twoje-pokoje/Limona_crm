@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getSessionUser, unauthorized } from '@/lib/api-auth'
+import { canAccessEntity, recordNotFound } from '@/lib/record-access'
 import { driveConfigured, driveAuthMode, driveOAuthConnected, listFiles, createFolder, trashItem, driveErrorMessage, driveNeedsReconnect } from '@/lib/drive'
 import {
   ensureEntityFolder, getEntityFolderId, isInsideFolder, safeFolderName, type DriveEntity,
@@ -37,6 +38,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ enti
   if (!ENTITIES.includes(entity as DriveEntity)) {
     return NextResponse.json({ error: 'Nieznany typ rekordu' }, { status: 400 })
   }
+  // Dokumenty na Drive to część karty — dostęp jak do niej samej
+  if (!(await canAccessEntity(await createClient(), user, entity, id))) return recordNotFound()
   if (!driveConfigured()) return NextResponse.json({ configured: false })
   // OAuth skonfigurowany w env, ale admin nie połączył jeszcze konta Google
   if (driveAuthMode() === 'oauth' && !(await driveOAuthConnected())) {
@@ -83,6 +86,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ent
   if (!ENTITIES.includes(entity as DriveEntity)) {
     return NextResponse.json({ error: 'Nieznany typ rekordu' }, { status: 400 })
   }
+  // Dokumenty na Drive to część karty — dostęp jak do niej samej
+  if (!(await canAccessEntity(await createClient(), user, entity, id))) return recordNotFound()
   if (!driveConfigured()) {
     return NextResponse.json({ error: 'Integracja Google Drive nie jest skonfigurowana' }, { status: 400 })
   }
@@ -126,6 +131,8 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ e
   if (!ENTITIES.includes(entity as DriveEntity)) {
     return NextResponse.json({ error: 'Nieznany typ rekordu' }, { status: 400 })
   }
+  // Dokumenty na Drive to część karty — dostęp jak do niej samej
+  if (!(await canAccessEntity(await createClient(), user, entity, id))) return recordNotFound()
   if (!driveConfigured()) {
     return NextResponse.json({ error: 'Integracja Google Drive nie jest skonfigurowana' }, { status: 400 })
   }

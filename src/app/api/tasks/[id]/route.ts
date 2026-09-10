@@ -8,6 +8,7 @@ import { mirrorTaskCommentToCards } from '@/lib/taskCommentMirror'
 import { canSeeAllTeams, canCreateLegalTasks } from '@/lib/roles'
 import { normalizeTaskKind, withPropertyOwnersAsCoAssignees } from '@/lib/legal-tasks'
 import { notifyCardActivity } from '@/lib/notify'
+import { canAccessProperty, canAccessKontakt, canAccessLead } from '@/lib/record-access'
 import type { TaskStatus } from '@/types/database'
 
 const SELECT_WITH_RELATIONS = `*,
@@ -38,6 +39,21 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const ruleError = validateTaskRules({ ...existing, ...body })
   if (ruleError) return NextResponse.json({ error: ruleError }, { status: 400 })
+
+  // Przepięcie zadania na inną kartę tylko w granicach swojego dostępu
+  for (const [field, check] of [
+    ['property_id', canAccessProperty],
+    ['kontakt_id', canAccessKontakt],
+    ['lead_id', canAccessLead],
+  ] as const) {
+    const value = body[field]
+    if (value && !(await check(supabase, user, value))) {
+      return NextResponse.json(
+        { error: 'Nie masz dostępu do karty, z którą próbujesz powiązać zadanie' },
+        { status: 403 },
+      )
+    }
+  }
 
   // Zwykły user nie może przełożyć zadania na kogoś innego (ani przejąć
   // cudzego) — tylko role z uprawnieniami zarządzania zespołem to robią

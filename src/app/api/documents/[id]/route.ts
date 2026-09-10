@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getSessionUser, unauthorized } from '@/lib/api-auth'
+import { canAccessProperty, recordNotFound } from '@/lib/record-access'
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getSessionUser()
@@ -11,10 +12,11 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
 
   const { data: doc } = await supabase
     .from('documents')
-    .select('id, uploaded_by')
+    .select('id, uploaded_by, property_id')
     .eq('id', id)
     .maybeSingle()
   if (!doc) return NextResponse.json({ error: 'Nie znaleziono' }, { status: 404 })
+  if (!(await canAccessProperty(supabase, user, doc.property_id))) return recordNotFound()
 
   if (doc.uploaded_by !== user.id && user.role !== 'admin') {
     return NextResponse.json({ error: 'Brak uprawnień' }, { status: 403 })
@@ -30,6 +32,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (!user) return unauthorized()
   const supabase = await createClient()
   const { id } = await params
+
+  const { data: existing } = await supabase
+    .from('documents')
+    .select('property_id')
+    .eq('id', id)
+    .maybeSingle()
+  if (!existing) return NextResponse.json({ error: 'Nie znaleziono' }, { status: 404 })
+  if (!(await canAccessProperty(supabase, user, existing.property_id))) return recordNotFound()
 
   const body = await req.json()
   const updates: Record<string, unknown> = {}

@@ -6,6 +6,7 @@ import { validateTaskRules } from '@/lib/task-rules'
 import { canSeeAllTeams, isDzialPrawny, canCreateLegalTasks } from '@/lib/roles'
 import { normalizeTaskKind, withPropertyOwnersAsCoAssignees, legalDepartmentIds } from '@/lib/legal-tasks'
 import { notifyCardActivity } from '@/lib/notify'
+import { canAccessProperty, canAccessKontakt, canAccessLead } from '@/lib/record-access'
 import { generateOccurrenceDates } from '@/lib/recurrence'
 import type { RecurrenceFreq } from '@/types/database'
 
@@ -65,6 +66,22 @@ export async function GET(req: NextRequest) {
   return NextResponse.json(data)
 }
 
+/** Sprawdza powiązania zadania (nieruchomość / kontakt / lead) — null gdy OK */
+async function checkTaskLinks(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  user: { id: string; role: string },
+  body: { property_id?: string | null; kontakt_id?: string | null; lead_id?: string | null },
+): Promise<NextResponse | null> {
+  const denied = NextResponse.json(
+    { error: 'Nie masz dostępu do karty, z którą próbujesz powiązać zadanie' },
+    { status: 403 },
+  )
+  if (body.property_id && !(await canAccessProperty(supabase, user, body.property_id))) return denied
+  if (body.kontakt_id && !(await canAccessKontakt(supabase, user, body.kontakt_id))) return denied
+  if (body.lead_id && !(await canAccessLead(supabase, user, body.lead_id))) return denied
+  return null
+}
+
 export async function POST(req: NextRequest) {
   const user = await getSessionUser()
   if (!user) return unauthorized()
@@ -74,6 +91,12 @@ export async function POST(req: NextRequest) {
 
   const ruleError = validateTaskRules(body)
   if (ruleError) return NextResponse.json({ error: ruleError }, { status: 400 })
+
+  // Powiązać zadanie można tylko z kartą, do której ma się dostęp. Bez tego
+  // dałoby się „przypiąć" zadanie do cudzej nieruchomości i otworzyć ją
+  // wyjątkiem dla własnych zadań (patrz lib/record-access).
+  const linkError = await checkTaskLinks(supabase, user, body)
+  if (linkError) return linkError
 
   // Do toru prawnego kieruje sprawy centrala — zwykły user zakłada tylko
   // zadania zwykłe (UI nie pokazuje mu wyboru rodzaju).

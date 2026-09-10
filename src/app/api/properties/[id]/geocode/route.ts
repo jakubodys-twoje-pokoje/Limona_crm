@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getSessionUser, unauthorized } from '@/lib/api-auth'
+import { canAccessProperty, recordNotFound } from '@/lib/record-access'
 import { geocodeAddress } from '@/lib/geocode'
 
 export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -9,6 +10,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
   if (!user) return unauthorized()
   const supabase = await createClient()
   const { id } = await params
+  if (!(await canAccessProperty(supabase, user, id))) return recordNotFound()
 
   const { data: property } = await supabase
     .from('properties')

@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getSessionUser, unauthorized, forbidden } from '@/lib/api-auth'
+import { canAccessEntity, recordNotFound } from '@/lib/record-access'
 import { canReviewDeletions, type DeletionEntityType } from '@/lib/deletion'
 
 const SELECT_WITH_USERS = `*,
@@ -47,6 +48,9 @@ export async function POST(req: NextRequest) {
   if (!(entity_type in ENTITY_LABEL)) {
     return NextResponse.json({ error: 'Nieznany typ rekordu' }, { status: 400 })
   }
+  // Zgłosić do usunięcia można tylko rekord, który się widzi — inaczej sama
+  // prośba zwracałaby etykietę (adres/nazwę) cudzej karty.
+  if (!(await canAccessEntity(supabase, user, entity_type, entity_id))) return recordNotFound()
 
   // Nie dubluj otwartej prośby dla tego samego rekordu
   const { data: existing } = await supabase

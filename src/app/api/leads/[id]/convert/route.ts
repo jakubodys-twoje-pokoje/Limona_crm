@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getSessionUser, unauthorized } from '@/lib/api-auth'
+import { canAccessLead, recordNotFound } from '@/lib/record-access'
 import { geocodeAddress } from '@/lib/geocode'
 import { formatStatusChangeComment, LEAD_STATUS_LABELS } from '@/lib/status-comments'
 import { driveConfigured } from '@/lib/drive'
@@ -24,6 +25,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!user) return unauthorized()
   const supabase = await createClient()
   const { id } = await params
+  if (!(await canAccessLead(supabase, user, id))) return recordNotFound()
 
   const body = await req.json()
   const comment: string | undefined = body.comment

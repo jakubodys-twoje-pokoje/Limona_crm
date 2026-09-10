@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getSessionUser, unauthorized } from '@/lib/api-auth'
+import { canAccessProperty, recordNotFound } from '@/lib/record-access'
 
 export async function GET(req: NextRequest) {
   const user = await getSessionUser()
@@ -10,6 +11,8 @@ export async function GET(req: NextRequest) {
 
   const propertyId = req.nextUrl.searchParams.get('propertyId')
   if (!propertyId) return NextResponse.json({ error: 'propertyId required' }, { status: 400 })
+  // Historia karty = ta sama widoczność co karta
+  if (!(await canAccessProperty(supabase, user, propertyId))) return recordNotFound()
 
   const { data, error } = await supabase
     .from('activity_log')

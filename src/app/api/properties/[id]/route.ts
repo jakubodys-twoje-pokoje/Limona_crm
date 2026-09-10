@@ -8,8 +8,7 @@ import { getStatusDluznikaLabel, getStatusInwestoraLabel } from '@/lib/stages'
 import { formatStatusChangeComment } from '@/lib/status-comments'
 import { notifyCardActivity } from '@/lib/notify'
 import { formatPropertyAddress } from '@/lib/utils'
-import { canSeeAllProperties } from '@/lib/roles'
-import { getUserGrants } from '@/lib/access'
+import { canAccessProperty, recordNotFound } from '@/lib/record-access'
 
 const SELECT_WITH_RELATIONS = `*,
   creator:profiles!properties_created_by_fkey(id,full_name,avatar_url),
@@ -28,38 +27,10 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     .maybeSingle()
 
   if (!property) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-
-  // Ten sam zakres co na liście: własna karta (dodana albo przypisana),
-  // grant z panelu dostępów, albo zadanie przypisane mi na tej karcie —
-  // ostatni przypadek trzyma przy życiu linki z listy zadań (np. zadanie
-  // prawne na cudzej nieruchomości).
-  if (!canSeeAllProperties(user.role)) {
-    const grants = await getUserGrants(supabase, user.id)
-    const owners = [property.assigned_to, property.created_by, ...((property.co_assignees as string[] | null) ?? [])]
-      .filter((v): v is string => !!v)
-    const allowed = grants.nieruchomosci.all
-      || owners.includes(user.id)
-      || owners.some(o => grants.nieruchomosci.userIds.includes(o))
-      || await hasOwnTaskOnProperty(supabase, id, user.id)
-    if (!allowed) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-  }
+  // Ten sam zakres, co na liście (patrz lib/record-access)
+  if (!(await canAccessProperty(supabase, user, id))) return recordNotFound()
 
   return NextResponse.json(property)
-}
-
-/** Czy user ma na tej nieruchomości własne zadanie (prowadzi je lub jest dopisany) */
-async function hasOwnTaskOnProperty(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  propertyId: string,
-  userId: string,
-): Promise<boolean> {
-  const { data } = await supabase
-    .from('tasks')
-    .select('id')
-    .eq('property_id', propertyId)
-    .or(`assigned_to.eq.${userId},created_by.eq.${userId},co_assignees.ov.{${userId}}`)
-    .limit(1)
-  return !!data?.length
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -67,6 +38,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (!user) return unauthorized()
   const supabase = await createClient()
   const { id } = await params
+
+  // Edytować można tylko to, co się widzi — ta sama reguła co przy odczycie
+  if (!(await canAccessProperty(supabase, user, id))) return recordNotFound()
 
   const body = await req.json()
   const statusComment: string | undefined = body.statusComment
@@ -152,6 +126,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   // Usuwać wprost mogą tylko role zarządzające zespołem — zwykły użytkownik
   // zgłasza prośbę o usunięcie (POST /api/deletion-requests)
   if (!canDeleteRecords(user.role)) return forbidden()
+  if (!(await canAccessProperty(supabase, user, id))) return recordNotFound()
 
   const { error } = await supabase.from('properties').delete().eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

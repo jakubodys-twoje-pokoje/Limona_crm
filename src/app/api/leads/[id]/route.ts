@@ -5,6 +5,7 @@ import { getSessionUser, unauthorized, forbidden } from '@/lib/api-auth'
 import { LEAD_STATUS_LABELS, formatStatusChangeComment } from '@/lib/status-comments'
 import { validateLeadTransition } from '@/lib/lead-rules'
 import { canSeeAllTeams } from '@/lib/roles'
+import { canAccessLead, recordNotFound } from '@/lib/record-access'
 import { canDeleteRecords } from '@/lib/deletion'
 import { geocodeAddress } from '@/lib/geocode'
 import { notifyCardActivity } from '@/lib/notify'
@@ -26,6 +27,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     .eq('id', id)
     .maybeSingle()
   if (!lead) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  // Ten sam zakres co na liście leadów
+  if (!(await canAccessLead(supabase, user, id))) return recordNotFound()
+
   return NextResponse.json(lead)
 }
 
@@ -34,6 +38,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (!user) return unauthorized()
   const supabase = await createClient()
   const { id } = await params
+
+  if (!(await canAccessLead(supabase, user, id))) return recordNotFound()
 
   const body = await req.json()
   const statusComment: string | undefined = body.statusComment
@@ -132,6 +138,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   // Usuwać wprost mogą tylko role zarządzające zespołem — zwykły użytkownik
   // zgłasza prośbę o usunięcie (POST /api/deletion-requests)
   if (!canDeleteRecords(user.role)) return forbidden()
+  if (!(await canAccessLead(supabase, user, id))) return recordNotFound()
 
   const { error } = await supabase.from('leads').delete().eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

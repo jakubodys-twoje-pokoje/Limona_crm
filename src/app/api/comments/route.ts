@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getSessionUser, unauthorized } from '@/lib/api-auth'
 import { notifyCardActivity } from '@/lib/notify'
+import { canAccessTask, recordNotFound } from '@/lib/record-access'
 
 const SELECT_WITH_USER = '*, user:profiles!task_comments_user_id_fkey(id,full_name,avatar_url)'
 
@@ -13,6 +14,7 @@ export async function GET(req: NextRequest) {
 
   const taskId = req.nextUrl.searchParams.get('taskId')
   if (!taskId) return NextResponse.json({ error: 'taskId required' }, { status: 400 })
+  if (!(await canAccessTask(supabase, user, taskId))) return recordNotFound()
 
   const { data, error } = await supabase
     .from('task_comments')
@@ -30,6 +32,9 @@ export async function POST(req: NextRequest) {
   const supabase = await createClient()
 
   const { taskId, content } = await req.json()
+  // Komentarz z zadania dokleja się do karty powiązanej z zadaniem, więc
+  // komentować może tylko ktoś, kto to zadanie w ogóle widzi.
+  if (!(await canAccessTask(supabase, user, taskId))) return recordNotFound()
 
   const { data: comment, error } = await supabase
     .from('task_comments')

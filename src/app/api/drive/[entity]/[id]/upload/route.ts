@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getSessionUser, unauthorized } from '@/lib/api-auth'
+import { canAccessEntity, recordNotFound } from '@/lib/record-access'
 import { driveConfigured, uploadFile, driveErrorMessage, driveNeedsReconnect, type DriveFile } from '@/lib/drive'
 import { getEntityFolderId, isInsideFolder, type DriveEntity } from '@/lib/driveEntities'
 
@@ -25,6 +26,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ent
   }
 
   const supabase = await createClient()
+  if (!(await canAccessEntity(supabase, user, entity, id))) return recordNotFound()
+
   const res = await getEntityFolderId(supabase, entity as DriveEntity, id)
   if ('error' in res) return NextResponse.json({ error: res.error }, { status: res.status })
   if (!res.folderId) return NextResponse.json({ error: 'Najpierw utwórz połączenie z Drive' }, { status: 400 })

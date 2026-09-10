@@ -3,13 +3,15 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getSessionUser, unauthorized, forbidden } from '@/lib/api-auth'
 import { userCanSeeInvestors } from '@/lib/access'
+import { canAccessProperty, recordNotFound } from '@/lib/record-access'
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string; investorId: string }> }) {
   const user = await getSessionUser()
   if (!user) return unauthorized()
   const supabase = await createClient()
   if (!(await userCanSeeInvestors(supabase, user.id, user.role))) return forbidden()
-  const { investorId } = await params
+  const { id, investorId } = await params
+  if (!(await canAccessProperty(supabase, user, id))) return recordNotFound()
 
   const { status, offer_amount } = await req.json()
   if (status === undefined && offer_amount === undefined) {
@@ -30,7 +32,8 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   if (!user) return unauthorized()
   const supabase = await createClient()
   if (!(await userCanSeeInvestors(supabase, user.id, user.role))) return forbidden()
-  const { investorId } = await params
+  const { id, investorId } = await params
+  if (!(await canAccessProperty(supabase, user, id))) return recordNotFound()
 
   const { error } = await supabase.from('property_investors').delete().eq('id', investorId)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

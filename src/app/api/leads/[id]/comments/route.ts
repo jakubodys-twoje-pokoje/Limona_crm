@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getSessionUser, unauthorized } from '@/lib/api-auth'
+import { canAccessLead, recordNotFound } from '@/lib/record-access'
 import { notifyCardActivity } from '@/lib/notify'
 
 const SELECT_WITH_USER = '*, user:profiles!lead_comments_user_id_fkey(id,full_name,avatar_url)'
@@ -11,6 +12,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   if (!user) return unauthorized()
   const supabase = await createClient()
   const { id } = await params
+  if (!(await canAccessLead(supabase, user, id))) return recordNotFound()
 
   const { data, error } = await supabase
     .from('lead_comments')
@@ -27,6 +29,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!user) return unauthorized()
   const supabase = await createClient()
   const { id } = await params
+  if (!(await canAccessLead(supabase, user, id))) return recordNotFound()
 
   const { content } = await req.json()
   if (!content?.trim()) return NextResponse.json({ error: 'content required' }, { status: 400 })

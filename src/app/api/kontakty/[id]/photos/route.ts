@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getSessionUser, unauthorized } from '@/lib/api-auth'
+import { canAccessKontakt, recordNotFound } from '@/lib/record-access'
 
 const BUCKET = 'kontakt-zdjecia'
 const MAX_PHOTOS = 5
@@ -19,6 +20,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!user) return unauthorized()
   const supabase = await createClient()
   const { id } = await params
+  if (!(await canAccessKontakt(supabase, user, id))) return recordNotFound()
 
   const { data: existing } = await supabase.from('kontakty').select('zdjecia').eq('id', id).maybeSingle()
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
@@ -59,6 +61,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   if (!user) return unauthorized()
   const supabase = await createClient()
   const { id } = await params
+  if (!(await canAccessKontakt(supabase, user, id))) return recordNotFound()
 
   const { url } = await req.json()
   if (!url) return NextResponse.json({ error: 'url required' }, { status: 400 })
